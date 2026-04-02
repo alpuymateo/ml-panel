@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:developers.mercadolibre.com.ar)",
+      "Bash(curl -s http://localhost:3000/api/stock)",
+      "Bash(node:*)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(node -e \"require\\(''''./index.js''''\\)\")",
+      "WebSearch",
+      "WebFetch(domain:global-selling.mercadolibre.com)",
+      "WebFetch(domain:developers.mercadolibre.com.bo)",
+      "WebFetch(domain:rollout.com)"
+    ]
+  }
+}
