@@ -68,6 +68,16 @@
       text-transform: uppercase; color: rgba(255,255,255,0.25);
       padding: 14px 20px 4px; margin-top: 4px;
     }
+    .nav-group-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 20px; color: rgba(255,255,255,0.7);
+      cursor: pointer; font-size: 13px; font-weight: 600;
+      border-left: 3px solid transparent; transition: all 0.15s;
+    }
+    .nav-group-header:hover { color: white; background: rgba(255,255,255,0.05); }
+    .nav-group-header .arrow { font-size: 10px; transition: transform 0.2s; }
+    .nav-group-items .nav-item { padding-left: 36px; font-size: 13px;
+    }
 
     .sidebar-user {
       padding: 16px 20px;
@@ -336,81 +346,123 @@
     </div>
     <nav class="sidebar-nav" style="overflow-y:auto;flex:1;">
 
-      <div class="nav-section-label">Ventas</div>
-      <div class="nav-item active" data-page="ventas" onclick="showPage('ventas')">
-        <span class="nav-icon">📊</span> Dashboard
+      <!-- Ventas -->
+      <div class="nav-group-header" onclick="toggleNavGroup('nav-ventas')">
+        <span>📊 Ventas</span>
+        <span class="arrow" id="arrow-nav-ventas">▼</span>
       </div>
-      <div class="nav-item" data-page="ordenes" onclick="showPage('ordenes')">
-        <span class="nav-icon">📦</span> Órdenes
-      </div>
-      <div class="nav-item" data-page="dashboard" onclick="showPage('dashboard')">
-        <span class="nav-icon">📈</span> Estadísticas
-      </div>
-
-      <div class="nav-section-label">Inventario</div>
-      <div class="nav-item" data-page="stock" onclick="showPage('stock')">
-        <span class="nav-icon">🗃️</span> Stock
-      </div>
-      <div class="nav-item" data-page="previsiones" onclick="showPage('previsiones')">
-        <span class="nav-icon">🔮</span> Previsiones
-      </div>
-      <div class="nav-item" data-page="precios" onclick="showPage('precios')">
-        <span class="nav-icon">💲</span> Precios
+      <div class="nav-group-items" id="nav-ventas">
+        <div class="nav-item active" data-page="ventas" onclick="showPage('ventas')">
+          <span class="nav-icon">📊</span> Dashboard
+        </div>
+        <div class="nav-item" data-page="ordenes" onclick="showPage('ordenes')">
+          <span class="nav-icon">📦</span> Órdenes
+        </div>
+        <div class="nav-item" data-page="dashboard" onclick="showPage('dashboard')">
+          <span class="nav-icon">📈</span> Estadísticas
+        </div>
       </div>
 
-      <div class="nav-section-label">Posventa</div>
-      <div class="nav-item" data-page="reclamos" onclick="showPage('reclamos')">
-        <span class="nav-icon">⚠️</span> Reclamos
+      <!-- Inventario -->
+      <div class="nav-group-header" onclick="toggleNavGroup('nav-inventario')">
+        <span>📦 Inventario</span>
+        <span class="arrow" id="arrow-nav-inventario">▶</span>
       </div>
-      <div class="nav-item" data-page="devoluciones" onclick="showPage('devoluciones')">
-        <span class="nav-icon">↩️</span> Devoluciones
-      </div>
-      <div class="nav-item" data-page="tareas" onclick="showPage('tareas')">
-        <span class="nav-icon">✅</span> Tareas
-      </div>
-
-      <div class="nav-section-label">Mayorista</div>
-      <div class="nav-item" data-page="catalogo" onclick="showPage('catalogo')">
-        <span class="nav-icon">🏪</span> Catálogo
-      </div>
-      <div class="nav-item" data-page="pedidos-may" onclick="showPage('pedidos-may')">
-        <span class="nav-icon">📋</span> Pedidos
-      </div>
-      <div class="nav-item" onclick="openCotizacionModal()" style="color:#10b981;">
-        <span class="nav-icon">📷</span> Nueva cotización
+      <div class="nav-group-items" id="nav-inventario" style="display:none;">
+        <div class="nav-item" data-page="stock" onclick="showPage('stock')">
+          <span class="nav-icon">🗃️</span> Stock
+        </div>
+        <div class="nav-item" data-page="previsiones" onclick="showPage('previsiones')">
+          <span class="nav-icon">🔮</span> Previsiones
+        </div>
+        <div class="nav-item" data-page="precios" onclick="showPage('precios')">
+          <span class="nav-icon">💲</span> Precios
+        </div>
       </div>
 
-      <div class="nav-section-label">MercadoLibre</div>
-      <div class="nav-item" data-page="ml-sin-descuento" onclick="showPage('ml-sin-descuento')">
-        <span class="nav-icon">🏷️</span> Sin descuento
+      <!-- Posventa -->
+      <div class="nav-group-header" onclick="toggleNavGroup('nav-posventa')">
+        <span>✅ Posventa</span>
+        <span class="arrow" id="arrow-nav-posventa">▶</span>
       </div>
-      <div class="nav-item" data-page="ml-ofertas" onclick="showPage('ml-ofertas')">
-        <span class="nav-icon">⚡</span> Generar ofertas
-      </div>
-      <div class="nav-item" data-page="ml-analizar" onclick="showPage('ml-analizar')">
-        <span class="nav-icon">🔍</span> Analizar publicaciones
-      </div>
-      <div class="nav-item" data-page="ml-preguntas" onclick="showPage('ml-preguntas')">
-        <span class="nav-icon">💬</span> Preguntas
-      </div>
-      <div class="nav-item" data-page="ml-postventa" onclick="showPage('ml-postventa')">
-        <span class="nav-icon">📨</span> Post-venta
-      </div>
-      <div class="nav-item" data-page="ml-reglas" onclick="showPage('ml-reglas')">
-        <span class="nav-icon">⚙️</span> Reglas IA
+      <div class="nav-group-items" id="nav-posventa" style="display:none;">
+        <div class="nav-item" data-page="reclamos" onclick="showPage('reclamos')">
+          <span class="nav-icon">⚠️</span> Reclamos
+        </div>
+        <div class="nav-item" data-page="devoluciones" onclick="showPage('devoluciones')">
+          <span class="nav-icon">↩️</span> Devoluciones
+        </div>
+        <div class="nav-item" data-page="tareas" onclick="showPage('tareas')">
+          <span class="nav-icon">✅</span> Tareas
+        </div>
       </div>
 
-      <div class="nav-section-label">Integración</div>
-      <div class="nav-item" data-page="odoo" onclick="showPage('odoo')">
-        <span class="nav-icon">🟣</span> Odoo
+      <!-- Mayorista -->
+      <div class="nav-group-header" onclick="toggleNavGroup('nav-mayorista')">
+        <span>🛒 Mayorista</span>
+        <span class="arrow" id="arrow-nav-mayorista">▶</span>
       </div>
-      <div class="nav-item" data-page="odooml" onclick="showPage('odooml')">
-        <span class="nav-icon">🔗</span> Odoo – ML
+      <div class="nav-group-items" id="nav-mayorista" style="display:none;">
+        <div class="nav-item" data-page="catalogo" onclick="showPage('catalogo')">
+          <span class="nav-icon">🏪</span> Catálogo
+        </div>
+        <div class="nav-item" data-page="pedidos-may" onclick="showPage('pedidos-may')">
+          <span class="nav-icon">📋</span> Pedidos
+        </div>
+        <div class="nav-item" onclick="openCotizacionModal()" style="color:#10b981;">
+          <span class="nav-icon">📷</span> Nueva cotización
+        </div>
       </div>
 
-      <div class="nav-section-label admin-only" style="display:none;">Admin</div>
-      <div class="nav-item admin-only" data-page="usuarios" onclick="showPage('usuarios')" style="display:none;">
-        <span class="nav-icon">👥</span> Usuarios
+      <!-- MercadoLibre -->
+      <div class="nav-group-header" onclick="toggleNavGroup('nav-ml')">
+        <span>🟡 MercadoLibre</span>
+        <span class="arrow" id="arrow-nav-ml">▶</span>
+      </div>
+      <div class="nav-group-items" id="nav-ml" style="display:none;">
+        <div class="nav-item" data-page="ml-sin-descuento" onclick="showPage('ml-sin-descuento')">
+          <span class="nav-icon">🏷️</span> Sin descuento
+        </div>
+        <div class="nav-item" data-page="ml-ofertas" onclick="showPage('ml-ofertas')">
+          <span class="nav-icon">⚡</span> Generar ofertas
+        </div>
+        <div class="nav-item" data-page="ml-analizar" onclick="showPage('ml-analizar')">
+          <span class="nav-icon">🔍</span> Analizar publicaciones
+        </div>
+        <div class="nav-item" data-page="ml-preguntas" onclick="showPage('ml-preguntas')">
+          <span class="nav-icon">💬</span> Preguntas
+        </div>
+        <div class="nav-item" data-page="ml-postventa" onclick="showPage('ml-postventa')">
+          <span class="nav-icon">📨</span> Post-venta
+        </div>
+        <div class="nav-item" data-page="ml-reglas" onclick="showPage('ml-reglas')">
+          <span class="nav-icon">⚙️</span> Reglas IA
+        </div>
+      </div>
+
+      <!-- Integración -->
+      <div class="nav-group-header" onclick="toggleNavGroup('nav-integracion')">
+        <span>🔗 Integración</span>
+        <span class="arrow" id="arrow-nav-integracion">▶</span>
+      </div>
+      <div class="nav-group-items" id="nav-integracion" style="display:none;">
+        <div class="nav-item" data-page="odoo" onclick="showPage('odoo')">
+          <span class="nav-icon">🟣</span> Odoo
+        </div>
+        <div class="nav-item" data-page="odooml" onclick="showPage('odooml')">
+          <span class="nav-icon">🔗</span> Odoo – ML
+        </div>
+      </div>
+
+      <!-- Admin -->
+      <div class="nav-group-header admin-only" onclick="toggleNavGroup('nav-admin')" style="display:none;">
+        <span>👥 Admin</span>
+        <span class="arrow" id="arrow-nav-admin">▶</span>
+      </div>
+      <div class="nav-group-items admin-only" id="nav-admin" style="display:none;">
+        <div class="nav-item" data-page="usuarios" onclick="showPage('usuarios')">
+          <span class="nav-icon">👥</span> Usuarios
+        </div>
       </div>
 
     </nav>
@@ -1618,7 +1670,33 @@ const PAGES = ['ventas', 'ordenes', 'stock', 'reclamos', 'devoluciones', 'tareas
 // Páginas virtuales que reutilizan ml-analizar
 const ML_TAB_PAGES = { 'ml-preguntas': 'pendientes', 'ml-postventa': 'mensajes', 'ml-reglas': 'reglas' };
 
+function toggleNavGroup(id) {
+  const el = document.getElementById(id);
+  const arrow = document.getElementById('arrow-' + id);
+  if (el.style.display === 'none') { el.style.display = ''; if (arrow) arrow.textContent = '▼'; }
+  else { el.style.display = 'none'; if (arrow) arrow.textContent = '▶'; }
+}
+
+const navGroupMap = {
+  'nav-ventas': ['ventas','ordenes','dashboard'],
+  'nav-inventario': ['stock','previsiones','precios'],
+  'nav-posventa': ['reclamos','devoluciones','tareas'],
+  'nav-mayorista': ['catalogo','pedidos-may'],
+  'nav-ml': ['ml-sin-descuento','ml-ofertas','ml-analizar','ml-preguntas','ml-postventa','ml-reglas'],
+  'nav-integracion': ['odoo','odooml'],
+  'nav-admin': ['usuarios'],
+};
+
 function showPage(page) {
+  // Auto-open nav group
+  for (const [gid, pages] of Object.entries(navGroupMap)) {
+    if (pages.includes(page)) {
+      const el = document.getElementById(gid);
+      const arrow = document.getElementById('arrow-' + gid);
+      if (el) el.style.display = '';
+      if (arrow) arrow.textContent = '▼';
+    }
+  }
   // Close sidebar on mobile
   document.getElementById('sidebar')?.classList.remove('open');
   document.getElementById('sidebar-overlay')?.classList.remove('show');
