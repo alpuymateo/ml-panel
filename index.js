@@ -14,7 +14,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 
 const app = express();
 app.use(express.json({ limit: '25mb' }));
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // ── Sesiones (persistidas en disco) ──
 const SESSIONS_FILE = path.join(__dirname, 'data', 'sessions.json');
