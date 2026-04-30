@@ -7,17 +7,42 @@ const crypto   = require('crypto');
 const Anthropic = require('@anthropic-ai/sdk');
 const xmlrpc   = require('xmlrpc');
 const twilio   = require('twilio');
+const googleTrends = require('google-trends-api');
+const multer = require('multer');
+const XLSX = require('xlsx');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 const app = express();
 app.use(express.json({ limit: '25mb' }));
 const PORT = 3000;
 
-// ── Sesiones (definidas temprano para que requireToken pueda usarlas) ──
+// ── Sesiones (persistidas en disco) ──
+const SESSIONS_FILE = path.join(__dirname, 'data', 'sessions.json');
 const sessions = new Map();
+
+// Cargar sesiones de disco al arrancar
+try {
+  if (fs.existsSync(SESSIONS_FILE)) {
+    const saved = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'));
+    for (const [k, v] of Object.entries(saved)) {
+      if (v.expiresAt > Date.now()) sessions.set(k, v);
+    }
+    console.log(`[sessions] ${sessions.size} sesiones cargadas de disco`);
+  }
+} catch {}
+
+function saveSessions() {
+  try {
+    const obj = {};
+    for (const [k, v] of sessions) obj[k] = v;
+    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(obj), 'utf8');
+  } catch {}
+}
+
 function getSession(token) {
   const s = sessions.get(token);
   if (!s) return null;
-  if (s.expiresAt < Date.now()) { sessions.delete(token); return null; }
+  if (s.expiresAt < Date.now()) { sessions.delete(token); saveSessions(); return null; }
   return s;
 }
 
@@ -94,114 +119,114 @@ function saveMonthlyToDisk() {
   } catch(e) { console.error('[historico] error guardando cache:', e.message); }
 }
 
-function getLast3YearsMonths() {
+const syncLogs = [];
+function syncLog(msg) {
+  console.log(msg);
+  syncLogs.push({ time: new Date().toISOString(), msg });
+  if (syncLogs.length > 200) syncLogs.shift();
+}
+
+function getAllMonthsSince2015() {
   const now = new Date();
   const months = [];
-  for (let i = 35; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+  const start = new Date(2015, 0, 1);
+  const d = new Date(start);
+  while (d <= now) {
     months.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
+    d.setMonth(d.getMonth() + 1);
   }
   return months;
 }
 
-// Barrido completo usando scroll cursor (sin límite de offset).
-// ML devuelve un scroll_id nuevo en cada respuesta; lo usamos como cursor.
+// Barrido completo mes a mes usando paginación por fecha.
 async function runSync(force = false) {
   if (syncState.running) return;
 
-  const headers     = { Authorization: `Bearer ${tokenData.access_token}` };
-  const uid         = tokenData.user_id;
-  const threeYrsAgo = new Date();
-  threeYrsAgo.setFullYear(threeYrsAgo.getFullYear() - 3);
+  const headers = { Authorization: `Bearer ${tokenData.access_token}` };
+  const uid = tokenData.user_id;
 
-  if (!force) {
-    const now     = new Date();
-    const current = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
-    const pending = getLast3YearsMonths().filter(({ year, month }) => {
-      const key = `${year}-${pad(month)}`;
-      return !monthlyStats[key] || key === current;
-    });
-    if (!pending.length) { syncState.done = true; return; }
-  }
+  // Determinar qué meses faltan
+  const now = new Date();
+  const currentKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+  const allMonths = getAllMonthsSince2015();
+  const pending = force
+    ? allMonths
+    : allMonths.filter(({ year, month }) => {
+        const key = `${year}-${pad(month)}`;
+        return !monthlyStats[key] || key === currentKey;
+      });
 
-  console.log(`[historico] iniciando scroll completo (force=${force})`);
-  syncState = { running: true, done: false, progress: 0, total: null, currentMonth: null, error: null };
+  if (!pending.length) { syncState.done = true; return; }
 
-  const sweep    = {};
-  let fetched    = 0;
-  let page       = 0;
-  let scrollId   = null;
+  syncLog(`[historico] iniciando sync de ${pending.length} meses (force=${force})`);
+  syncState = { running: true, done: false, progress: 0, total: pending.length, currentMonth: null, error: null };
 
-  while (true) {
-    let r;
-    try {
-      // scan no soporta sort → devuelve en orden interno (cronológico ascendente)
-      // no cortamos por fecha, dejamos correr hasta el final
-      const params = { seller: uid, limit: 50, search_type: 'scan' };
-      if (scrollId) params.scroll_id = scrollId;
-
-      r = await axios.get(`${ML_API_URL}/orders/search`, { headers, params });
-    } catch(e) {
-      console.error(`[historico] error pág ${page}:`, e.message);
-      break;
-    }
-
-    const results    = r.data.results || [];
-    const nextScroll = r.data.scroll_id;
-    page++;
-
-    if (syncState.total === null) syncState.total = r.data.paging?.total || 0;
-
-    for (const order of results) {
-      const d = new Date(order.date_created);
-      if (d < threeYrsAgo) continue; // filtrar viejos pero no parar
-      const key = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}`;
-      if (!sweep[key]) sweep[key] = [];
-      sweep[key].push(order);
-      fetched++;
-    }
-
-    const lastDate = results.length ? new Date(results[results.length - 1].date_created) : null;
-    syncState.progress     = page * 50;
-    syncState.currentMonth = lastDate
-      ? `${lastDate.getUTCFullYear()}-${pad(lastDate.getUTCMonth() + 1)}`
-      : null;
-
-    // Log cada 10 páginas + resumen de meses acumulados
-    if (page % 10 === 0 || page === 1) {
-      const meses = Object.entries(sweep)
-        .sort(([a], [b]) => b.localeCompare(a))
-        .slice(0, 5)
-        .map(([k, v]) => `${k}(${v.length})`)
-        .join(' ');
-      console.log(`[historico] pág ${page} | ${fetched} órdenes | último: ${lastDate?.toISOString().slice(0,10) || '?'} | meses: ${meses || '—'}`);
-    }
-
-    if (!results.length || !nextScroll) break;
-    scrollId = nextScroll;
-    await sleep(300);
-  }
-
-  // Computar stats por mes
   const PAID = new Set(['paid', 'confirmed']);
-  for (const [key, orders] of Object.entries(sweep)) {
-    const paid = orders.filter(o => PAID.has(o.status));
+  let totalFetched = 0;
+
+  for (let mi = 0; mi < pending.length; mi++) {
+    const { year, month } = pending[mi];
+    const key = `${year}-${pad(month)}`;
+    syncState.currentMonth = key;
+    syncState.progress = mi;
+
+    const from = `${year}-${pad(month)}-01T00:00:00.000-03:00`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const to = `${year}-${pad(month)}-${pad(lastDay)}T23:59:59.000-03:00`;
+
+    let allOrders = [];
+    let offset = 0;
+
+    while (true) {
+      try {
+        const r = await axios.get(`${ML_API_URL}/orders/search`, {
+          headers,
+          params: {
+            seller: uid, limit: 50, offset, sort: 'date_desc',
+            'order.date_created.from': from,
+            'order.date_created.to': to,
+          }
+        });
+        const results = r.data.results || [];
+        allOrders = allOrders.concat(results);
+        offset += 50;
+        if (results.length < 50) break;
+        await sleep(200);
+      } catch(e) {
+        console.error(`[historico] error ${key} offset ${offset}:`, e.response?.status || e.message);
+        break;
+      }
+    }
+
+    if (!allOrders.length && year < now.getFullYear() - 1) {
+      // Mes sin órdenes y antiguo, no guardar para no llenar de ceros
+      continue;
+    }
+
+    const paid = allOrders.filter(o => PAID.has(o.status));
     const by_status = {};
-    for (const o of orders) by_status[o.status] = (by_status[o.status] || 0) + 1;
+    for (const o of allOrders) by_status[o.status] = (by_status[o.status] || 0) + 1;
+
     monthlyStats[key] = {
-      count:       orders.length,
-      revenue:     paid.reduce((s, o) => s + (o.total_amount || 0), 0),
-      units:       paid.reduce((s, o) => s + (o.order_items||[]).reduce((q, oi) => q + (oi.quantity||1), 0), 0),
+      count: allOrders.length,
+      revenue: paid.reduce((s, o) => s + (o.total_amount || 0), 0),
+      units: paid.reduce((s, o) => s + (o.order_items || []).reduce((q, oi) => q + (oi.quantity || 1), 0), 0),
       by_status,
       lastFetched: new Date().toISOString(),
     };
-    console.log(`[historico] ${key} — ${monthlyStats[key].count} órdenes, $${Math.round(monthlyStats[key].revenue).toLocaleString('es-UY')}`);
+
+    totalFetched += allOrders.length;
+    syncLog(`[historico] ${key} — ${allOrders.length} órdenes, $${Math.round(monthlyStats[key].revenue).toLocaleString('es-UY')}`);
+
+    // Guardar a disco cada 6 meses para no perder progreso
+    if (mi % 6 === 5) saveMonthlyToDisk();
   }
 
   saveMonthlyToDisk();
-  console.log(`[historico] scroll completo — ${fetched} órdenes, ${Object.keys(sweep).length} meses cubiertos`);
+  syncLog(`[historico] ✅ sync completo — ${totalFetched} órdenes, ${Object.keys(monthlyStats).length} meses`);
   syncState.running = false;
-  syncState.done    = true;
+  syncState.done = true;
+  syncState.progress = pending.length;
   syncState.currentMonth = null;
 }
 
@@ -303,7 +328,7 @@ app.get('/api/sync', requireToken, (req, res) => {
 
 // GET /api/sync/status
 app.get('/api/sync/status', requireToken, (req, res) => {
-  res.json({ ...syncState, cached: Object.keys(monthlyStats).length });
+  res.json({ ...syncState, cached: Object.keys(monthlyStats).length, logs: syncLogs.slice(-30) });
 });
 
 // GET /api/ordenes — siempre desde ML en tiempo real con paginación
@@ -689,11 +714,12 @@ async function refreshStockCache(forceRefresh = false) {
         sku: (item.attributes || []).find(a => a.id === 'SELLER_SKU')?.value_name
           || (item.attributes || []).find(a => a.id === 'SELLER_SKU')?.values?.[0]?.name
           || null,
-        variation_skus: (item.variations || []).map(v =>
-          (v.attributes || []).find(a => a.id === 'SELLER_SKU')?.value_name
-          || (v.attributes || []).find(a => a.id === 'SELLER_SKU')?.values?.[0]?.name
-          || null
-        ).filter(Boolean),
+        variations: (item.variations || []).map(v => ({
+          id: v.id,
+          name: (v.attribute_combinations || []).map(a => a.value_name).join(', '),
+          stock: v.available_quantity || 0,
+          sku: (v.attributes || []).find(a => a.id === 'SELLER_SKU')?.value_name || null,
+        })),
         original_price:  item.original_price || null,
         logistic_type:   item.shipping?.logistic_type || null,
         shipping_mode:   item.shipping?.mode || null,
@@ -1348,7 +1374,7 @@ const ODOO_API_KEY = process.env.ODOO_API_KEY;
 
 function odooCall(path, method, params) {
   return new Promise((resolve, reject) => {
-    const client = xmlrpc.createSecureClient({ host: ODOO_HOST, path });
+    const client = xmlrpc.createClient({ host: ODOO_HOST, port: 80, path });
     client.methodCall(method, params, (err, val) => err ? reject(err) : resolve(val));
   });
 }
@@ -1398,7 +1424,7 @@ async function getOdooProducts(force = false) {
   if (!force && odooCache && odooCache.length > 0) return odooCache;
   const uid = await odooAuth();
   const products = await odooSearchRead(uid, 'product.product', [['active', '=', true]], [
-    'name', 'default_code', 'list_price', 'standard_price', 'categ_id', 'taxes_id', 'uom_id', 'x_studio_producto_mayorista', 'qty_available',
+    'name', 'default_code', 'list_price', 'standard_price', 'categ_id', 'taxes_id', 'uom_id', 'x_studio_producto_mayorista', 'qty_available', 'image_128',
   ]);
   odooCache     = products;
   odooCacheTime = Date.now();
@@ -1478,16 +1504,104 @@ app.get('/api/odoo/productos', async (req, res) => {
   try {
     const products = await getOdooProducts(req.query.refresh === 'true');
 
+    // Traer ventas de los últimos 6 meses por producto, mes Y canal
+    let salesByProduct = {};     // product_id -> total qty
+    let salesByProductMonth = {}; // product_id -> { 'YYYY-MM': qty }
+    let salesByChannel = {};     // product_id -> { ml: { 'YYYY-MM': qty }, mayorista: {...}, local: {...} }
+    let salesMonths = [];
+    const monthNames = { enero:'01',febrero:'02',marzo:'03',abril:'04',mayo:'05',junio:'06',julio:'07',agosto:'08',septiembre:'09',setiembre:'09',octubre:'10',noviembre:'11',diciembre:'12',
+      january:'01',february:'02',march:'03',april:'04',may:'05',june:'06',july:'07',august:'08',september:'09',october:'10',november:'11',december:'12' };
+
+    function parseOdooMonth(str) {
+      const parts = (str || '').toLowerCase().split(' ');
+      if (parts.length !== 2) return null;
+      const mm = monthNames[parts[0]];
+      return mm ? parts[1] + '-' + mm : null;
+    }
+
+    try {
+      const uid = await odooAuth();
+      if (uid) {
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 12);
+        const dateFrom = sixMonthsAgo.toISOString().slice(0, 10);
+        const monthSet = new Set();
+
+        // ML: salesman_id = 2 (Mateo)
+        const mlSales = await odooCall('/xmlrpc/2/object', 'execute_kw', [
+          ODOO_DB, uid, ODOO_API_KEY, 'sale.order.line', 'read_group',
+          [[['create_date', '>=', dateFrom], ['state', 'in', ['sale', 'done']], ['salesman_id', '=', 2]]],
+          { fields: ['product_id', 'product_uom_qty', 'create_date'], groupby: ['product_id', 'create_date:month'], lazy: false }
+        ]);
+
+        // Mayorista: salesman_id in [17, 18]
+        const maySales = await odooCall('/xmlrpc/2/object', 'execute_kw', [
+          ODOO_DB, uid, ODOO_API_KEY, 'sale.order.line', 'read_group',
+          [[['create_date', '>=', dateFrom], ['state', 'in', ['sale', 'done']], ['salesman_id', 'in', [17, 18]]]],
+          { fields: ['product_id', 'product_uom_qty', 'create_date'], groupby: ['product_id', 'create_date:month'], lazy: false }
+        ]);
+
+        // POS (local)
+        const posSales = await odooCall('/xmlrpc/2/object', 'execute_kw', [
+          ODOO_DB, uid, ODOO_API_KEY, 'pos.order.line', 'read_group',
+          [[['create_date', '>=', dateFrom]]],
+          { fields: ['product_id', 'qty', 'create_date'], groupby: ['product_id', 'create_date:month'], lazy: false }
+        ]);
+
+        function processSales(data, channel, qtyField) {
+          for (const r of data) {
+            if (!r.product_id) continue;
+            const pid = r.product_id[0];
+            const qty = r[qtyField] || 0;
+            const key = parseOdooMonth(r['create_date:month']);
+            if (!key) continue;
+            monthSet.add(key);
+            // Total
+            salesByProduct[pid] = (salesByProduct[pid] || 0) + qty;
+            if (!salesByProductMonth[pid]) salesByProductMonth[pid] = {};
+            salesByProductMonth[pid][key] = (salesByProductMonth[pid][key] || 0) + qty;
+            // By channel
+            if (!salesByChannel[pid]) salesByChannel[pid] = { ml: {}, mayorista: {}, local: {} };
+            salesByChannel[pid][channel][key] = (salesByChannel[pid][channel][key] || 0) + qty;
+          }
+        }
+
+        processSales(mlSales, 'ml', 'product_uom_qty');
+        processSales(maySales, 'mayorista', 'product_uom_qty');
+        processSales(posSales, 'local', 'qty');
+
+        salesMonths = [...monthSet].sort();
+      }
+    } catch(e) { console.error('[odoo] error ventas:', e.message); }
+
+    // Compras en camino por SKU
+    const compras = loadCompras();
+    const incomingBySku = {};
+    const incomingDetailBySku = {};
+    for (const c of compras) {
+      for (const it of (c.items || [])) {
+        if (!it.sku) continue;
+        incomingBySku[it.sku] = (incomingBySku[it.sku] || 0) + (parseInt(it.qty) || 0);
+        if (!incomingDetailBySku[it.sku]) incomingDetailBySku[it.sku] = [];
+        incomingDetailBySku[it.sku].push({ qty: parseInt(it.qty) || 0, date: c.expected_date, supplier: c.supplier });
+      }
+    }
+
     // Índice ML por SKU para cruzar stock (incluye variantes)
     const mlMap = buildMlSkuMap();
 
     // Agrupar por categoría
     const byCategory = {};
+    const skipNames = ['mercado envios', 'self_service', 'drop_off', 'default', 'cross_docking', 'fulfillment'];
     for (const p of products) {
+      const nameLower = (p.name || '').toLowerCase();
+      if (skipNames.some(s => nameLower.includes(s))) continue;
+      if (p.type === 'service') continue;
       const cat = Array.isArray(p.categ_id) ? p.categ_id[1] : (p.categ_id || 'Sin categoría');
       if (!byCategory[cat]) byCategory[cat] = [];
       const sku = p.default_code || '';
       const ml = mlMap[sku.trim()] || null;
+      const sold6m = salesByProduct[p.id] || 0;
       byCategory[cat].push({
         id:        p.id,
         name:      p.name,
@@ -1495,10 +1609,17 @@ app.get('/api/odoo/productos', async (req, res) => {
         price:     p.list_price,
         cost:      p.standard_price ?? 0,
         stock:     p.qty_available ?? 0,
+        sold_6m:      sold6m,
+        sold_avg_month: Math.round(sold6m / 6 * 10) / 10,
+        sales_by_month: salesByProductMonth[p.id] || {},
+        sales_by_channel: salesByChannel[p.id] || { ml: {}, mayorista: {}, local: {} },
         ml_stock:     ml ? ml.stock     : null,
         ml_price:     ml ? ml.price     : null,
         ml_status:    ml ? ml.status    : null,
         ml_thumbnail: ml ? upgradeMlThumb(ml.thumbnail) : null,
+        odoo_image: p.image_128 ? `data:image/png;base64,${p.image_128}` : null,
+        incoming: incomingBySku[sku.trim()] || 0,
+        incoming_detail: incomingDetailBySku[sku.trim()] || [],
         categ:     cat,
         uom_id:    p.uom_id,
         tax_ids:   p.taxes_id || [],
@@ -1512,7 +1633,7 @@ app.get('/api/odoo/productos', async (req, res) => {
         name,
         items: items.sort((a, b) => a.name.localeCompare(b.name, 'es')),
       }));
-    res.json({ categories, total: products.length, savedAt: new Date().toISOString() });
+    res.json({ categories, total: products.length, salesMonths, savedAt: new Date().toISOString() });
   } catch (err) {
     console.error('[odoo] error productos:', err.message);
     res.status(500).json({ error: err.message });
@@ -2052,7 +2173,8 @@ function saveUsers(data) {
 
 function createSession(userId) {
   const token = crypto.randomBytes(32).toString('hex');
-  sessions.set(token, { userId, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+  sessions.set(token, { userId, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+  saveSessions();
   return token;
 }
 function requireUser(req, res, next) {
@@ -3516,7 +3638,13 @@ app.get('/api/previsiones', requireToken, (req, res) => {
         const targetStock = reorder_point_days * item.daily_rate;
         days_until_order = Math.round((stockWithIncoming - targetStock) / item.daily_rate);
 
-        if (days_until_order <= 0) {
+        if (item.stock === 0 && totalIncoming > 0) {
+          // Sin stock pero ya tiene pedido en camino
+          status = 'sin_stock_en_camino';
+        } else if (days_until_order <= 0 && totalIncoming > 0) {
+          // Necesita más pero ya tiene algo en camino
+          status = 'en_camino';
+        } else if (days_until_order <= 0) {
           status = 'pedir_ya';
           should_order = true;
         } else if (days_until_order <= 7) {
@@ -3529,8 +3657,8 @@ app.get('/api/previsiones', requireToken, (req, res) => {
       } else if (item.stock === 0 && totalIncoming === 0) {
         status = 'sin_stock';
         should_order = true;
-      } else if (item.stock === 0) {
-        status = 'sin_stock_con_entrante';
+      } else if (item.stock === 0 && totalIncoming > 0) {
+        status = 'sin_stock_en_camino';
       } else {
         status = 'sin_ventas';
       }
@@ -3541,6 +3669,7 @@ app.get('/api/previsiones', requireToken, (req, res) => {
         thumbnail:            item.thumbnail,
         permalink:            item.permalink,
         sku:                  item.sku,
+        variations:           item.variations || [],
         stock:                item.stock,
         sold30d:              item.sold30d,
         daily_rate:           item.daily_rate,
@@ -3558,7 +3687,7 @@ app.get('/api/previsiones', requireToken, (req, res) => {
     });
 
   // Ordenar: pedir_ya → pedir_pronto → atención → sin_stock → ok → sin_ventas
-  const ORDER = { pedir_ya: 0, sin_stock: 1, pedir_pronto: 2, sin_stock_con_entrante: 3, atención: 4, ok: 5, sin_ventas: 6 };
+  const ORDER = { pedir_ya: 0, sin_stock: 1, pedir_pronto: 2, sin_stock_en_camino: 3, sin_stock_con_entrante: 3, en_camino: 4, atención: 5, ok: 6, sin_ventas: 7 };
   items.sort((a, b) => (ORDER[a.status] ?? 9) - (ORDER[b.status] ?? 9) || (a.days_until_order ?? 9999) - (b.days_until_order ?? 9999));
 
   res.json({ items, total: items.length, lastUpdated: stockLastUpdate });
@@ -3571,6 +3700,1981 @@ app.get('/api/debug/shipment/:id', requireToken, async (req, res) => {
     });
     res.json(r.data);
   } catch(e) { res.status(500).json({ error: e.response?.data || e.message }); }
+});
+
+// ── Oportunidades personalizadas ──
+
+app.get('/api/oportunidades/para-mi', requireToken, async (req, res) => {
+  if (!anthropic) return res.status(500).json({ error: 'Anthropic API no configurada' });
+
+  try {
+    // 1. Analizar catálogo actual: categorías top y productos más vendidos
+    const stockData = cachedStock || [];
+    const catSales = {};
+    const topProducts = [];
+
+    stockData.forEach(i => {
+      const cat = i.category_name || 'Sin categoría';
+      if (!catSales[cat]) catSales[cat] = { ventas: 0, items: 0, revenue: 0, titles: [] };
+      catSales[cat].ventas += i.sold30d || 0;
+      catSales[cat].items++;
+      catSales[cat].revenue += (i.sold30d || 0) * (i.price || 0);
+      if (catSales[cat].titles.length < 3 && (i.sold30d || 0) > 10) {
+        catSales[cat].titles.push(i.title);
+      }
+    });
+
+    const topCats = Object.entries(catSales)
+      .sort((a, b) => b[1].ventas - a[1].ventas)
+      .slice(0, 10)
+      .map(([name, d]) => ({ name, ...d }));
+
+    const bestSellers = [...stockData]
+      .filter(i => (i.sold30d || 0) > 20)
+      .sort((a, b) => (b.sold30d || 0) - (a.sold30d || 0))
+      .slice(0, 20)
+      .map(i => ({ title: i.title, sold30d: i.sold30d, price: i.price, category: i.category_name }));
+
+    // 2. Consultar Google Trends para las categorías top (en inglés para Amazon)
+    const catKeywords = {
+      'Estanterías': 'floating shelves',
+      'Alfombras y Carpetas': 'shaggy rug',
+      'Otras Lámparas': 'himalayan salt lamp',
+      'Mesas de Luz': 'nightstand',
+      'Lámparas de Pie': 'floor lamp',
+      'Frascos y Tarros': 'airtight food containers',
+      'Alambrados': 'welded wire mesh',
+      'Para Techo': 'pendant light',
+      'Roperos': 'wardrobe closet',
+      'Canastos de mimbre': 'woven storage basket',
+    };
+
+    const trendsData = {};
+    for (const cat of topCats.slice(0, 5)) {
+      const kw = catKeywords[cat.name] || cat.name;
+      try {
+        const raw = await googleTrends.interestOverTime({
+          keyword: kw,
+          startTime: new Date(Date.now() - 12 * 30 * 24 * 60 * 60 * 1000),
+          geo: 'US'
+        });
+        const data = JSON.parse(raw);
+        const points = data.default?.timelineData || [];
+        const values = points.map(t => t.value[0]);
+        const avg = values.reduce((a, b) => a + b, 0) / values.length;
+        const current = values[values.length - 1] || 0;
+        const trend = current > avg * 1.2 ? 'subiendo' : current < avg * 0.7 ? 'bajando' : 'estable';
+        trendsData[cat.name] = { keyword: kw, current, avg: Math.round(avg), trend, values };
+      } catch {}
+    }
+
+    // 3. Pedir a Claude oportunidades basadas en el catálogo real
+    const catalogoResumen = topCats.slice(0, 8).map(c =>
+      `- ${c.name}: ${c.ventas} ventas/mes, ${c.items} productos, $${Math.round(c.revenue/1000)}k revenue. Ejemplos: ${c.titles.slice(0,2).join(', ')}`
+    ).join('\n');
+
+    const bestSellersResumen = bestSellers.slice(0, 10).map(b =>
+      `- ${b.title} (${b.sold30d} ventas/mes, $${b.price})`
+    ).join('\n');
+
+    const trendsResumen = Object.entries(trendsData).map(([cat, t]) =>
+      `- ${cat} ("${t.keyword}"): tendencia ${t.trend}, actual ${t.current}/100, promedio ${t.avg}/100`
+    ).join('\n');
+
+    const prompt = `Sos un experto en e-commerce para Uruguay/Latinoamérica. Analizá este catálogo real de MUNDO SHOP en MercadoLibre Uruguay y sugerí oportunidades de productos para importar de China.
+
+CATÁLOGO ACTUAL (categorías con más ventas en los últimos 30 días):
+${catalogoResumen}
+
+PRODUCTOS MÁS VENDIDOS:
+${bestSellersResumen}
+
+TENDENCIAS GOOGLE (interés actual en USA):
+${trendsResumen}
+
+PERFIL DEL NEGOCIO:
+- Vende decoración, hogar, iluminación, organización
+- Productos chicos y medianos, importados de China
+- Mercado: Uruguay (chico, 3.5M habitantes)
+- Precio promedio: $500-3000 UYU ($12-70 USD)
+
+Necesito que me sugieras 12 productos CONCRETOS divididos en 3 categorías:
+
+1. **AMPLIAR LO QUE YA FUNCIONA** (4 productos): variaciones o complementos de tus best sellers que no tenés todavía
+2. **TENDENCIAS EN ALZA** (4 productos): productos que están subiendo en tendencia y encajan con tu perfil de negocio
+3. **NICHOS SIN EXPLOTAR** (4 productos): productos que se venden bien en Amazon/otros mercados y tienen poca competencia en ML Uruguay
+
+Para cada producto:
+- Nombre EXACTO en inglés (para buscar en Amazon/AliExpress)
+- Nombre en español (como se vendería en ML Uruguay)
+- Precio estimado en Amazon USD
+- Por qué es buena oportunidad para ESTE negocio específicamente
+- Keywords de ML Uruguay (array de 3 búsquedas como las haría un uruguayo)
+
+Respondé SOLO con JSON:
+{
+  "ampliar": [
+    {
+      "nombre": "nombre en español",
+      "nombre_en": "exact English product name",
+      "precio_amazon_usd": 15.99,
+      "por_que": "razón específica para MUNDO SHOP",
+      "relacion": "qué producto actual complementa",
+      "keywords_ml": ["búsqueda 1", "búsqueda 2", "búsqueda 3"]
+    }
+  ],
+  "tendencias": [...],
+  "nichos": [...]
+}`;
+
+    const msg = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const text = msg.content.find(b => b.type === 'text')?.text || '{}';
+    let sugerencias = {};
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      sugerencias = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+    } catch { return res.status(500).json({ error: 'Error parseando respuesta de IA' }); }
+
+    // 4. Calcular rentabilidad para cada sugerencia
+    const tipoCambio = 42;
+    const procesarProducto = (p) => {
+      const precioChinaUsd = p.precio_amazon_usd * 0.3;
+      const costoUsd = precioChinaUsd * 1.5;
+      const costoUyu = costoUsd * tipoCambio;
+      const precioVentaMinimo = Math.round(costoUyu * 1.2745 / 0.8);
+      return {
+        ...p,
+        precio_china_est: Math.round(precioChinaUsd * 100) / 100,
+        costo_usd: Math.round(costoUsd * 100) / 100,
+        costo_uyu: Math.round(costoUyu),
+        precio_venta_minimo: precioVentaMinimo,
+        amazon_search: `https://www.amazon.com/s?k=${encodeURIComponent(p.nombre_en)}`,
+      };
+    };
+
+    const resultado = {
+      ampliar: (sugerencias.ampliar || []).map(procesarProducto),
+      tendencias: (sugerencias.tendencias || []).map(procesarProducto),
+      nichos: (sugerencias.nichos || []).map(procesarProducto),
+      contexto: {
+        top_categorias: topCats.slice(0, 5).map(c => ({ nombre: c.name, ventas: c.ventas })),
+        best_sellers: bestSellers.slice(0, 5).map(b => ({ titulo: b.title, ventas: b.sold30d })),
+        trends: trendsData,
+      },
+    };
+
+    res.json(resultado);
+  } catch(e) {
+    console.error('[para-mi]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Oportunidades de productos ──
+
+app.post('/api/oportunidades/buscar', requireToken, async (req, res) => {
+  if (!anthropic) return res.status(500).json({ error: 'Anthropic API no configurada' });
+  const { categoria, keywords } = req.body;
+  const query = keywords || categoria || 'hogar productos chicos útiles';
+
+  try {
+    // 1. Pedir a Claude productos trending de Amazon
+    const prompt = `Sos un experto en e-commerce y productos trending de Amazon USA.
+
+Necesito que me des exactamente 8 productos de la categoría "${query}" que cumplan TODOS estos criterios:
+- Son productos CHICOS y livianos (fácil de importar)
+- Son exitosos en Amazon USA (best sellers o trending)
+- Categoría: Hogar / Home & Kitchen
+- Precio en Amazon entre USD 5 y USD 40
+- Productos que tengan buena demanda y no sean demasiado genéricos
+- DEBEN ser productos REALES que existan en Amazon con su ASIN real
+
+Para cada producto respondé SOLO con un JSON array, sin texto extra:
+[
+  {
+    "nombre": "nombre del producto en español",
+    "nombre_en": "product name in English (exacto como aparece en Amazon)",
+    "descripcion": "descripción corta de 1 línea",
+    "asin": "B08XXXXX (el ASIN real del producto en Amazon)",
+    "precio_amazon_usd": 15.99,
+    "categoria_amazon": "Home & Kitchen > subcategoría",
+    "keywords_ml": ["búsqueda 1 corta y genérica", "búsqueda 2 alternativa", "búsqueda 3 con sinónimos"],
+    "keywords_amazon": "search terms to find this exact product on Amazon",
+    "rating_amazon": 4.5,
+    "reviews_amazon": 15000,
+    "por_que": "razón corta de por qué es buena oportunidad"
+  }
+]
+
+IMPORTANTE:
+- Solo devolvé el JSON, nada más
+- Precios y ASINs realistas de Amazon
+- keywords_ml DEBE ser un array de 3 formas DISTINTAS de buscar el producto en MercadoLibre URUGUAY. Usá palabras SIMPLES y CORTAS como buscaría un uruguayo (ej: "organizador cajones", "luz led sensor", "cepillo limpieza"). NO uses traducciones literales del inglés. Pensá en cómo se llama el producto en una ferretería o bazar de Uruguay.`;
+
+    const msg = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const text = msg.content.find(b => b.type === 'text')?.text || '[]';
+    let productos = [];
+    try {
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      productos = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    } catch { return res.status(500).json({ error: 'Error parseando respuesta de IA' }); }
+
+    // 2. Para cada producto, buscar competencia en ML Uruguay
+    const headers = { Authorization: `Bearer ${tokenData.access_token}` };
+    const resultados = [];
+
+    for (const prod of productos) {
+      // keywords_ml puede ser array o string
+      const searchTerms = Array.isArray(prod.keywords_ml) ? prod.keywords_ml : [prod.keywords_ml || prod.nombre];
+      let competencia = { total: 0, precio_min: null, precio_max: null, precio_promedio: null, vendedores: [], imagen: null };
+      let bestKeyword = searchTerms[0];
+
+      // Probar cada keyword y quedarse con la que da más resultados
+      for (const kw of searchTerms) {
+        try {
+          const sr = await axios.get(`${ML_API_URL}/sites/MLU/search`, {
+            params: { q: kw, limit: 10 },
+            headers,
+          });
+          const results = sr.data.results || [];
+          const total = sr.data.paging?.total || results.length;
+          if (total > competencia.total && results.length > 0) {
+            competencia.total = total;
+            bestKeyword = kw;
+            const precios = results.map(r => r.price).filter(p => p > 0);
+            competencia.precio_min = Math.min(...precios);
+            competencia.precio_max = Math.max(...precios);
+            competencia.precio_promedio = Math.round(precios.reduce((a, b) => a + b, 0) / precios.length);
+            competencia.imagen = results[0].thumbnail || null;
+            competencia.vendedores = results.slice(0, 5).map(r => ({
+              titulo: r.title,
+              precio: r.price,
+              vendidos: r.sold_quantity || 0,
+              permalink: r.permalink,
+              thumbnail: r.thumbnail || null,
+              seller: r.seller?.nickname,
+              envio_gratis: r.shipping?.free_shipping || false,
+            }));
+          }
+        } catch(e) {
+          console.log(`[oportunidades] ML search failed for "${kw}": ${e.response?.status || e.message}`);
+        }
+      }
+      prod.keyword_usada = bestKeyword;
+
+      // 3. Calcular rentabilidad
+      // Precio China ≈ 30% del precio Amazon, × 1.5 markup importación
+      const precioChinaUsd = prod.precio_amazon_usd * 0.3;
+      const costoUsd = precioChinaUsd * 1.5;
+      // Tipo de cambio aproximado (UYU por USD)
+      const tipoCambio = 42;
+      const costoUyu = costoUsd * tipoCambio;
+
+      // Precio venta necesario para margen 22.5% con ML 20% e IVA 22%
+      // precio_venta = costo / (1 - comision_ml - margen) → pero IVA es sobre la ganancia
+      // Simplificado: precio_venta = costo / (1 - 0.20) * 1.225
+      // O sea: lo que te queda después de ML es 80%, de eso necesitás cubrir costo + 22.5% margen + IVA
+      const comisionMl = 0.20;
+      const margenObj = 0.225;
+      const iva = 0.22;
+      // precio_neto (después de ML) = precio_venta * 0.80
+      // ganancia_bruta = precio_neto - costo
+      // ganancia_neta = ganancia_bruta / 1.22 (sacas IVA)
+      // margen = ganancia_neta / costo >= 0.225
+      // Entonces: (pv * 0.8 - costo) / 1.22 / costo = 0.225
+      // pv * 0.8 = costo + costo * 0.225 * 1.22
+      // pv * 0.8 = costo * (1 + 0.2745)
+      // pv = costo * 1.2745 / 0.8
+      const precioVentaMinimo = Math.round(costoUyu * 1.2745 / 0.8);
+
+      // Margen real si vendés al precio promedio del mercado
+      let margenReal = null;
+      let precioSugerido = precioVentaMinimo;
+      if (competencia.precio_promedio) {
+        const netoMl = competencia.precio_promedio * (1 - comisionMl);
+        const ganBruta = netoMl - costoUyu;
+        const ganNeta = ganBruta / (1 + iva);
+        margenReal = costoUyu > 0 ? Math.round((ganNeta / costoUyu) * 100) : 0;
+        // Sugerido: el menor entre el mínimo y el promedio de mercado
+        precioSugerido = Math.max(precioVentaMinimo, Math.round(competencia.precio_promedio * 0.95));
+      }
+
+      // Score de oportunidad (0-100)
+      let score = 50;
+      if (margenReal !== null) {
+        if (margenReal >= 30) score += 20;
+        else if (margenReal >= 20) score += 10;
+        else if (margenReal < 10) score -= 20;
+      }
+      if (competencia.total < 5) score += 15; // poca competencia
+      else if (competencia.total < 20) score += 5;
+      else if (competencia.total > 100) score -= 10;
+      if (prod.reviews_amazon > 10000) score += 10;
+      if (prod.rating_amazon >= 4.5) score += 5;
+      score = Math.max(0, Math.min(100, score));
+
+      // Links
+      const amazonUrl = prod.asin
+        ? `https://www.amazon.com/dp/${prod.asin}`
+        : `https://www.amazon.com/s?k=${encodeURIComponent(prod.keywords_amazon || prod.nombre_en)}`;
+      const imagen = competencia.imagen || null;
+
+      resultados.push({
+        ...prod,
+        amazon_url: amazonUrl,
+        imagen,
+        precio_china_usd: Math.round(precioChinaUsd * 100) / 100,
+        costo_usd: Math.round(costoUsd * 100) / 100,
+        costo_uyu: Math.round(costoUyu),
+        precio_venta_minimo: precioVentaMinimo,
+        precio_sugerido: precioSugerido,
+        margen_real: margenReal,
+        competencia,
+        score,
+      });
+    }
+
+    // Ordenar por score descendente
+    resultados.sort((a, b) => b.score - a.score);
+    res.json({ resultados, total: resultados.length });
+  } catch(e) {
+    console.error('[oportunidades]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Generar líneas de productos
+app.post('/api/oportunidades/lineas', requireToken, async (req, res) => {
+  if (!anthropic) return res.status(500).json({ error: 'Anthropic API no configurada' });
+
+  const lineas = [
+    { id: 'cocina', nombre: 'Organización cocina/hogar', emoji: '🏠', color: '#059669', keywords: 'kitchen organization home storage' },
+    { id: 'limpieza', nombre: 'Gadgets de limpieza', emoji: '🧹', color: '#2563eb', keywords: 'cleaning gadgets tools innovative' },
+    { id: 'led', nombre: 'Iluminación LED', emoji: '💡', color: '#d97706', keywords: 'LED lights sensor motion portable' },
+    { id: 'bano', nombre: 'Accesorios de baño', emoji: '🚿', color: '#7c3aed', keywords: 'bathroom accessories organizer modern' },
+  ];
+
+  const lineaId = req.body.linea; // opcional: generar solo una línea
+  const targetLineas = lineaId ? lineas.filter(l => l.id === lineaId) : lineas;
+
+  try {
+    const resultados = [];
+
+    for (const linea of targetLineas) {
+      const prompt = `Sos un experto en e-commerce especializado en productos exitosos de Amazon USA para revender en mercados emergentes.
+
+Necesito 6 productos REALES y EXITOSOS de Amazon USA para la línea "${linea.nombre}".
+
+REQUISITOS ESTRICTOS:
+- Productos CHICOS y livianos (menos de 500g, fácil de importar)
+- BEST SELLERS reales de Amazon con miles de reviews
+- Precio Amazon entre USD 8 y USD 35
+- Productos con demanda comprobada (alto volumen de ventas)
+- NO productos genéricos (tiene que tener algo diferencial/innovador)
+- Productos que se puedan encontrar en fabricantes chinos (AliExpress/1688)
+
+Para cada producto, dame el nombre EXACTO como aparece en Amazon en inglés para que el usuario pueda buscarlo directamente.
+
+Respondé SOLO con un JSON array:
+[
+  {
+    "nombre": "nombre en español",
+    "nombre_en": "EXACT Amazon product title or close match",
+    "descripcion": "qué es y por qué funciona (1 línea)",
+    "precio_amazon_usd": 14.99,
+    "rating": 4.7,
+    "reviews": 45000,
+    "peso_estimado_g": 200,
+    "por_que_exitoso": "razón concreta de por qué vende tanto",
+    "keywords_ml": ["búsqueda 1 corta", "búsqueda 2 alternativa", "búsqueda 3 sinónimos"],
+    "tip_importacion": "consejo práctico para importar este producto"
+  }
+]
+
+IMPORTANTE:
+- Solo JSON. Productos REALES. Nombres EXACTOS de Amazon.
+- keywords_ml DEBE ser un array de 3 formas DISTINTAS de buscar el producto en MercadoLibre URUGUAY. Usá palabras SIMPLES y CORTAS como buscaría un uruguayo en un bazar o ferretería (ej: "organizador cajones", "luz led sensor movimiento", "cepillo limpieza"). NO uses traducciones literales del inglés ni nombres técnicos.`;
+
+      const msg = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: prompt }],
+      });
+
+      const text = msg.content.find(b => b.type === 'text')?.text || '[]';
+      let productos = [];
+      try {
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        productos = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+      } catch { productos = []; }
+
+      // Calcular rentabilidad para cada producto
+      const tipoCambio = 42;
+      productos = productos.map(p => {
+        const precioChinaUsd = p.precio_amazon_usd * 0.3;
+        const costoUsd = precioChinaUsd * 1.5;
+        const costoUyu = costoUsd * tipoCambio;
+        const precioVentaMinimo = Math.round(costoUyu * 1.2745 / 0.8);
+        return {
+          ...p,
+          precio_china_est: Math.round(precioChinaUsd * 100) / 100,
+          costo_usd: Math.round(costoUsd * 100) / 100,
+          costo_uyu: Math.round(costoUyu),
+          precio_venta_minimo: precioVentaMinimo,
+          amazon_search: `https://www.amazon.com/s?k=${encodeURIComponent(p.nombre_en)}`,
+        };
+      });
+
+      resultados.push({ ...linea, productos });
+    }
+
+    res.json({ lineas: resultados });
+  } catch(e) {
+    console.error('[lineas]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Calculadora rápida de rentabilidad
+app.post('/api/oportunidades/calcular', requireToken, (req, res) => {
+  const { precio_ref_usd, tipo_cambio = 42, comision_ml = 0.20, iva = 0.22, margen_obj = 0.225, precio_venta_manual } = req.body;
+  if (!precio_ref_usd) return res.status(400).json({ error: 'precio_ref_usd requerido' });
+
+  const costoUsd = precio_ref_usd * 1.5;
+  const costoUyu = costoUsd * tipo_cambio;
+  const precioVentaMinimo = Math.round(costoUyu * (1 + margen_obj * (1 + iva)) / (1 - comision_ml));
+
+  let resultado = { costo_usd: costoUsd, costo_uyu: Math.round(costoUyu), precio_venta_minimo: precioVentaMinimo };
+
+  if (precio_venta_manual) {
+    const netoMl = precio_venta_manual * (1 - comision_ml);
+    const ganBruta = netoMl - costoUyu;
+    const ganNeta = ganBruta / (1 + iva);
+    resultado.precio_venta = precio_venta_manual;
+    resultado.ganancia_bruta = Math.round(ganBruta);
+    resultado.ganancia_neta = Math.round(ganNeta);
+    resultado.margen = costoUyu > 0 ? Math.round((ganNeta / costoUyu) * 100 * 10) / 10 : 0;
+    resultado.comision_ml = Math.round(precio_venta_manual * comision_ml);
+    resultado.iva_pagar = Math.round(ganBruta - ganNeta);
+  }
+
+  res.json(resultado);
+});
+
+// ══════════════════════════════════════════════════════════════════
+// ── IMPORTACIONES (Google Drive) ─────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+const { google } = require('googleapis');
+const pdfParse = require('pdf-parse');
+
+const DRIVE_CREDENTIALS_PATH = path.join(__dirname, 'credentials.json');
+const DRIVE_TOKEN_PATH = path.join(__dirname, 'data', 'drive_token.json');
+const DRIVE_INDEX_PATH = path.join(__dirname, 'data', 'drive_index.json');
+const DRIVE_ROOT_FOLDER_ID = '1K1UmNLt2yQ0WJ921_l26YyeGRg-j6hB_';
+
+function getDriveAuth() {
+  const credentials = JSON.parse(fs.readFileSync(DRIVE_CREDENTIALS_PATH, 'utf8'));
+  const { client_id, client_secret } = credentials.installed;
+  const oauth2Client = new google.auth.OAuth2(client_id, client_secret);
+  const token = JSON.parse(fs.readFileSync(DRIVE_TOKEN_PATH, 'utf8'));
+  oauth2Client.setCredentials(token);
+  return oauth2Client;
+}
+
+function classifyImportFile(name) {
+  const n = name.toLowerCase();
+  // Factura / Invoice
+  if (n.includes('factura') || n.includes('invoice') || n.includes('fatura')) return 'factura';
+  // Packing list
+  if (n.includes('packing') || n.includes('empaque') || n.includes('embalaje') || n.includes('lista de empaque') || n.match(/\bpl\s*(final|of)\b/)) return 'packing_list';
+  // Certificado de origen
+  if (n.includes('certificado') || n.includes('origen') || n.match(/^co\s+\d/) || n.match(/\bcod\b/) || n.includes('certificadodeorig')) return 'certificado_origen';
+  // Comprobante de pago
+  if (n.includes('comprobante') || n.includes('transferencia') || n.includes('bbva') || n.includes('pago') || n.includes('comprobante_lote')) return 'comprobante_pago';
+  // Despacho aduanero
+  if (n.includes('despacho') || n.includes('sob_') || n.match(/^111a\d/) || n.includes('reportefact') || n.match(/^ryf\s/) || n.includes('du-e')) return 'despacho';
+  // Despacho del despachante (MA + PROVEEDOR.pdf)
+  if (n.match(/^ma\s+[a-z]/) && n.endsWith('.pdf') && !n.includes('import')) return 'despacho';
+  // CRT
+  if (n.match(/\bcrt\b/) || n.includes('carta de porte')) return 'crt';
+  // Proforma
+  if (n.includes('proforma') || n.includes('pro forma') || n.includes('pisv') || n.includes('plsv') || n.includes('cisv') || n.match(/\bpi\s*(final|of|-final)\b/) || n.match(/^pi\s+exp/) || n.match(/^pi-/i)) return 'proforma';
+  // Costo
+  if (n.includes('costo') || n.includes('costos')) return 'costo';
+  // MIC
+  if (n.match(/\bmic\b/)) return 'mic';
+  // Nota fiscal
+  if (n.match(/\bnf\s/) || n.includes('nfe') || n.includes('nota fiscal') || n.match(/\bnfe?\s?\d/)) return 'nota_fiscal';
+  // Seguro
+  if (n.includes('seguro')) return 'seguro';
+  // Flete
+  if (n.includes('flete') || n.includes('frete')) return 'flete';
+  // Imagenes
+  if (n.endsWith('.jpg') || n.endsWith('.jpeg') || n.endsWith('.png')) return 'imagen';
+  return 'documento';
+}
+
+function parseImportFolder(name, subfolders) {
+  // Standard format: B29 - BRAVO / 4.6.24
+  const match = name.match(/^([BC]\d+)\s*-\s*(.+?)(?:\s*\/\s*(.*))?$/);
+  if (match) {
+    const code = match[1].trim();
+    const supplier = match[2].trim();
+    const details = (match[3] || '').trim();
+    let date = null;
+    const dateMatch = details.match(/(\d{1,2}[./]\d{1,2}[./]\d{2,4})/);
+    if (dateMatch) date = dateMatch[1];
+    return { code, supplier, date, details };
+  }
+
+  // 2026 format: "B 01" with subfolder "26 - TREVISUL"
+  const match2 = name.match(/^([BC])\s+(\d+)$/);
+  if (match2) {
+    const code = `${match2[1]}${match2[2]}`;
+    let supplier = name;
+    let date = null;
+    // Try to get supplier from subfolder names
+    if (subfolders && subfolders.length) {
+      const sub = subfolders[0];
+      const subMatch = sub.match(/^\d+\s*-\s*(.+)/);
+      if (subMatch) supplier = subMatch[1].trim();
+    }
+    return { code, supplier, date, details: '' };
+  }
+
+  return { code: name, supplier: name, date: null, details: '' };
+}
+
+function checkImportCompleteness(files, origin) {
+  const types = new Set(files.map(f => classifyImportFile(f.name)));
+  const required = { BRASIL: ['factura','packing_list','comprobante_pago','despacho'], CHINA: ['factura','packing_list','comprobante_pago','despacho'] };
+  const desirable = { BRASIL: ['certificado_origen','crt','proforma','costo'], CHINA: ['proforma','costo','seguro'] };
+  const reqs = required[origin] || required.BRASIL;
+  const desirs = desirable[origin] || desirable.BRASIL;
+  const missing = reqs.filter(r => !types.has(r));
+  const missingDesirable = desirs.filter(d => !types.has(d));
+  const pct = Math.round(((reqs.length - missing.length) / reqs.length) * 100);
+  return { pct, missing, missingDesirable, types: [...types] };
+}
+
+// Deducibles = reintegros de gastos (no se suman al costo, se recuperan)
+// Anticipo IDAE/IRAE, IVA importación, Anticipo de IVA
+const DEDUCIBLE_KEYS = ['iva', 'anticipo de iva', 'anticipo iva', 'anticipo irae', 'anticipo idae', 'i.v.a'];
+
+function classifyDespachoItem(label) {
+  const l = label.toLowerCase().trim();
+  if (DEDUCIBLE_KEYS.some(k => l.includes(k))) return 'deducible';
+  return 'no_deducible';
+}
+
+function parseCostSheet(rows) {
+  const costs = {};
+  const despacho = {};
+  for (const row of rows) {
+    if (!row || !row[0]) continue;
+    const label = row[0].toString().trim().toUpperCase();
+    const value = row[1] ? parseFloat(row[1].toString().replace(/\./g, '').replace(',', '.')) : null;
+    if (label === 'PROVEEDOR') costs.proveedor = row[1];
+    else if (label === 'ORIGEN') costs.origen = row[1];
+    else if (label.includes('FECHA')) costs.fecha = row[1];
+    else if (label === 'PRODUCTO') costs.producto = row[1];
+    else if (label === 'FOB') costs.fob = value;
+    else if (label === 'FLETE') costs.flete = value;
+    else if (label.includes('COMISION')) costs.comision = value;
+    else if (label.includes('FLETE INTERNO')) costs.fleteInterno = value;
+    else if (label.includes('PUESTA FOB')) costs.puestaFob = value;
+    else if (label.includes('GTOS GIRO') || label.includes('GASTOS GIRO')) costs.gastosGiro = value;
+    else if (label.includes('GTOS DESPACHO') || label.includes('GASTOS DESPACHO')) costs.gastosDespacho = value;
+    else if (label.includes('OTROS')) costs.otros = value;
+    else if (label.startsWith('TOTAL')) costs.total = value;
+    else if (label.includes('GASTOS TOTALES')) costs.gastosTotales = value;
+    if (row[4] && row[4].toString().trim() === 'TC' && row[5]) {
+      costs.tc = parseFloat(row[5].toString().replace(',', '.'));
+    }
+    if (row[7] && row[8]) {
+      const dLabel = row[7].toString().trim();
+      const dValue = parseFloat(row[8].toString().replace(/\./g, '').replace(',', '.'));
+      if (dLabel && !isNaN(dValue)) despacho[dLabel] = dValue;
+    }
+  }
+
+  // Classify despacho items
+  const deducibles = {};
+  const noDeducibles = {};
+  const otrosDespacho = {};
+  let totalDeducible = 0;
+  let totalNoDeducible = 0;
+
+  for (const [label, value] of Object.entries(despacho)) {
+    const tipo = classifyDespachoItem(label);
+    if (tipo === 'no_deducible') {
+      noDeducibles[label] = value;
+      totalNoDeducible += value;
+    } else if (tipo === 'deducible') {
+      deducibles[label] = value;
+      totalDeducible += value;
+    } else {
+      otrosDespacho[label] = value;
+    }
+  }
+
+  costs.detalleDespacho = despacho;
+  costs.deducibles = deducibles;
+  costs.noDeducibles = noDeducibles;
+  costs.otrosDespacho = otrosDespacho;
+  costs.totalDeducible = totalDeducible;
+  costs.totalNoDeducible = totalNoDeducible;
+  costs.totalDespacho = totalNoDeducible; // Solo se suman los no deducibles al costo
+
+  // Monto factura = FOB (valor de la mercaderia)
+  // Flete internacional
+  costs.montoFactura = costs.fob || 0;
+  costs.fleteInternacional = costs.flete || 0;
+
+  return costs;
+}
+
+// GET /api/imp/imports
+app.get('/api/imp/imports', (req, res) => {
+  try {
+    const index = JSON.parse(fs.readFileSync(DRIVE_INDEX_PATH, 'utf8'));
+    const groups = {};
+    for (const file of index) {
+      const parts = file.path.split('/').filter(Boolean);
+      if (parts.length < 3) continue;
+      const key = `${parts[0]}/${parts[1]}/${parts[2]}`;
+      if (!groups[key]) groups[key] = { country: parts[0], year: parts[1], folder: parts[2], files: [] };
+      groups[key].files.push(file);
+    }
+    const imports = Object.entries(groups)
+      .filter(([key, g]) => {
+        // Filter out non-import folders (loose files, payment folders, etc.)
+        const f = g.folder;
+        if (f.endsWith('.pdf') || f.endsWith('.xlsx') || f.endsWith('.jpg')) return false;
+        if (f.startsWith('PAGOS') || f.startsWith('CTA CTE') || f.startsWith('CC ')) return false;
+        if (!f.match(/^[BC]\s?\d+/)) return false;
+        return true;
+      })
+      .map(([key, g]) => {
+        // Find subfolders for 2026-style imports (B 01/26 - TREVISUL)
+        const subfolderNames = new Set();
+        g.files.forEach(f => {
+          const parts = f.path.split('/').filter(Boolean);
+          if (parts.length >= 4) subfolderNames.add(parts[3]);
+        });
+        const parsed = parseImportFolder(g.folder, [...subfolderNames]);
+        const completeness = checkImportCompleteness(g.files, g.country);
+        return { key, country: g.country, year: g.year, folder: g.folder, code: parsed.code, supplier: parsed.supplier, date: parsed.date, details: parsed.details, fileCount: g.files.length, completeness };
+      });
+    imports.sort((a, b) => {
+      if (a.country !== b.country) return a.country.localeCompare(b.country);
+      if (a.year !== b.year) return a.year.localeCompare(b.year);
+      return (parseInt(a.code.replace(/\D/g,'')) || 0) - (parseInt(b.code.replace(/\D/g,'')) || 0);
+    });
+    res.json(imports);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/imp/import/:country/:year/:folder
+app.get('/api/imp/import/:country/:year/:folder', (req, res) => {
+  try {
+    const { country, year, folder } = req.params;
+    const prefix = `/${country}/${year}/${decodeURIComponent(folder)}`;
+    const index = JSON.parse(fs.readFileSync(DRIVE_INDEX_PATH, 'utf8'));
+    const files = index.filter(f => f.path.startsWith(prefix)).map(f => ({ ...f, relativePath: f.path.slice(prefix.length), docType: classifyImportFile(f.name) }));
+    const parsed = parseImportFolder(decodeURIComponent(folder));
+    const completeness = checkImportCompleteness(files, country);
+    res.json({ files, parsed, completeness, country, year, folder: decodeURIComponent(folder) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/imp/costs/:fileId
+app.get('/api/imp/costs/:fileId', async (req, res) => {
+  try {
+    const sheets = google.sheets({ version: 'v4', auth: getDriveAuth() });
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: req.params.fileId });
+    const sheetNames = meta.data.sheets.map(s => s.properties.title);
+    const allData = {};
+    for (const name of sheetNames) {
+      const r = await sheets.spreadsheets.values.get({ spreadsheetId: req.params.fileId, range: `${name}!A1:Z50` });
+      allData[name] = r.data.values || [];
+    }
+    const costs = parseCostSheet(allData[sheetNames[0]] || []);
+    res.json({ sheets: allData, costs });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/imp/search
+app.get('/api/imp/search', (req, res) => {
+  try {
+    const q = (req.query.q || '').toLowerCase();
+    if (!q) return res.json([]);
+    const index = JSON.parse(fs.readFileSync(DRIVE_INDEX_PATH, 'utf8'));
+    const results = index.filter(f => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q)).slice(0, 50).map(f => ({ ...f, docType: classifyImportFile(f.name) }));
+    res.json(results);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/imp/stats
+app.get('/api/imp/stats', (req, res) => {
+  try {
+    const index = JSON.parse(fs.readFileSync(DRIVE_INDEX_PATH, 'utf8'));
+    const countries = new Set(), suppliers = new Set(), years = new Set();
+    let totalImports = 0;
+    const seen = {};
+    for (const file of index) {
+      const parts = file.path.split('/').filter(Boolean);
+      if (parts.length < 3) continue;
+      const f = parts[2];
+      if (f.endsWith('.pdf') || f.endsWith('.xlsx') || f.endsWith('.jpg')) continue;
+      if (f.startsWith('PAGOS') || f.startsWith('CTA CTE') || f.startsWith('CC ')) continue;
+      if (!f.match(/^[BC]\s?\d+/)) continue;
+      countries.add(parts[0]); years.add(parts[1]);
+      const key = `${parts[0]}/${parts[1]}/${parts[2]}`;
+      if (!seen[key]) {
+        seen[key] = true; totalImports++;
+        // For B ## folders, try to get supplier from subfolder
+        const subfolders = parts.length >= 4 && parts[2].match(/^[BC]\s+\d+$/) ? [parts[3]] : [];
+        suppliers.add(parseImportFolder(parts[2], subfolders).supplier);
+      }
+    }
+    res.json({ totalFiles: index.length, totalImports, countries: [...countries], suppliers: [...suppliers].sort(), years: [...years].sort() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/imp/edit-costs — Edit cached cost data
+app.post('/api/imp/edit-costs', (req, res) => {
+  try {
+    const { key, costos } = req.body;
+    if (!key || !costos) return res.status(400).json({ error: 'key and costos required' });
+    if (!impReadCache[key]) impReadCache[key] = { costos: null, facturas: [], packingLists: [], otros: [] };
+    impReadCache[key].costos = { ...impReadCache[key].costos, ...costos, edited: true };
+    saveImpCache();
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/imp/reindex
+app.post('/api/imp/reindex', async (req, res) => {
+  try {
+    const drive = google.drive({ version: 'v3', auth: getDriveAuth() });
+    const index = [];
+    async function indexRecursive(parentId, parentPath) {
+      const r = await drive.files.list({ q: `'${parentId}' in parents and trashed = false`, fields: 'files(id, name, mimeType, size, modifiedTime)', pageSize: 1000 });
+      for (const file of (r.data.files || [])) {
+        const filePath = `${parentPath}/${file.name}`;
+        index.push({ id: file.id, name: file.name, path: filePath, type: file.mimeType, size: file.size, modified: file.modifiedTime });
+        if (file.mimeType === 'application/vnd.google-apps.folder') await indexRecursive(file.id, filePath);
+      }
+    }
+    await indexRecursive(DRIVE_ROOT_FOLDER_ID, '');
+    fs.writeFileSync(DRIVE_INDEX_PATH, JSON.stringify(index, null, 2));
+    res.json({ success: true, count: index.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Cache for read folder data
+const IMP_CACHE_PATH = path.join(__dirname, 'data', 'imp_read_cache.json');
+let impReadCache = {};
+try { if (fs.existsSync(IMP_CACHE_PATH)) impReadCache = JSON.parse(fs.readFileSync(IMP_CACHE_PATH, 'utf8')); } catch {}
+function saveImpCache() {
+  try { fs.writeFileSync(IMP_CACHE_PATH, JSON.stringify(impReadCache, null, 2)); } catch(e) { console.error('imp cache save error:', e.message); }
+}
+
+// GET /api/imp/read-folder/:country/:year/:folder — Read & extract data from all files
+app.get('/api/imp/read-folder/:country/:year/:folder', async (req, res) => {
+  try {
+    const { country, year, folder } = req.params;
+    const cacheKey = `${country}/${year}/${decodeURIComponent(folder)}`;
+    const forceRefresh = req.query.refresh === '1';
+
+    // Return cached if available
+    if (!forceRefresh && impReadCache[cacheKey]) {
+      return res.json(impReadCache[cacheKey]);
+    }
+
+    const prefix = `/${country}/${year}/${decodeURIComponent(folder)}`;
+    const index = JSON.parse(fs.readFileSync(DRIVE_INDEX_PATH, 'utf8'));
+    const files = index.filter(f => f.path.startsWith(prefix));
+    const drive = google.drive({ version: 'v3', auth: getDriveAuth() });
+    const sheets = google.sheets({ version: 'v4', auth: getDriveAuth() });
+
+    const result = {
+      info: parseImportFolder(decodeURIComponent(folder)),
+      costos: null,
+      facturas: [],
+      packingLists: [],
+      otros: [],
+    };
+
+    for (const file of files) {
+      const docType = classifyImportFile(file.name);
+      const isSheet = file.type === 'application/vnd.google-apps.spreadsheet';
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      const isXlsx = file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls');
+      const isFolder = file.type === 'application/vnd.google-apps.folder';
+
+      if (isFolder) continue;
+
+      // Read cost spreadsheet
+      if (docType === 'costo' && isSheet) {
+        try {
+          const meta = await sheets.spreadsheets.get({ spreadsheetId: file.id });
+          const sheetName = meta.data.sheets[0].properties.title;
+          const r = await sheets.spreadsheets.values.get({ spreadsheetId: file.id, range: `${sheetName}!A1:Z50` });
+          result.costos = parseCostSheet(r.data.values || []);
+        } catch(e) { console.error('Error reading cost sheet:', e.message); }
+        continue;
+      }
+
+      // Read PDFs (facturas, packing lists, proformas, etc.)
+      if (isPdf && ['factura', 'packing_list', 'proforma', 'despacho', 'certificado_origen', 'documento'].includes(docType)) {
+        try {
+          const r = await drive.files.get({ fileId: file.id, alt: 'media' }, { responseType: 'arraybuffer' });
+          const buffer = Buffer.from(r.data);
+          const pdf = await pdfParse(buffer);
+          const text = pdf.text || '';
+
+          const extracted = {
+            file: file.name,
+            type: docType,
+            pages: pdf.numpages,
+            text: text.substring(0, 5000), // limit
+            data: extractDataFromText(text, docType),
+          };
+
+          if (docType === 'factura') result.facturas.push(extracted);
+          else if (docType === 'packing_list') result.packingLists.push(extracted);
+          else result.otros.push(extracted);
+        } catch(e) {
+          // Some PDFs are scanned images, can't extract text
+          result.otros.push({ file: file.name, type: docType, error: 'No se pudo leer (posiblemente escaneado)' });
+        }
+        continue;
+      }
+
+      // Read Excel files
+      if (isXlsx && (docType === 'factura' || docType === 'packing_list' || docType === 'proforma' || docType === 'costo')) {
+        try {
+          const XLSX = require('xlsx');
+          const r = await drive.files.get({ fileId: file.id, alt: 'media' }, { responseType: 'arraybuffer' });
+          const wb = XLSX.read(Buffer.from(r.data), { type: 'buffer' });
+          const sheetData = {};
+          for (const name of wb.SheetNames) {
+            sheetData[name] = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1 });
+          }
+          const extracted = { file: file.name, type: docType, sheets: sheetData };
+          if (docType === 'factura') result.facturas.push(extracted);
+          else if (docType === 'packing_list') result.packingLists.push(extracted);
+          else if (docType === 'costo' && !result.costos) {
+            // Try to parse as cost sheet
+            const firstSheet = sheetData[wb.SheetNames[0]] || [];
+            result.costos = parseCostSheet(firstSheet);
+          }
+          else result.otros.push(extracted);
+        } catch(e) {
+          result.otros.push({ file: file.name, type: docType, error: e.message });
+        }
+      }
+    }
+
+    // If no cost sheet found, use Claude to read PDFs
+    if (!result.costos && anthropic) {
+      try {
+        // Collect PDF buffers to send to Claude (max 3 most relevant files)
+        const pdfFiles = files.filter(f => {
+          const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
+          const docType = classifyImportFile(f.name);
+          return isPdf && ['factura', 'packing_list', 'proforma', 'despacho', 'documento', 'comprobante_pago'].includes(docType);
+        }).slice(0, 4);
+
+        if (pdfFiles.length > 0) {
+          const pdfContents = [];
+          for (const pf of pdfFiles) {
+            try {
+              const r = await drive.files.get({ fileId: pf.id, alt: 'media' }, { responseType: 'arraybuffer' });
+              const base64 = Buffer.from(r.data).toString('base64');
+              pdfContents.push({ name: pf.name, base64, type: classifyImportFile(pf.name) });
+            } catch(e) { /* skip unreadable */ }
+          }
+
+          if (pdfContents.length > 0) {
+            const content = [];
+            content.push({ type: 'text', text: `Analizá estos documentos de una importación en Uruguay y extraé la información.
+
+REGLA CRITICA: TODOS los montos deben ser NETOS SIN IVA. Si un documento muestra subtotal/neto + IVA + total, usá SIEMPRE el valor neto/subtotal. NUNCA el total con IVA incluido.
+
+Respondé SOLO con un JSON válido (sin markdown, sin backticks):
+{
+  "proveedor": "nombre",
+  "origen": "pais",
+  "fecha": "fecha",
+  "producto": "descripcion general",
+  "factura": {"neto": numero_sin_iva, "iva": numero_o_null, "moneda": "USD/BRL/UYU"},
+  "flete": {"neto": numero_sin_iva, "iva": numero_o_null, "moneda": "USD/BRL/UYU"},
+  "gastos_despacho": [
+    {"concepto": "nombre", "neto": numero_sin_iva, "moneda": "UYU"}
+  ],
+  "deducibles": [
+    {"concepto": "IVA IMPORTACION", "monto": numero, "moneda": "UYU"},
+    {"concepto": "ANTICIPO DE IVA", "monto": numero, "moneda": "UYU"},
+    {"concepto": "ANTICIPO IRAE/IDAE", "monto": numero, "moneda": "UYU"}
+  ],
+  "productos": [
+    {"descripcion": "nombre", "cantidad": "100 un", "precio_unitario": numero, "moneda": "USD"}
+  ],
+  "peso_bruto": "1234 kg",
+  "peso_neto": "1100 kg",
+  "container": "XXXX1234567"
+}
+Reglas:
+- SIEMPRE neto sin IVA. Ej: si flete es neto 1704 + IVA 519 = total 2223, poner 1704
+- Los deducibles (IVA importacion, anticipo IVA, anticipo IRAE/IDAE) van en el array "deducibles", separados de gastos_despacho
+- Respetá la moneda original de cada documento
+- Números sin formato de miles
+- Solo incluí campos que encuentres` });
+
+            for (const pdf of pdfContents) {
+              content.push({
+                type: 'document',
+                source: { type: 'base64', media_type: 'application/pdf', data: pdf.base64 },
+              });
+              content.push({ type: 'text', text: `Archivo: ${pdf.name} (${pdf.type})` });
+            }
+
+            const msg = await anthropic.messages.create({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 2000,
+              messages: [{ role: 'user', content }],
+            });
+
+            const responseText = msg.content[0]?.text || '';
+            try {
+              const parsed = JSON.parse(responseText);
+              result.claudeExtracted = parsed;
+
+              const fac = parsed.factura || {};
+              const fle = parsed.flete || {};
+              const facMonto = fac.neto || fac.monto || null; // Siempre neto
+              const facMoneda = fac.moneda || 'USD';
+              const fleMonto = fle.neto || fle.monto || null; // Siempre neto
+              const fleMoneda = fle.moneda || facMoneda;
+
+              // Build despacho from gastos_despacho array (todos netos)
+              const detalleDespacho = {};
+              const deducibles = {};
+              const noDeducibles = {};
+              let totalDeducible = 0, totalNoDeducible = 0;
+
+              (parsed.gastos_despacho || []).forEach(g => {
+                const monto = g.neto || g.monto || 0;
+                if (g.concepto && monto) {
+                  detalleDespacho[g.concepto] = monto;
+                  noDeducibles[g.concepto] = monto;
+                  totalNoDeducible += monto;
+                }
+              });
+
+              // Deducibles van aparte (IVA, anticipos)
+              (parsed.deducibles || []).forEach(g => {
+                if (g.concepto && g.monto) {
+                  deducibles[g.concepto] = g.monto;
+                  totalDeducible += g.monto;
+                }
+              });
+
+              const totalDespacho = totalNoDeducible; // Solo no deducibles se suman al costo
+
+              if (facMonto || Object.keys(detalleDespacho).length) {
+                result.costos = {
+                  proveedor: parsed.proveedor || null,
+                  origen: parsed.origen || null,
+                  fecha: parsed.fecha || null,
+                  producto: parsed.producto || null,
+                  fob: facMonto,
+                  fobMoneda: facMoneda,
+                  flete: fleMonto,
+                  fleteMoneda: fleMoneda,
+                  total: facMonto,
+                  montoFactura: facMonto,
+                  montoFacturaMoneda: facMoneda,
+                  fleteInternacional: fleMonto || 0,
+                  fleteInternacionalMoneda: fleMoneda,
+                  tc: null,
+                  detalleDespacho,
+                  despachoMoneda: parsed.gastos_despacho?.[0]?.moneda || 'UYU',
+                  deducibles, noDeducibles,
+                  totalDeducible, totalNoDeducible,
+                  totalDespacho,
+                  source: 'claude',
+                };
+              }
+
+              // Products
+              if (parsed.productos?.length) {
+                result.facturas.push({
+                  file: 'Extraido por IA',
+                  type: 'factura',
+                  data: {
+                    products: parsed.productos.map(p => {
+                      if (typeof p === 'string') return p;
+                      let line = p.descripcion || '';
+                      if (p.cantidad) line = `${p.cantidad} - ${line}`;
+                      if (p.precio_unitario) line += ` (${p.moneda || facMoneda} ${p.precio_unitario})`;
+                      return line;
+                    }),
+                    weights: [parsed.peso_bruto, parsed.peso_neto].filter(Boolean),
+                    containers: parsed.container ? [parsed.container] : [],
+                    amounts: facMonto ? [{ label: `Total factura`, value: facMonto, moneda: facMoneda }] : [],
+                  },
+                });
+              }
+            } catch(e) { /* Claude didn't return valid JSON */ }
+          }
+        }
+      } catch(e) { console.error('Claude extraction error:', e.message); }
+    }
+
+    // Save to cache
+    impReadCache[cacheKey] = result;
+    saveImpCache();
+
+    res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+function extractDataFromText(text, docType) {
+  const data = {};
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // Try to extract amounts (USD, UYU, BRL)
+  const amountPatterns = [
+    /(?:total|valor|amount|monto|importe)\s*:?\s*(?:US\$?|USD|\$)\s*([\d.,]+)/gi,
+    /(?:US\$?|USD)\s*([\d.,]+)/gi,
+    /(?:FOB|CIF|CFR)\s*:?\s*(?:US\$?|USD|\$)?\s*([\d.,]+)/gi,
+  ];
+
+  const amounts = [];
+  for (const pattern of amountPatterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const val = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
+      if (!isNaN(val) && val > 0) amounts.push({ label: match[0].trim(), value: val });
+    }
+  }
+  if (amounts.length) data.amounts = amounts.slice(0, 10);
+
+  // Try to extract product descriptions / items
+  const products = [];
+  for (const line of lines) {
+    // Lines that look like product entries (have quantity + description patterns)
+    if (line.match(/^\d+\s+.{5,}/) || line.match(/\d+\s*(un|pcs|pc|ctn|ctns|box|boxes|pzs|pz|kg|und)\b/i)) {
+      products.push(line.substring(0, 200));
+    }
+  }
+  if (products.length) data.products = products.slice(0, 30);
+
+  // Extract weights
+  const weightMatch = text.match(/(?:peso|weight|gross|net|bruto|neto)\s*:?\s*([\d.,]+)\s*(kg|ton|lb)/gi);
+  if (weightMatch) data.weights = weightMatch.slice(0, 5);
+
+  // Extract container info
+  const containerMatch = text.match(/\b([A-Z]{4}\d{7})\b/g);
+  if (containerMatch) data.containers = [...new Set(containerMatch)];
+
+  return data;
+}
+
+// ── Dimensiones de envío ─────────────────────────────────────────
+// Debug: ver shipping raw de un item
+app.get('/api/dimensiones/raw/:id', requireToken, async (req, res) => {
+  try {
+    const headers = { Authorization: `Bearer ${tokenData.access_token}` };
+    const r = await axios.get(`${ML_API_URL}/items/${req.params.id}`, {
+      headers, params: { attributes: 'id,title,shipping' }
+    });
+    res.json(r.data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/dimensiones', requireToken, async (req, res) => {
+  try {
+    const headers = { Authorization: `Bearer ${tokenData.access_token}` };
+
+    function parseDimStr(s) {
+      if (!s) return { length: null, width: null, height: null, weight: null };
+      const m = s.match(/^(\d+)x(\d+)x(\d+),(\d+)$/);
+      if (m) return { length: +m[1], width: +m[2], height: +m[3], weight: +m[4] };
+      return { length: null, width: null, height: null, weight: null };
+    }
+
+    // Fetch shipping dimensions en lotes de 20 usando multiget con atributo shipping
+    const allIds = cachedItems.map(i => i.id);
+    const shippingMap = {};
+    for (let i = 0; i < allIds.length; i += 20) {
+      const batch = allIds.slice(i, i + 20);
+      try {
+        const r = await axios.get(`${ML_API_URL}/items`, {
+          headers, params: { ids: batch.join(','), attributes: 'id,shipping' }
+        });
+        for (const entry of (r.data || [])) {
+          if (entry.body) {
+            const dimStr = entry.body.shipping?.dimensions;
+            shippingMap[entry.body.id] = {
+              dimensions: typeof dimStr === 'string' ? dimStr : null,
+              free_shipping: entry.body.shipping?.free_shipping || false,
+              logistic_type: entry.body.shipping?.logistic_type || null,
+            };
+          }
+        }
+      } catch {}
+      if (i + 20 < allIds.length) await sleep(80);
+    }
+    console.log(`[dimensiones] fetched shipping para ${Object.keys(shippingMap).length} items`);
+
+    const items = cachedItems.map(item => {
+      const sh = shippingMap[item.id] || {};
+      const dims = parseDimStr(sh.dimensions);
+      const sku = (item.attributes || []).find(a => a.id === 'SELLER_SKU')?.value_name
+        || (item.attributes || []).find(a => a.id === 'SELLER_SKU')?.values?.[0]?.name
+        || null;
+      return {
+        id: item.id,
+        title: item.title,
+        thumbnail: item.thumbnail,
+        status: item.status,
+        sku,
+        free_shipping: sh.free_shipping || false,
+        logistic_type: sh.logistic_type || item.shipping?.logistic_type || null,
+        dimensions: sh.dimensions || null,
+        length: dims.length,
+        width: dims.width,
+        height: dims.height,
+        weight: dims.weight,
+      };
+    });
+    res.json({ items, total: items.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Comparador año a año ─────────────────────────────────────────
+app.get('/api/comparador', requireToken, async (req, res) => {
+  const headers = { Authorization: `Bearer ${tokenData.access_token}` };
+  const sellerId = tokenData.user_id;
+  const now = new Date();
+  const mode    = req.query.mode || 'mensual'; // 'mensual', 'hasta-hoy' o 'diario'
+  const month   = parseInt(req.query.month) || (now.getMonth() + 1);
+  const day     = parseInt(req.query.day)   || now.getDate();
+  const year    = now.getFullYear();
+  const cutDay  = now.getDate(); // día actual para "hasta hoy"
+
+  function fmtISO(d) { return d.toISOString().slice(0, 19) + '.000-00:00'; }
+
+  let periods;
+  if (mode === 'diario') {
+    periods = [year, year - 1, year - 2].map(y => {
+      const from = new Date(y, month - 1, day);
+      const to   = new Date(y, month - 1, day + 1);
+      return { year: y, from: fmtISO(from), to: fmtISO(to), label: `${pad(day)}/${pad(month)}/${y}` };
+    });
+  } else if (mode === 'hasta-hoy') {
+    // Del 1 al día de hoy del mes seleccionado, en cada año
+    periods = [year, year - 1, year - 2].map(y => {
+      const from = new Date(y, month - 1, 1);
+      const to   = new Date(y, month - 1, cutDay + 1); // hasta fin del día actual
+      return { year: y, from: fmtISO(from), to: fmtISO(to), label: `01-${pad(cutDay)}/${pad(month)}/${y}` };
+    });
+  } else {
+    // Mes completo
+    periods = [year, year - 1, year - 2].map(y => {
+      const from = new Date(y, month - 1, 1);
+      const to   = new Date(y, month, 1);
+      return { year: y, from: fmtISO(from), to: fmtISO(to), label: `${pad(month)}/${y}` };
+    });
+  }
+
+  async function fetchPeriod(p) {
+    const items = {};
+    let total = 0, revenue = 0;
+    const allResults = [];
+
+    const first = await axios.get(`${ML_API_URL}/orders/search`, {
+      headers, params: {
+        seller: sellerId, 'order.status': 'paid',
+        'order.date_created.from': p.from, 'order.date_created.to': p.to,
+        limit: 50, offset: 0, sort: 'date_asc'
+      }
+    });
+    allResults.push(...(first.data.results || []));
+    const totalOrders = first.data.paging?.total || 0;
+
+    const maxOffset = Math.min(totalOrders, 1000);
+    const pagesToFetch = Math.ceil(maxOffset / 50);
+    if (pagesToFetch > 1) {
+      for (let batch = 1; batch < pagesToFetch; batch += 10) {
+        const promises = [];
+        for (let pg = batch; pg < Math.min(batch + 10, pagesToFetch); pg++) {
+          promises.push(
+            axios.get(`${ML_API_URL}/orders/search`, {
+              headers, params: {
+                seller: sellerId, 'order.status': 'paid',
+                'order.date_created.from': p.from, 'order.date_created.to': p.to,
+                limit: 50, offset: pg * 50, sort: 'date_asc'
+              }
+            }).catch(() => ({ data: { results: [] } }))
+          );
+        }
+        const pages = await Promise.all(promises);
+        pages.forEach(pg => allResults.push(...(pg.data.results || [])));
+        if (batch + 10 < pagesToFetch) await sleep(200);
+      }
+    }
+
+    console.log(`[comparador] ${p.label}: ${allResults.length}/${totalOrders} órdenes`);
+
+    for (const order of allResults) {
+      revenue += order.total_amount || 0;
+      total++;
+      for (const oi of (order.order_items || [])) {
+        const itemId = oi.item?.id;
+        if (!itemId) continue;
+        if (!items[itemId]) {
+          items[itemId] = { id: itemId, title: oi.item.title || itemId, thumbnail: oi.item.thumbnail || null, quantity: 0, revenue: 0 };
+        }
+        items[itemId].quantity += oi.quantity || 1;
+        items[itemId].revenue += (oi.unit_price || 0) * (oi.quantity || 1);
+      }
+    }
+
+    for (const id of Object.keys(items)) {
+      if (!items[id].thumbnail) {
+        const c = cachedItems.find(x => x.id === id);
+        if (c?.thumbnail) items[id].thumbnail = c.thumbnail;
+      }
+    }
+
+    return {
+      year: p.year, label: p.label, total, totalML: totalOrders,
+      revenue: Math.round(revenue),
+      units: Object.values(items).reduce((s, i) => s + i.quantity, 0),
+      items: Object.values(items).sort((a, b) => b.quantity - a.quantity),
+    };
+  }
+
+  try {
+    const periodResults = await Promise.all(periods.map(fetchPeriod));
+    res.json({ mode, month, day, periods: periodResults });
+  } catch (e) {
+    console.error('[comparador]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Lector de Proforma Invoice (con IA) ──
+
+app.post('/api/pi/leer', requireToken, upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Archivo requerido' });
+
+  try {
+    const wb = XLSX.read(req.file.buffer, { cellStyles: false, cellFormula: false });
+
+    // 1. Convertir todas las hojas a texto para IA
+    let sheetsText = '';
+    const allRawData = {};
+    for (const sheetName of wb.SheetNames) {
+      const data = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1 });
+      allRawData[sheetName] = data;
+      // Convertir primeras 30 filas a texto legible
+      const preview = data.slice(0, 30).map((row, i) =>
+        `Row${i}: ${(row || []).map(c => c === null || c === undefined ? '' : String(c).slice(0, 80)).join(' | ')}`
+      ).join('\n');
+      sheetsText += `\n=== HOJA: ${sheetName} (${data.length} filas) ===\n${preview}\n`;
+    }
+
+    // 2. IA parsea el Excel
+    console.log('[pi/ia] sheetsText length:', sheetsText.length, 'sheets:', wb.SheetNames.length);
+    let aiProducts = [];
+    if (anthropic) {
+      const stockItems = cachedStock || [];
+      const skuList = stockItems.filter(i => i.sku).slice(0, 200).map(i => `${i.sku} | ${i.title.slice(0, 50)}`).join('\n');
+
+      // Procesar hoja por hoja para evitar respuestas truncadas
+      let supplier = '';
+      let contract = '';
+
+      for (const sheetName of wb.SheetNames) {
+        const data = allRawData[sheetName];
+        const sheetText = data.slice(0, 40).map((row, i) =>
+          `Row${i}: ${(row || []).map(c => c === null || c === undefined ? '' : String(c).slice(0, 80)).join(' | ')}`
+        ).join('\n');
+
+        console.log(`[pi/ia] Processing sheet: ${sheetName}`);
+        const msg = await anthropic.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 8192,
+          messages: [{ role: 'user', content: `Extraé los productos de esta hoja de una Proforma Invoice.
+
+HOJA "${sheetName}":
+${sheetText}
+
+CATÁLOGO (SKU | Producto):
+${skuList}
+
+Pensá como una persona que trabaja en esta empresa y conoce el sistema de códigos. Para cada PRODUCTO (ignorá headers, totales, legales, filas vacías):
+
+- sku: Mirá la columna MA CODE. Puede venir de varias formas:
+  1. Ya completo con color y talle: "48107-NEG-42" → usalo tal cual
+  2. Varios códigos separados por "/": "54505-BLA / 54505-NEG" → es un producto que viene en variantes, usá el primer código
+  3. Solo número: "54505" → fijate en la DESCRIPTION si dice el color y armá el código completo
+
+  Colores: Black=-NEG, White=-BLA, Grey/Gray=-GRI, Beige/Khaki=-BEI, Brown=-MAR, Blue=-AZU, Red=-ROJ, Green=-VER, Pink=-ROS, Champagne=-CHA, Natural/Wood=-NAT
+
+  Mirá el catálogo para confirmar: si en el catálogo existe "54505-NEG" y la descripción dice "Black", entonces el sku es "54505-NEG". Si no estás seguro del color, dejá solo el número.
+
+- description: nombre corto del producto EN ESPAÑOL si podés, sino en inglés. Incluí color/talle si aplica.
+- qty: cantidad total (columna QUATITY/QUANTITY)
+- fob: precio unitario FOB
+- amount: monto total USD
+
+Respondé SOLO JSON, sin backticks ni explicaciones:
+[{"sku":"54505-NEG","description":"Mesa plegable negra 180x74","qty":100,"fob":15.5,"amount":1550}]` }],
+        });
+
+        let text = msg.content.find(b => b.type === 'text')?.text || '[]';
+        text = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').replace(/[\x00-\x1f]/g, ' ');
+        console.log('[pi/ia] sheet response length:', text.length);
+
+        try {
+          const jsonMatch = text.match(/\[[\s\S]*\]/);
+          if (jsonMatch) {
+            const products = JSON.parse(jsonMatch[0]);
+            console.log(`[pi/ia] ${sheetName}: ${products.length} products`);
+            products.forEach(p => { p.sheet = sheetName; });
+            aiProducts = aiProducts.concat(products);
+          }
+        } catch(e) {
+          console.error(`[pi/ia] ${sheetName} parse error:`, e.message);
+          // Fallback truncado
+          try {
+            const lastBrace = text.lastIndexOf('}');
+            const firstBracket = text.indexOf('[');
+            if (firstBracket >= 0 && lastBrace > firstBracket) {
+              const arr = JSON.parse(text.slice(firstBracket, lastBrace + 1) + ']');
+              arr.forEach(p => { p.sheet = sheetName; });
+              aiProducts = aiProducts.concat(arr);
+              console.log(`[pi/ia] ${sheetName} fallback: ${arr.length} products`);
+            }
+          } catch {}
+        }
+
+        // Extraer supplier de la primera hoja
+        if (!supplier) {
+          const supMatch = data.flat().find(c => typeof c === 'string' && c.includes('CO.,LTD'));
+          if (supMatch) supplier = supMatch;
+        }
+      }
+
+      res._piSupplier = supplier;
+      res._piContract = contract;
+    }
+
+    // 3. Matching con catálogo
+    const stockItems = cachedStock || [];
+    for (const prod of aiProducts) {
+      prod.ml_matches = [];
+      const sku = String(prod.sku || '').trim();
+
+      if (sku) {
+        const matches = stockItems.filter(i =>
+          (i.sku || '') === sku ||
+          (i.sku || '').startsWith(sku) ||
+          (i.variation_skus || []).some(vs => vs === sku || vs.startsWith(sku))
+        );
+        if (matches.length) {
+          prod.ml_matches = matches.map(m => ({
+            id: m.id, title: m.title, sku: m.sku, price: m.price,
+            stock: m.stock, sold30d: m.sold30d, thumbnail: m.thumbnail, permalink: m.permalink,
+          }));
+        }
+      }
+      prod.matched = prod.ml_matches.length > 0;
+      prod.is_reposition = prod.matched;
+    }
+
+    const matched = aiProducts.filter(p => p.matched);
+    const notMatched = aiProducts.filter(p => !p.matched);
+
+    res.json({
+      supplier: res._piSupplier || '',
+      contract: res._piContract || '',
+      total: aiProducts.length,
+      matched: matched.length,
+      not_matched: notMatched.length,
+      total_qty: aiProducts.reduce((s, p) => s + (p.qty || 0), 0),
+      total_amount: Math.round(aiProducts.reduce((s, p) => s + (p.amount || 0), 0) * 100) / 100,
+      products: aiProducts,
+    });
+  } catch(e) {
+    console.error('[pi/leer]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/pi/confirmar — carga reposiciones como mercadería en camino
+app.post('/api/pi/confirmar', requireToken, (req, res) => {
+  const { supplier, expected_date, products } = req.body;
+  if (!products?.length) return res.status(400).json({ error: 'Sin productos' });
+
+  const reposiciones = products.filter(p => p.is_reposition && p.sku && p.qty > 0);
+  if (!reposiciones.length) return res.status(400).json({ error: 'Sin reposiciones para cargar' });
+
+  const compras = loadCompras();
+  const nueva = {
+    id: Date.now().toString(),
+    created_at: new Date().toISOString(),
+    supplier: supplier || 'China',
+    expected_date: expected_date || '',
+    notes: `Importado desde PI - ${reposiciones.length} productos`,
+    items: reposiciones.map(p => ({ sku: p.sku, qty: p.qty })),
+  };
+  compras.push(nueva);
+  saveCompras(compras);
+  console.log(`[pi/confirmar] ${reposiciones.length} reposiciones cargadas en previsiones`);
+  res.json({ ok: true, compra: nueva, loaded: reposiciones.length });
+});
+
+// ── Planificador de compras ──
+
+app.get('/api/planificador', requireToken, async (req, res) => {
+  try {
+    const leadDaysChina = parseInt(req.query.lead_days) || 120;
+    const leadDaysBrasil = parseInt(req.query.lead_days_brasil) || 30;
+    const growthPct = parseFloat(req.query.growth) || 30;
+    const growthFactor = 1 + growthPct / 100;
+
+    // Categorías de muebles (Brasil, 30 días)
+    const brasilKeywords = ['mobiliario', 'mueble', 'ropero', 'placard', 'mesa de luz', 'rack para tv', 'escritorio madesa', 'escritorio appunto'];
+
+    function isBrasil(categ, name) {
+      const c = (categ || '').toLowerCase();
+      const n = (name || '').toLowerCase();
+      return brasilKeywords.some(k => c.includes(k) || n.includes(k));
+    }
+
+    // Dos meses objetivo según origen
+    const targetDateChina = new Date();
+    targetDateChina.setDate(targetDateChina.getDate() + leadDaysChina);
+    const targetDateBrasil = new Date();
+    targetDateBrasil.setDate(targetDateBrasil.getDate() + leadDaysBrasil);
+
+    const targetMonthChina = targetDateChina.getMonth() + 1;
+    const targetYearChina = targetDateChina.getFullYear();
+    const targetKeyChina = `${targetYearChina}-${pad(targetMonthChina)}`;
+    const compKeyChina = `${targetYearChina - 1}-${pad(targetMonthChina)}`;
+
+    const targetMonthBrasil = targetDateBrasil.getMonth() + 1;
+    const targetYearBrasil = targetDateBrasil.getFullYear();
+    const targetKeyBrasil = `${targetYearBrasil}-${pad(targetMonthBrasil)}`;
+    const compKeyBrasil = `${targetYearBrasil - 1}-${pad(targetMonthBrasil)}`;
+
+    const monthLabels = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+    // Traer ventas de TODOS los meses por producto desde Odoo
+    const uid = await odooAuth();
+    if (!uid) return res.status(500).json({ error: 'No se pudo autenticar con Odoo' });
+
+    const salesData = await odooCall('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_DB, uid, ODOO_API_KEY, 'sale.order.line', 'read_group',
+      [[['state', 'in', ['sale', 'done']]]],
+      { fields: ['product_id', 'product_uom_qty', 'create_date'], groupby: ['product_id', 'create_date:month'], lazy: false }
+    ]);
+
+    // Parse month names
+    const monthNames = { enero:'01',febrero:'02',marzo:'03',abril:'04',mayo:'05',junio:'06',julio:'07',agosto:'08',septiembre:'09',setiembre:'09',octubre:'10',noviembre:'11',diciembre:'12',
+      january:'01',february:'02',march:'03',april:'04',may:'05',june:'06',july:'07',august:'08',september:'09',october:'10',november:'11',december:'12' };
+
+    // Build: product_id -> { 'YYYY-MM': qty }
+    const salesByProdMonth = {};
+    const allMonths = new Set();
+    for (const r of salesData) {
+      if (!r.product_id) continue;
+      const pid = r.product_id[0];
+      const monthStr = (r['create_date:month'] || '').toLowerCase();
+      const parts = monthStr.split(' ');
+      if (parts.length !== 2) continue;
+      const mm = monthNames[parts[0]];
+      if (!mm) continue;
+      const key = parts[1] + '-' + mm;
+      allMonths.add(key);
+      if (!salesByProdMonth[pid]) salesByProdMonth[pid] = {};
+      salesByProdMonth[pid][key] = (salesByProdMonth[pid][key] || 0) + (r.product_uom_qty || 0);
+    }
+
+    const sortedMonths = [...allMonths].sort();
+
+    // Productos de Odoo
+    const products = await getOdooProducts(false);
+    const mlMap = buildMlSkuMap();
+    const skipNames = ['mercado envios', 'self_service', 'drop_off', 'default', 'cross_docking', 'fulfillment'];
+
+    // Compras en camino
+    const compras = loadCompras();
+    const incomingBySku = {};
+    for (const c of compras) {
+      for (const it of (c.items || [])) {
+        if (!it.sku) continue;
+        if (!incomingBySku[it.sku]) incomingBySku[it.sku] = 0;
+        incomingBySku[it.sku] += parseInt(it.qty) || 0;
+      }
+    }
+
+    // Productos ya pedidos (órdenes en estado "pedida")
+    const pedidosBySku = getProductosPedidos();
+
+    // Calcular ABC: revenue últimos 6 meses
+    const last6 = sortedMonths.slice(-6);
+    const revenueByProd = {};
+    let totalRevenue = 0;
+
+    const items = [];
+    for (const p of products) {
+      const nameLower = (p.name || '').toLowerCase();
+      if (skipNames.some(s => nameLower.includes(s))) continue;
+      if (p.type === 'service') continue;
+
+      const sku = p.default_code || '';
+      const ml = mlMap[sku.trim()] || null;
+      const categ = Array.isArray(p.categ_id) ? p.categ_id[1] : (p.categ_id || '');
+      const sales = salesByProdMonth[p.id] || {};
+      const stock = p.qty_available || 0;
+      const incoming = incomingBySku[sku.trim()] || 0;
+      const pedido = pedidosBySku[sku.trim()] || 0;
+      const cost = p.standard_price || 0;
+      const price = p.list_price || 0;
+
+      // Determinar origen
+      const origen = isBrasil(categ, p.name) ? 'Brasil' : 'China';
+      const leadDays = origen === 'Brasil' ? leadDaysBrasil : leadDaysChina;
+      const compKey = origen === 'Brasil' ? compKeyBrasil : compKeyChina;
+      const targetKey = origen === 'Brasil' ? targetKeyBrasil : targetKeyChina;
+      const targetLabel = origen === 'Brasil'
+        ? monthLabels[targetMonthBrasil] + ' ' + targetYearBrasil
+        : monthLabels[targetMonthChina] + ' ' + targetYearChina;
+      const compLabel = origen === 'Brasil'
+        ? monthLabels[targetMonthBrasil] + ' ' + (targetYearBrasil - 1)
+        : monthLabels[targetMonthChina] + ' ' + (targetYearChina - 1);
+
+      // Revenue últimos 6 meses
+      const rev6m = last6.reduce((s, m) => s + (sales[m] || 0), 0) * price;
+      revenueByProd[p.id] = rev6m;
+      totalRevenue += rev6m;
+
+      // Ventas del mes objetivo año pasado
+      const soldCompMonth = sales[compKey] || 0;
+
+      // Promedio mensual últimos 6 meses
+      const sold6m = last6.reduce((s, m) => s + (sales[m] || 0), 0);
+      const avgMonth = sold6m / Math.max(last6.length, 1);
+
+      // Estacionalidad: mirar los últimos 3 meses para ver si el producto está activo
+      const last3 = sortedMonths.slice(-3);
+      const sold3m = last3.reduce((s, m) => s + (sales[m] || 0), 0);
+      const avgLast3 = sold3m / Math.max(last3.length, 1);
+
+      // Detectar si es estacional / inactivo:
+      // Si no vendió nada en los últimos 3 meses → no pedir (producto estacional fuera de temporada)
+      // Si vendió muy poco (<20% del promedio general) → reducir pedido
+      let seasonalFactor = 1;
+      let seasonalNote = '';
+      if (avgMonth > 0 && sold3m === 0) {
+        seasonalFactor = 0; // no se está vendiendo, no pedir
+        seasonalNote = 'Sin ventas 3 meses - no pedir';
+      } else if (avgMonth > 5 && avgLast3 < avgMonth * 0.2) {
+        seasonalFactor = 0.3; // se vende muy poco vs promedio → reducir
+        seasonalNote = 'Temporada baja - reducido';
+      } else if (avgLast3 > avgMonth * 1.5) {
+        seasonalFactor = 1.2; // está vendiendo más que lo normal → subir un poco
+        seasonalNote = 'Temporada alta';
+      }
+
+      // Estimación: usar el mayor entre (mes año pasado × crecimiento) y (promedio últimos 3 × crecimiento)
+      // Estimación: si tengo dato del mismo mes año pasado, priorizar ese.
+      // Solo usar promedio reciente si no hay dato del año pasado.
+      const estByCompMonth = Math.ceil(soldCompMonth * growthFactor);
+      const estByRecent = Math.ceil(avgLast3 * growthFactor);
+      let baseEstimated;
+      if (soldCompMonth > 0) {
+        // Tengo dato del año pasado: usarlo como base principal
+        // Si el promedio reciente es similar (±50%), promediar. Si no, confiar en el año pasado.
+        if (estByRecent > 0 && estByRecent < estByCompMonth * 1.5 && estByRecent > estByCompMonth * 0.5) {
+          baseEstimated = Math.ceil((estByCompMonth + estByRecent) / 2);
+        } else {
+          baseEstimated = estByCompMonth;
+        }
+      } else {
+        baseEstimated = estByRecent;
+      }
+      const estimated = Math.ceil(baseEstimated * seasonalFactor);
+
+      // Stock de seguridad: 20% de la estimación (capped, no basado en stddev que da números locos con estacionalidad)
+      const safetyStock = seasonalFactor > 0 ? Math.ceil(estimated * 0.2) : 0;
+
+      // Faltante
+      const available = stock + incoming + pedido;
+      const needed = estimated + safetyStock;
+      const gap = Math.max(0, needed - available);
+
+      // Días de stock al ritmo actual
+      const dailyRate = avgMonth / 30;
+      const daysOfStock = dailyRate > 0 ? Math.round(available / dailyRate) : null;
+
+      // Quiebre: ¿se queda sin stock antes de que llegue el contenedor?
+      const willBreak = daysOfStock !== null && daysOfStock < leadDays;
+
+      items.push({
+        id: p.id,
+        name: p.name,
+        sku,
+        categ: Array.isArray(p.categ_id) ? p.categ_id[1] : (p.categ_id || ''),
+        cost,
+        price,
+        stock,
+        incoming,
+        pedido,
+        available,
+        ml_thumbnail: ml ? ml.thumbnail : null,
+        ml_status: ml ? ml.status : null,
+        sold_comp_month: soldCompMonth,
+        estimated,
+        safety_stock: safetyStock,
+        needed,
+        gap,
+        avg_month: Math.round(avgMonth * 10) / 10,
+        days_of_stock: daysOfStock,
+        will_break: willBreak,
+        origen,
+        lead_days: leadDays,
+        target_label: targetLabel,
+        comp_label: compLabel,
+        seasonal_note: seasonalNote,
+        seasonal_factor: seasonalFactor,
+        avg_last_3: Math.round(avgLast3 * 10) / 10,
+        max_month_6m: Math.max(...last6.map(m => sales[m] || 0)),
+        sold_6m: sold6m,
+        revenue_6m: Math.round(rev6m),
+        sales_by_month: sales,
+        abc: null, // se calcula abajo
+      });
+    }
+
+    // ABC classification
+    items.sort((a, b) => b.revenue_6m - a.revenue_6m);
+    let cumRev = 0;
+    for (const item of items) {
+      cumRev += item.revenue_6m;
+      const pct = totalRevenue > 0 ? cumRev / totalRevenue : 0;
+      item.abc = pct <= 0.8 ? 'A' : pct <= 0.95 ? 'B' : 'C';
+    }
+
+    // Ordenar por gap descendente (los que más necesitás primero)
+    items.sort((a, b) => b.gap - a.gap);
+
+    // KPIs
+    const totalGap = items.reduce((s, i) => s + i.gap, 0);
+    const totalInversion = items.reduce((s, i) => s + i.gap * i.cost, 0);
+    const willBreakCount = items.filter(i => i.will_break && i.avg_month > 0).length;
+    const aItems = items.filter(i => i.abc === 'A').length;
+
+    const chinaLabel = monthLabels[targetMonthChina] + ' ' + targetYearChina;
+    const brasilLabel = monthLabels[targetMonthBrasil] + ' ' + targetYearBrasil;
+    const chinaItems = items.filter(i => i.origen === 'China');
+    const brasilItems = items.filter(i => i.origen === 'Brasil');
+
+    res.json({
+      config: {
+        lead_days_china: leadDaysChina, lead_days_brasil: leadDaysBrasil, growth_pct: growthPct,
+        china: { target: targetKeyChina, comp: compKeyChina, label: chinaLabel },
+        brasil: { target: targetKeyBrasil, comp: compKeyBrasil, label: brasilLabel },
+      },
+      kpis: { total_items: items.length, total_gap: totalGap, total_inversion: Math.round(totalInversion), will_break: willBreakCount, a_items: aItems, china_count: chinaItems.length, brasil_count: brasilItems.length },
+      items,
+      all_months: sortedMonths,
+    });
+  } catch(e) {
+    console.error('[planificador]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Órdenes de compra ──
+const ORDENES_FILE = path.join(__dirname, 'data', 'ordenes_compra.json');
+function loadOrdenes() { try { return fs.existsSync(ORDENES_FILE) ? JSON.parse(fs.readFileSync(ORDENES_FILE, 'utf8')) : []; } catch { return []; } }
+function saveOrdenes(data) { fs.writeFileSync(ORDENES_FILE, JSON.stringify(data, null, 2), 'utf8'); }
+
+app.get('/api/ordenes-compra', requireToken, (req, res) => res.json(loadOrdenes()));
+
+app.post('/api/ordenes-compra', requireToken, (req, res) => {
+  const { items, notes } = req.body;
+  if (!items?.length) return res.status(400).json({ error: 'Sin items' });
+  const ordenes = loadOrdenes();
+  const orden = {
+    id: Date.now().toString(),
+    created_at: new Date().toISOString(),
+    status: 'pedida',
+    notes: notes || '',
+    items: items.map(i => ({ sku: i.sku, name: i.name, qty: i.qty, origen: i.origen, thumb: i.thumb })),
+    total_qty: items.reduce((s, i) => s + (i.qty || 0), 0),
+  };
+  ordenes.push(orden);
+  saveOrdenes(ordenes);
+  console.log(`[ordenes] nueva orden: ${orden.id} - ${orden.items.length} productos, ${orden.total_qty} uds`);
+  res.json(orden);
+});
+
+app.post('/api/ordenes-compra/:id/confirmar', requireToken, (req, res) => {
+  const { expected_date } = req.body;
+  const ordenes = loadOrdenes();
+  const orden = ordenes.find(o => o.id === req.params.id);
+  if (!orden) return res.status(404).json({ error: 'Orden no encontrada' });
+  if (orden.status === 'confirmada') return res.status(400).json({ error: 'Ya confirmada' });
+
+  orden.status = 'confirmada';
+  orden.confirmed_at = new Date().toISOString();
+  orden.expected_date = expected_date || '';
+  saveOrdenes(ordenes);
+
+  // Cargar en Previsiones como mercadería en camino
+  const compras = loadCompras();
+  compras.push({
+    id: 'ord-' + orden.id,
+    created_at: new Date().toISOString(),
+    supplier: 'Orden #' + orden.id.slice(-6),
+    expected_date: expected_date || '',
+    notes: 'Confirmada desde orden de compra',
+    items: orden.items.filter(i => i.sku && i.qty > 0).map(i => ({ sku: i.sku, qty: i.qty })),
+  });
+  saveCompras(compras);
+  console.log(`[ordenes] orden ${orden.id} confirmada → previsiones`);
+  res.json(orden);
+});
+
+app.delete('/api/ordenes-compra/:id', requireToken, (req, res) => {
+  saveOrdenes(loadOrdenes().filter(o => o.id !== req.params.id));
+  res.json({ ok: true });
+});
+
+// Productos ya pedidos (para descontar del planificador)
+function getProductosPedidos() {
+  const ordenes = loadOrdenes().filter(o => o.status === 'pedida');
+  const pedidos = {};
+  for (const o of ordenes) {
+    for (const i of o.items) {
+      pedidos[i.sku] = (pedidos[i.sku] || 0) + (i.qty || 0);
+    }
+  }
+  return pedidos;
+}
+
+// ── IHOME Mapping + Product Images ──
+const IHOME_MAP_FILE = path.join(__dirname, 'data', 'ihome_mapping.json');
+const PRODUCT_IMAGES_DIR = path.join(__dirname, 'data', 'product_images');
+
+app.get('/api/ihome-mapping', requireToken, (req, res) => {
+  try {
+    if (fs.existsSync(IHOME_MAP_FILE)) return res.json(JSON.parse(fs.readFileSync(IHOME_MAP_FILE, 'utf8')));
+    res.json({});
+  } catch { res.json({}); }
+});
+
+app.get('/api/product-image/:filename', (req, res) => {
+  const filePath = path.join(PRODUCT_IMAGES_DIR, req.params.filename);
+  if (fs.existsSync(filePath)) return res.sendFile(filePath);
+  res.status(404).end();
+});
+
+// Export orden con imágenes (ExcelJS)
+const ExcelJS = require('exceljs');
+app.post('/api/orden/exportar', requireToken, async (req, res) => {
+  const { items } = req.body;
+  if (!items?.length) return res.status(400).json({ error: 'Sin items' });
+
+  try {
+    let ihomeMap = {};
+    try { if (fs.existsSync(IHOME_MAP_FILE)) ihomeMap = JSON.parse(fs.readFileSync(IHOME_MAP_FILE, 'utf8')); } catch {}
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Purchase Order');
+
+    // Header
+    ws.mergeCells('A1:G1');
+    ws.getCell('A1').value = 'PURCHASE ORDER - MA IMPORTACIONES';
+    ws.getCell('A1').font = { size: 14, bold: true };
+    ws.getCell('A2').value = 'Date:';
+    ws.getCell('B2').value = new Date().toLocaleDateString('es-UY');
+
+    // Column headers
+    ws.getRow(4).values = ['NO.', 'FOTO', 'IHOME CODE', 'MA CODE', 'DESCRIPTION', 'QTY', 'FOB (ref)', 'LINK ML'];
+    ws.getRow(4).font = { bold: true };
+    ws.getRow(4).eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } }; });
+
+    // Column widths
+    ws.getColumn(1).width = 5;
+    ws.getColumn(2).width = 15;
+    ws.getColumn(3).width = 14;
+    ws.getColumn(4).width = 14;
+    ws.getColumn(5).width = 55;
+    ws.getColumn(6).width = 8;
+    ws.getColumn(7).width = 10;
+    ws.getColumn(8).width = 40;
+
+    let totalQty = 0;
+    for (let idx = 0; idx < items.length; idx++) {
+      const item = items[idx];
+      const mapping = ihomeMap[item.sku] || {};
+      const rowNum = 5 + idx;
+      const row = ws.getRow(rowNum);
+      row.height = 60;
+
+      row.getCell(1).value = idx + 1;
+      // Image: China → ML → Odoo
+      let imgBuffer = null;
+      let imgExt = 'png';
+      // 1. Foto de China
+      if (mapping.image) {
+        const imgFile = path.join(PRODUCT_IMAGES_DIR, path.basename(mapping.image));
+        if (fs.existsSync(imgFile)) imgBuffer = fs.readFileSync(imgFile);
+      }
+      // 2. Foto de ML
+      if (!imgBuffer && item.thumb) {
+        try {
+          const imgUrl = item.thumb.replace('http://', 'https://');
+          const imgRes = await axios.get(imgUrl, { responseType: 'arraybuffer', timeout: 5000 });
+          imgBuffer = Buffer.from(imgRes.data);
+          imgExt = 'jpeg';
+        } catch {}
+      }
+      // 3. Foto de Odoo (buscar en cachedStock por SKU)
+      if (!imgBuffer) {
+        const mlItem = (cachedStock || []).find(i => i.sku === item.sku);
+        if (mlItem?.thumbnail) {
+          try {
+            const imgUrl = mlItem.thumbnail.replace('http://', 'https://');
+            const imgRes = await axios.get(imgUrl, { responseType: 'arraybuffer', timeout: 5000 });
+            imgBuffer = Buffer.from(imgRes.data);
+            imgExt = 'jpeg';
+          } catch {}
+        }
+      }
+      if (imgBuffer) {
+        try {
+          const imgId = wb.addImage({ buffer: imgBuffer, extension: imgExt });
+          ws.addImage(imgId, { tl: { col: 1, row: rowNum - 1 }, ext: { width: 80, height: 60 } });
+        } catch {}
+      }
+      row.getCell(3).value = mapping.ihome || '';
+      row.getCell(4).value = item.sku;
+      row.getCell(5).value = mapping.description || item.name;
+      row.getCell(6).value = item.qty;
+      row.getCell(7).value = mapping.fob || '';
+      // Link ML
+      const mlItem = (cachedStock || []).find(i => i.sku === item.sku);
+      if (mlItem?.permalink) {
+        row.getCell(8).value = { text: mlItem.permalink, hyperlink: mlItem.permalink };
+        row.getCell(8).font = { color: { argb: 'FF2563EB' }, underline: true, size: 9 };
+      }
+      totalQty += item.qty || 0;
+    }
+
+    // Total
+    const totalRow = ws.getRow(5 + items.length + 1);
+    totalRow.getCell(5).value = 'TOTAL';
+    totalRow.getCell(5).font = { bold: true };
+    totalRow.getCell(6).value = totalQty;
+    totalRow.getCell(6).font = { bold: true };
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=order_MA_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+    await wb.xlsx.write(res);
+    res.end();
+  } catch(e) {
+    console.error('[orden/exportar]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Google Trends ──
+
+// Interés en el tiempo para hasta 5 keywords
+app.get('/api/trends/interest', requireToken, async (req, res) => {
+  const keywords = (req.query.keywords || '').split(',').map(k => k.trim()).filter(Boolean).slice(0, 5);
+  if (!keywords.length) return res.status(400).json({ error: 'keywords requerido (separadas por coma)' });
+  const geo = req.query.geo || 'US';
+  const months = parseInt(req.query.months) || 24;
+  const startTime = new Date();
+  startTime.setMonth(startTime.getMonth() - months);
+
+  try {
+    const raw = await googleTrends.interestOverTime({ keyword: keywords, startTime, geo });
+    const data = JSON.parse(raw);
+    const timeline = (data.default?.timelineData || []).map(t => ({
+      date: t.formattedAxisTime,
+      timestamp: t.time,
+      values: t.value,
+      formatted: t.formattedTime,
+    }));
+    res.json({ keywords, geo, timeline, total_points: timeline.length });
+  } catch(e) {
+    console.error('[trends]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Queries relacionadas (top y rising)
+app.get('/api/trends/related', requireToken, async (req, res) => {
+  const keyword = (req.query.keyword || '').trim();
+  if (!keyword) return res.status(400).json({ error: 'keyword requerido' });
+  const geo = req.query.geo || 'US';
+
+  try {
+    const raw = await googleTrends.relatedQueries({ keyword, startTime: new Date(Date.now() - 365*24*60*60*1000), geo });
+    const data = JSON.parse(raw);
+    const ranked = data.default?.rankedList || [];
+    const top = (ranked[0]?.rankedKeyword || []).slice(0, 15).map(k => ({ query: k.query, value: k.value }));
+    const rising = (ranked[1]?.rankedKeyword || []).slice(0, 15).map(k => ({ query: k.query, value: k.formattedValue }));
+    res.json({ keyword, geo, top, rising });
+  } catch(e) {
+    console.error('[trends related]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Interés por región
+app.get('/api/trends/regions', requireToken, async (req, res) => {
+  const keyword = (req.query.keyword || '').trim();
+  if (!keyword) return res.status(400).json({ error: 'keyword requerido' });
+
+  try {
+    const raw = await googleTrends.interestByRegion({ keyword, startTime: new Date(Date.now() - 365*24*60*60*1000), geo: 'US' });
+    const data = JSON.parse(raw);
+    const regions = (data.default?.geoMapData || []).slice(0, 20).map(r => ({ name: r.geoName, value: r.value[0] }));
+    res.json({ keyword, regions });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.listen(PORT, () => {

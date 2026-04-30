@@ -16,6 +16,14 @@ data/item_detail_cache.json
 data/shipping_costs_by_item.json
 data/images/
 data/debug_*.json
+data/sessions.json
+data/drive_token.json
+data/drive_index.json
+data/imp_read_cache.json
+data/compras.json
+data/ordenes_compra.json
+data/product_images/
+credentials.json
 
 # Sí subir estos (configuración del negocio)
 # data/reglas_negocio.json
