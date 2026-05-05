@@ -1721,9 +1721,56 @@ function upgradeMlThumb(url) {
     .replace(/-I\.jpg$/, '-O.jpg');
 }
 
+// Cache completo de productos + ventas para servir instantáneo
+let _catalogoCache = null;
+let _catalogoCacheTime = 0;
+const CATALOGO_CACHE_FILE = path.join(DATA_DIR, 'catalogo_cache.json');
+
+async function buildCatalogoCache(force = false) {
+  if (!force && _catalogoCache && (Date.now() - _catalogoCacheTime < 3600000)) return _catalogoCache;
+  // Try disk cache first
+  if (!force && !_catalogoCache) {
+    try {
+      if (fs.existsSync(CATALOGO_CACHE_FILE)) {
+        _catalogoCache = JSON.parse(fs.readFileSync(CATALOGO_CACHE_FILE, 'utf8'));
+        _catalogoCacheTime = Date.now();
+        console.log('[catalogo] cache cargado desde disco: ' + (_catalogoCache.total || 0) + ' productos');
+        return _catalogoCache;
+      }
+    } catch(e) {}
+  }
+  console.log('[catalogo] construyendo cache...');
+  const result = await _buildCatalogoData(force);
+  _catalogoCache = result;
+  _catalogoCacheTime = Date.now();
+  try { fs.writeFileSync(CATALOGO_CACHE_FILE, JSON.stringify(result)); } catch(e) {}
+  console.log('[catalogo] cache listo: ' + result.total + ' productos');
+  return result;
+}
+
+// Refresh catalogo en background al arrancar (30s delay) y cada hora
+setTimeout(() => buildCatalogoCache(true).catch(e => console.error('[catalogo] error:', e.message)), 30000);
+setInterval(() => buildCatalogoCache(true).catch(e => console.error('[catalogo] refresh error:', e.message)), 3600000);
+
 app.get('/api/odoo/productos', async (req, res) => {
   try {
-    const products = await getOdooProducts(req.query.refresh === 'true');
+    if (req.query.refresh === 'true') {
+      buildCatalogoCache(true).catch(e => console.error('[catalogo] refresh error:', e.message));
+    }
+    const cached = await buildCatalogoCache(false);
+    if (cached) return res.json(cached);
+    // Fallback: build live
+    const result = await _buildCatalogoData(false);
+    res.json(result);
+  } catch (err) {
+    console.error('[odoo] error productos:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+async function _buildCatalogoData(forceProducts) {
+  try {
+    const products = await getOdooProducts(forceProducts);
 
     // Traer ventas de los últimos 6 meses por producto, mes Y canal
     let salesByProduct = {};     // product_id -> total qty
@@ -1854,12 +1901,12 @@ app.get('/api/odoo/productos', async (req, res) => {
         name,
         items: items.sort((a, b) => a.name.localeCompare(b.name, 'es')),
       }));
-    res.json({ categories, total: products.length, salesMonths, savedAt: new Date().toISOString() });
+    return { categories, total: products.length, salesMonths, savedAt: new Date().toISOString() };
   } catch (err) {
     console.error('[odoo] error productos:', err.message);
-    res.status(500).json({ error: err.message });
+    throw err;
   }
-});
+}
 
 // Mapeo manual SKU Odoo → ML item ID
 const SKU_MAP_FILE = path.join(__dirname, 'data', 'sku_map_manual.json');
