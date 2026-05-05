@@ -1563,9 +1563,17 @@ async function odooCall(path, method, params, host = ODOO_HOST) {
     params: { service: path.includes('common') ? 'common' : 'object', method, args: params },
   };
 
-  const r = await axios.post(url, body, { headers: { 'Content-Type': 'application/json' }, timeout: 60000 });
-  if (r.data.error) throw new Error(r.data.error.data?.message || r.data.error.message || JSON.stringify(r.data.error));
-  return r.data.result;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const r = await axios.post(url, body, { headers: { 'Content-Type': 'application/json' }, timeout: 120000 });
+      if (r.data.error) throw new Error(r.data.error.data?.message || r.data.error.message || JSON.stringify(r.data.error));
+      return r.data.result;
+    } catch (e) {
+      if (attempt === 3) throw e;
+      console.log(`[odoo] intento ${attempt} falló (${e.message}), reintentando...`);
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
 }
 
 function odooCallStaging(path, method, params) {
