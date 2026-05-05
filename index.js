@@ -1597,7 +1597,7 @@ app.get('/api/odoo/status', (req, res) => {
 
 async function odooSearchRead(uid, model, domain, fields, opts = {}) {
   const allItems = [];
-  const pageSize = 500;
+  const pageSize = 200;
   let offset = 0;
   while (true) {
     const batch = await odooCall('/xmlrpc/2/object', 'execute_kw', [
@@ -1757,11 +1757,35 @@ app.get('/api/odoo/productos', async (req, res) => {
     if (req.query.refresh === 'true') {
       buildCatalogoCache(true).catch(e => console.error('[catalogo] refresh error:', e.message));
     }
-    const cached = await buildCatalogoCache(false);
-    if (cached) return res.json(cached);
-    // Fallback: build live
-    const result = await _buildCatalogoData(false);
-    res.json(result);
+    // Serve from cache if available
+    if (_catalogoCache) return res.json(_catalogoCache);
+    // No cache yet — serve products from odooCache without sales (fast fallback)
+    if (odooCache && odooCache.length > 0) {
+      const mlMap = buildMlSkuMap();
+      const skipNames = ['mercado envios', 'self_service', 'drop_off', 'default', 'cross_docking', 'fulfillment'];
+      const byCategory = {};
+      for (const p of odooCache) {
+        const nameLower = (p.name || '').toLowerCase();
+        if (skipNames.some(s => nameLower.includes(s))) continue;
+        if (p.type === 'service') continue;
+        const cat = Array.isArray(p.categ_id) ? p.categ_id[1] : (p.categ_id || 'Sin categoría');
+        if (!byCategory[cat]) byCategory[cat] = [];
+        const sku = p.default_code || '';
+        const ml = mlMap[sku.trim()] || null;
+        byCategory[cat].push({
+          id: p.id, name: p.name, sku, price: p.list_price, cost: p.standard_price ?? 0,
+          stock: p.qty_available ?? 0, sold_6m: 0, sold_avg_month: 0,
+          sales_by_month: {}, sales_by_channel: { ml:{}, mayorista:{}, local:{} },
+          ml_stock: ml?.stock ?? null, ml_price: ml?.price ?? null, ml_status: ml?.status ?? null,
+          ml_thumbnail: ml ? upgradeMlThumb(ml.thumbnail) : null,
+          odoo_image: p.image_128 ? 'data:image/png;base64,' + p.image_128 : null,
+          incoming: 0, incoming_detail: [], categ: cat, mayorista: p.x_studio_producto_mayorista || false,
+        });
+      }
+      const categories = Object.entries(byCategory).sort(([a],[b]) => a.localeCompare(b,'es')).map(([name,items]) => ({ name, items: items.sort((a,b) => a.name.localeCompare(b.name,'es')) }));
+      return res.json({ categories, total: odooCache.length, salesMonths: [], savedAt: 'cache parcial — ventas cargando...' });
+    }
+    res.status(503).json({ error: 'Catálogo cargando, intentá en unos minutos...' });
   } catch (err) {
     console.error('[odoo] error productos:', err.message);
     res.status(500).json({ error: err.message });
