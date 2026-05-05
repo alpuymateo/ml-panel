@@ -1724,7 +1724,7 @@ function upgradeMlThumb(url) {
 // Cache completo de productos + ventas para servir instantáneo
 let _catalogoCache = null;
 let _catalogoCacheTime = 0;
-const CATALOGO_CACHE_FILE = path.join(DATA_DIR, 'catalogo_cache.json');
+const CATALOGO_CACHE_FILE = path.join(__dirname, 'data', 'catalogo_cache.json');
 
 async function buildCatalogoCache(force = false) {
   if (!force && _catalogoCache && (Date.now() - _catalogoCacheTime < 3600000)) return _catalogoCache;
