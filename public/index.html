@@ -344,6 +344,7 @@
         <small class="logo-sub">MercadoLibre UY</small>
       </div>
     </div>
+    <div id="odoo-env-badge" style="display:none;padding:4px 12px;text-align:center;font-size:10px;font-weight:700;letter-spacing:0.5px;"></div>
     <nav class="sidebar-nav" style="overflow-y:auto;flex:1;">
 
       <!-- Ventas -->
@@ -364,6 +365,18 @@
         <div class="nav-item" data-page="comparador" onclick="showPage('comparador')">
           <span class="nav-icon">📊</span> Comparador
         </div>
+        <div class="nav-item" data-page="zureo" onclick="showPage('zureo')">
+          <span class="nav-icon">🧾</span> Hist&oacute;rico
+        </div>
+        <div class="nav-item" data-page="perdidos" onclick="showPage('perdidos')">
+          <span class="nav-icon">🔻</span> Perdidos
+        </div>
+        <div class="nav-item" data-page="item-compare" onclick="showPage('item-compare')">
+          <span class="nav-icon">🔄</span> Por producto
+        </div>
+        <div class="nav-item" data-page="objetivos" onclick="showPage('objetivos')">
+          <span class="nav-icon">🎯</span> Objetivos
+        </div>
       </div>
 
       <!-- Inventario -->
@@ -383,9 +396,6 @@
         </div>
         <div class="nav-item" data-page="stock-odoo" onclick="showPage('stock-odoo')">
           <span class="nav-icon">🟣</span> Stock Odoo
-        </div>
-        <div class="nav-item" data-page="planificador" onclick="showPage('planificador')">
-          <span class="nav-icon">🎯</span> Planificador
         </div>
         <div class="nav-item" data-page="orden-sugerida" onclick="showPage('orden-sugerida')">
           <span class="nav-icon">📋</span> Orden sugerida
@@ -455,6 +465,9 @@
         <span class="arrow" id="arrow-nav-ml">▶</span>
       </div>
       <div class="nav-group-items" id="nav-ml" style="display:none;">
+        <div class="nav-item" data-page="ml-estrategia" onclick="showPage('ml-estrategia')">
+          <span class="nav-icon">🎯</span> Estrategia
+        </div>
         <div class="nav-item" data-page="ml-sin-descuento" onclick="showPage('ml-sin-descuento')">
           <span class="nav-icon">🏷️</span> Sin descuento
         </div>
@@ -1321,6 +1334,15 @@
       </div>
     </div>
 
+    <!-- ══ ML: Estrategia de pricing ══ -->
+    <div id="page-ml-estrategia" style="display:none">
+      <div class="page-header">
+        <h1>Estrategia de pricing ML</h1>
+        <p>Simulador de rentabilidad, plan de acci&oacute;n y monitoreo diario</p>
+      </div>
+      <div id="est-content"><div class="loading"><span class="spinner"></span>Cargando...</div></div>
+    </div>
+
     <!-- ══ ML: Sin descuento ══ -->
     <div id="page-ml-sin-descuento" style="display:none">
       <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
@@ -1953,12 +1975,110 @@
             <div id="os-cart-total" style="padding:10px 16px;border-top:1px solid #e5e7eb;font-size:13px;font-weight:700;"></div>
             <div style="padding:10px 16px;display:flex;gap:8px;">
               <button onclick="exportarMiOrden()" style="flex:1;padding:8px;background:#059669;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">📥 Excel</button>
+              <button onclick="armarContenedores()" style="flex:1;padding:8px;background:#4361ee;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">📦 Contenedores</button>
               <button onclick="limpiarOrden()" style="padding:8px 12px;background:#fee2e2;color:#dc2626;border:none;border-radius:6px;font-size:13px;cursor:pointer;">Limpiar</button>
             </div>
           </div>
         </div>
       </div>
       <div id="os-ordenes-list" style="margin-top:20px;"></div>
+    </div>
+
+    <!-- ══ PRODUCTOS PERDIDOS ══ -->
+    <div id="page-perdidos" style="display:none">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h1>🔻 Productos perdidos</h1>
+          <p>Vend&iacute;as este mes el a&ntilde;o pasado y ahora no &mdash; ¿falla de stock?</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div>
+            <label style="font-size:10px;color:#6b7280;">M&iacute;n. uds</label>
+            <input type="number" id="perdidos-min" value="3" min="1" style="width:60px;padding:6px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">
+          </div>
+          <select class="filter-select" id="perdidos-stock-filter" onchange="loadPerdidos()">
+            <option value="todos">Todos</option>
+            <option value="sin_stock">Sin stock (falla)</option>
+            <option value="con_stock">Con stock (no vendido)</option>
+          </select>
+          <button class="btn-refresh" onclick="loadPerdidos()">Analizar</button>
+        </div>
+      </div>
+      <div id="perdidos-kpis"></div>
+      <div style="margin-bottom:12px;">
+        <input type="text" class="search-input" id="perdidos-filter" placeholder="Buscar producto..." oninput="filterPerdidos()" style="width:280px;">
+      </div>
+      <div id="perdidos-table"></div>
+    </div>
+
+    <!-- ══ COMPARADOR POR PRODUCTO ══ -->
+    <div id="page-item-compare" style="display:none">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h1>🔄 Comparador por producto</h1>
+          <p>Cada producto, a&ntilde;o a a&ntilde;o &mdash; unidades y facturaci&oacute;n</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div>
+            <label style="font-size:10px;color:#6b7280;">A&ntilde;o A</label>
+            <select id="ic-year1" class="filter-select" style="font-size:13px;">
+              <option value="2025">2025</option>
+              <option value="2024">2024</option>
+              <option value="2023">2023</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:10px;color:#6b7280;">vs A&ntilde;o B</label>
+            <select id="ic-year2" class="filter-select" style="font-size:13px;">
+              <option value="2024">2024</option>
+              <option value="2023">2023</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:10px;color:#6b7280;">Ordenar</label>
+            <select id="ic-sort" class="filter-select" style="font-size:13px;">
+              <option value="diff">Mayor crecimiento $</option>
+              <option value="drop">Mayor ca&iacute;da $</option>
+              <option value="growth">Mayor % crecimiento</option>
+              <option value="total">M&aacute;s facturaci&oacute;n</option>
+              <option value="qty">M&aacute;s unidades</option>
+            </select>
+          </div>
+          <button class="btn-refresh" onclick="loadItemCompare()">Comparar</button>
+        </div>
+      </div>
+      <div id="ic-kpis"></div>
+      <div style="margin-bottom:12px;">
+        <input type="text" class="search-input" id="ic-filter" placeholder="Buscar producto o c&oacute;digo..." style="width:300px;">
+      </div>
+      <div id="ic-table"></div>
+    </div>
+
+    <!-- ══ OBJETIVOS ══ -->
+    <div id="page-objetivos" style="display:none">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h1>🎯 Objetivos mensuales</h1>
+          <p>Basado en historial de Zureo (mayo 2024 + mayo 2025) con crecimiento objetivo</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div>
+            <label style="font-size:10px;color:#6b7280;">Canal</label>
+            <select id="obj-canal" class="filter-select" onchange="loadObjetivos()" style="font-size:13px;">
+              <option value="total">Total</option>
+              <option value="ml">MercadoLibre</option>
+              <option value="mayorista">Mayorista</option>
+              <option value="local">Local</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:10px;color:#6b7280;">Crecimiento %</label>
+            <input type="number" id="obj-growth" value="30" min="0" style="width:60px;padding:6px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">
+          </div>
+          <button class="btn-refresh" onclick="loadObjetivos()" id="obj-btn">Calcular</button>
+        </div>
+      </div>
+      <div id="obj-content"><div class="loading"><span class="spinner"></span>Cargando...</div></div>
     </div>
 
     <!-- ══ STOCK ODOO ══ -->
@@ -2027,6 +2147,39 @@
         </select>
       </div>
       <div id="dimensiones-table"></div>
+    </div>
+
+    <!-- ══ HISTÓRICO ══ -->
+    <div id="page-zureo" style="display:none">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h1>Hist&oacute;rico de ventas</h1>
+          <p>Zureo (2023&ndash;ago 2025) + MercadoLibre (sep 2025&ndash;hoy)</p>
+        </div>
+      </div>
+
+      <!-- KPIs anuales -->
+      <div id="zureo-kpis"></div>
+
+      <!-- Comparador mismo mes -->
+      <div id="zureo-mes-compare" style="margin-bottom:20px;"></div>
+
+      <!-- Gráfico principal -->
+      <div id="zureo-chart" style="margin-bottom:20px;"></div>
+
+      <!-- Tabla mensual año a año -->
+      <div id="zureo-monthly-table" style="margin-bottom:20px;"></div>
+
+      <!-- Top productos -->
+      <div style="margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <input type="text" class="search-input" id="zureo-filter" placeholder="Buscar art&iacute;culo..." oninput="loadZureoItems()" style="width:260px;">
+        <select class="filter-select" id="zureo-sort" onchange="loadZureoItems()">
+          <option value="total">Mayor facturaci&oacute;n</option>
+          <option value="qty">M&aacute;s vendidos</option>
+          <option value="name">Alfab&eacute;tico</option>
+        </select>
+      </div>
+      <div id="zureo-table"></div>
     </div>
 
     <!-- ══ COMPARADOR AÑO A AÑO ══ -->
@@ -2128,7 +2281,7 @@ function badgeClass(s) {
   return 'badge badge-' + (map[s] || 'default');
 }
 
-const PAGES = ['ventas', 'ordenes', 'stock', 'reclamos', 'devoluciones', 'tareas', 'precios', 'dashboard', 'comparador', 'dimensiones', 'stock-odoo', 'planificador', 'orden-sugerida', 'odoo', 'odooml', 'catalogo', 'pedidos-may', 'previsiones', 'usuarios', 'ml-sin-descuento', 'ml-ofertas', 'ml-analizar', 'oportunidades', 'lineas', 'trends', 'calculadora', 'importaciones', 'imp-todas', 'imp-buscar', 'imp-detalle', 'imp-pi'];
+const PAGES = ['ventas', 'ordenes', 'stock', 'reclamos', 'devoluciones', 'tareas', 'precios', 'dashboard', 'comparador', 'zureo', 'perdidos', 'item-compare', 'objetivos', 'dimensiones', 'stock-odoo', 'orden-sugerida', 'odoo', 'odooml', 'catalogo', 'pedidos-may', 'previsiones', 'usuarios', 'ml-estrategia', 'ml-sin-descuento', 'ml-ofertas', 'ml-analizar', 'oportunidades', 'lineas', 'trends', 'calculadora', 'importaciones', 'imp-todas', 'imp-buscar', 'imp-detalle', 'imp-pi'];
 // Páginas virtuales que reutilizan ml-analizar
 const ML_TAB_PAGES = { 'ml-preguntas': 'pendientes', 'ml-postventa': 'mensajes', 'ml-reglas': 'reglas' };
 
@@ -2140,12 +2293,12 @@ function toggleNavGroup(id) {
 }
 
 const navGroupMap = {
-  'nav-ventas': ['ventas','ordenes','dashboard','comparador'],
-  'nav-inventario': ['stock','previsiones','precios','stock-odoo','planificador','orden-sugerida','dimensiones'],
+  'nav-ventas': ['ventas','ordenes','dashboard','comparador','zureo','perdidos','item-compare','objetivos'],
+  'nav-inventario': ['stock','previsiones','precios','stock-odoo','orden-sugerida','dimensiones'],
   'nav-posventa': ['reclamos','devoluciones','tareas'],
   'nav-mayorista': ['catalogo','pedidos-may'],
   'nav-oportunidades': ['oportunidades','lineas','trends','calculadora'],
-  'nav-ml': ['ml-sin-descuento','ml-ofertas','ml-analizar','ml-preguntas','ml-postventa','ml-reglas'],
+  'nav-ml': ['ml-estrategia','ml-sin-descuento','ml-ofertas','ml-analizar','ml-preguntas','ml-postventa','ml-reglas'],
   'nav-integracion': ['odoo','odooml'],
   'nav-importaciones': ['importaciones','imp-todas','imp-buscar','imp-detalle','imp-pi'],
   'nav-admin': ['usuarios'],
@@ -2228,6 +2381,7 @@ function showPage(page) {
     document.getElementById('catalogo-stock').value = 'con_stock';
     loadCatalogo();
   }
+  if (page === 'ml-estrategia') { loadEstrategia(); }
   if (page === 'ml-sin-descuento') { loadSinDescuento(); }
   if (page === 'ml-ofertas') { loadOfertas(); }
   if (page === 'ml-analizar') { initAnalizarPage('conversion'); }
@@ -2247,11 +2401,20 @@ function showPage(page) {
   if (page === 'dimensiones') {
     loadDimensiones();
   }
+  if (page === 'zureo') {
+    loadZureo();
+  }
   if (page === 'stock-odoo') {
     loadOdooStock();
   }
-  if (page === 'planificador') {
-    loadPlanificador();
+  if (page === 'perdidos') {
+    loadPerdidos();
+  }
+  if (page === 'item-compare') {
+    loadItemCompare();
+  }
+  if (page === 'objetivos') {
+    loadObjetivos();
   }
   if (page === 'orden-sugerida') {
     loadOrdenSugerida();
@@ -3563,6 +3726,28 @@ function showApp() {
   }
   loadStock();
   stockLoaded = true;
+  loadOdooEnvBadge();
+}
+
+async function loadOdooEnvBadge() {
+  try {
+    const r = await fetch('/api/odoo/status');
+    const d = await r.json();
+    const badge = document.getElementById('odoo-env-badge');
+    if (!badge) return;
+    const isStaging = (d.produccion?.host || '').includes('staging') || (d.produccion?.db || '').includes('staging');
+    const isProd = (d.produccion?.host || '').includes('odoo.com') || !(d.produccion?.host || '').includes('staging');
+    badge.style.display = '';
+    if (isStaging) {
+      badge.style.background = '#f97316';
+      badge.style.color = 'white';
+      badge.textContent = '⚠ STAGING — ' + (d.produccion?.db || '').slice(0, 25);
+    } else {
+      badge.style.background = '#059669';
+      badge.style.color = 'white';
+      badge.textContent = '● PRODUCCIÓN';
+    }
+  } catch {}
 }
 
 async function init() {
@@ -4617,6 +4802,358 @@ function renderCatalogo() {
 
 // ══ ML: SIN DESCUENTO ════════════════════════════════════════════
 let sinDescData = [];
+
+// ══ ESTRATEGIA ML ══
+async function loadEstrategia() {
+  const content = document.getElementById('est-content');
+  content.innerHTML = '<div class="loading"><span class="spinner"></span>Cargando datos...</div>';
+
+  // Default: Tolix Metal Negra
+  const defaultItem = 'MLU480822453';
+  const itemId = window._estItemId || defaultItem;
+
+  try {
+    const r = await fetch(`/api/estrategia/item/${itemId}`, { headers: authHeaders() });
+    const d = await r.json();
+    if (d.error) { content.innerHTML = `<div class="card" style="color:#dc2626;">${d.error}</div>`; return; }
+
+    const it = d.item;
+    const feePct = d.fees.percentage;
+    const feeFix = d.fees.fixed;
+
+    function simular(precio, costo, tacos) {
+      const comision = precio * feePct / 100 + feeFix;
+      const ads = precio * tacos / 100;
+      const neto = precio - comision - ads;
+      const ganancia = neto - costo;
+      const margen = precio > 0 ? (ganancia / precio * 100) : 0;
+      return { precio, comision: Math.round(comision), ads: Math.round(ads), neto: Math.round(neto), ganancia: Math.round(ganancia), margen: Math.round(margen * 10) / 10 };
+    }
+
+    // Render
+    const thumb = it.thumbnail ? `<img src="${it.thumbnail}" style="width:60px;height:60px;object-fit:contain;border-radius:8px;">` : '';
+
+    let html = `
+    <!-- Producto -->
+    <div class="card" style="display:flex;gap:16px;align-items:center;margin-bottom:16px;">
+      ${thumb}
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:16px;">${it.title}</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px;">
+          <a href="${it.permalink}" target="_blank" style="color:#4361ee;text-decoration:none;font-weight:600;">${it.id}</a> · Stock: <b>${it.available_quantity}</b> · Vendidos: <b>${it.sold_quantity}</b> ·
+          Visitas 30d: <b>${d.visits_30d}</b> · Visitas 7d: <b>${d.visits_7d}</b> ·
+          Env&iacute;o gratis: <b style="color:${it.shipping_free ? '#059669' : '#dc2626'};">${it.shipping_free ? 'S&iacute;' : 'No'}</b> ·
+          <a href="${it.permalink}" target="_blank" style="color:#4361ee;text-decoration:underline;font-size:11px;">Ver en ML &rarr;</a>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:28px;font-weight:800;color:#4361ee;">$${it.price.toLocaleString('es-UY')}</div>
+        ${it.original_price ? `<div style="font-size:14px;color:#9ca3af;text-decoration:line-through;">$${it.original_price.toLocaleString('es-UY')}</div>` : ''}
+      </div>
+    </div>
+
+    <!-- Controles -->
+    <div class="card" style="margin-bottom:16px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+      <div>
+        <label style="font-size:10px;color:#6b7280;">Costo (IVA inc.)</label>
+        <input type="number" id="est-costo" value="523" style="width:80px;padding:6px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">
+      </div>
+      <div>
+        <label style="font-size:10px;color:#6b7280;">TACOS %</label>
+        <input type="number" id="est-tacos" value="5" min="0" max="30" style="width:60px;padding:6px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">
+      </div>
+      <div>
+        <label style="font-size:10px;color:#6b7280;">Meta unidades</label>
+        <input type="number" id="est-meta" value="600" min="1" style="width:70px;padding:6px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">
+      </div>
+      <div>
+        <label style="font-size:10px;color:#6b7280;">D&iacute;as</label>
+        <input type="number" id="est-dias" value="30" min="1" style="width:60px;padding:6px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">
+      </div>
+      <button onclick="renderSimulacion()" class="btn-refresh">Simular</button>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <button onclick="toggleEnvioGratis('${it.id}',${!it.shipping_free})" style="padding:8px 14px;background:${it.shipping_free ? '#dc2626' : '#059669'};color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">${it.shipping_free ? 'Desactivar env&iacute;o gratis' : 'Activar env&iacute;o gratis'}</button>
+      </div>
+    </div>
+
+    <!-- Simulador -->
+    <div class="card" style="margin-bottom:16px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;">Simulador de rentabilidad</div>
+      <div style="font-size:11px;color:#6b7280;margin-bottom:8px;">Comisi&oacute;n ML: ${feePct}% + $${feeFix} fijo · Todos los valores IVA incluido</div>
+      <div id="est-tabla-sim"></div>
+    </div>
+
+    <!-- Plan de acción -->
+    <div class="card" style="margin-bottom:16px;border-left:4px solid #4361ee;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-size:14px;font-weight:700;">Plan de acci&oacute;n</div>
+        <button id="est-iniciar-btn" onclick="iniciarPlan('${it.id}',${it.shipping_free})" style="padding:8px 20px;background:#4361ee;color:white;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Iniciar plan</button>
+      </div>
+      <div style="font-size:12px;line-height:1.8;color:#374151;" id="est-plan"></div>
+      <div id="est-plan-status" style="margin-top:8px;"></div>
+    </div>
+
+    <!-- Cambiar precio -->
+    <div class="card" style="margin-bottom:16px;display:flex;gap:12px;align-items:flex-end;">
+      <div>
+        <label style="font-size:10px;color:#6b7280;">Nuevo precio</label>
+        <input type="number" id="est-new-price" value="${it.price}" style="width:100px;padding:6px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">
+      </div>
+      <div>
+        <label style="font-size:10px;color:#6b7280;">Precio tachado (opcional)</label>
+        <input type="number" id="est-original-price" value="${it.original_price || ''}" placeholder="Sin tachar" style="width:100px;padding:6px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">
+      </div>
+      <button onclick="cambiarPrecio('${it.id}')" style="padding:8px 16px;background:#4361ee;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Aplicar precio</button>
+      <div id="est-price-result" style="font-size:12px;"></div>
+    </div>
+
+    <!-- Evolución (snapshots) -->
+    <div class="card" style="margin-bottom:16px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:8px;">Evoluci&oacute;n (tracking cada hora)</div>
+      <div id="est-snapshots"><div style="color:#9ca3af;font-size:12px;">Cargando snapshots...</div></div>
+    </div>
+
+    <!-- Log de acciones -->
+    <div class="card" style="margin-bottom:16px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:8px;">Historial de cambios</div>
+      <div id="est-log"></div>
+    </div>`;
+
+    content.innerHTML = html;
+
+    // Store data for simulations
+    window._estData = { item: it, fees: d.fees, log: d.log };
+
+    // Render simulation table
+    renderSimulacion();
+
+    // Render plan
+    renderPlan();
+
+    // Render log
+    renderEstLog(d.log);
+
+    // Load snapshots
+    loadEstSnapshots(it.id);
+
+  } catch(e) {
+    content.innerHTML = `<div class="card" style="color:#dc2626;">Error: ${e.message}</div>`;
+  }
+}
+
+function renderSimulacion() {
+  const costo = parseFloat(document.getElementById('est-costo').value) || 523;
+  const tacos = parseFloat(document.getElementById('est-tacos').value) || 5;
+  const meta = parseInt(document.getElementById('est-meta').value) || 600;
+  const dias = parseInt(document.getElementById('est-dias').value) || 30;
+  const d = window._estData;
+  const feePct = d.fees.percentage;
+  const feeFix = d.fees.fixed;
+  const precioActual = d.item.price;
+
+  function sim(precio) {
+    const comision = precio * feePct / 100 + feeFix;
+    const ads = precio * tacos / 100;
+    const neto = precio - comision - ads;
+    const ganancia = neto - costo;
+    const margen = precio > 0 ? (ganancia / precio * 100) : 0;
+    return { precio, comision: Math.round(comision), ads: Math.round(ads), neto: Math.round(neto), ganancia: Math.round(ganancia), margen: Math.round(margen * 10) / 10 };
+  }
+
+  // Calculate min prices for targets
+  const factor = 1 - feePct/100 - tacos/100;
+  const minPrice10 = Math.ceil((feeFix + costo) / (factor - 0.10));
+  const minPrice15 = Math.ceil((feeFix + costo) / (factor - 0.15));
+
+  const precios = [precioActual, 1099, 999, 949, 899, 849, 799, minPrice15, minPrice10].filter((v,i,a) => a.indexOf(v) === i).sort((a,b) => b - a);
+
+  let rows = '';
+  for (const p of precios) {
+    const s = sim(p);
+    const isCurrent = p === precioActual;
+    const isTarget = s.margen >= 10 && s.margen <= 15;
+    const isBad = s.margen < 10;
+    const bg = isCurrent ? '#eff6ff' : isTarget ? '#f0fdf4' : isBad ? '#fef2f2' : '';
+    const label = isCurrent ? ' (actual)' : p === minPrice15 ? ' (m&iacute;n 15%)' : p === minPrice10 ? ' (m&iacute;n 10%)' : '';
+    rows += `<tr style="background:${bg};">
+      <td style="padding:6px 10px;font-weight:${isCurrent?700:400};">$${p.toLocaleString('es-UY')}${label}</td>
+      <td style="padding:6px 10px;text-align:right;">$${s.comision}</td>
+      <td style="padding:6px 10px;text-align:right;">$${s.ads}</td>
+      <td style="padding:6px 10px;text-align:right;font-weight:600;">$${s.neto}</td>
+      <td style="padding:6px 10px;text-align:right;font-weight:700;color:${s.ganancia>=0?'#059669':'#dc2626'};">$${s.ganancia}</td>
+      <td style="padding:6px 10px;text-align:right;font-weight:700;color:${s.margen>=15?'#059669':s.margen>=10?'#d97706':'#dc2626'};">${s.margen}%</td>
+      <td style="padding:6px 10px;text-align:right;">$${(s.ganancia * meta).toLocaleString('es-UY')}</td>
+    </tr>`;
+  }
+
+  document.getElementById('est-tabla-sim').innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr style="background:#f8fafc;">
+        <th style="padding:6px 10px;text-align:left;">Precio</th>
+        <th style="padding:6px 10px;text-align:right;">Comisi&oacute;n ML</th>
+        <th style="padding:6px 10px;text-align:right;">Ads ${tacos}%</th>
+        <th style="padding:6px 10px;text-align:right;">Neto</th>
+        <th style="padding:6px 10px;text-align:right;">Ganancia/ud</th>
+        <th style="padding:6px 10px;text-align:right;">Margen</th>
+        <th style="padding:6px 10px;text-align:right;">Ganancia ${meta} uds</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="margin-top:8px;font-size:11px;color:#6b7280;">
+      Meta: <b>${meta} unidades en ${dias} d&iacute;as</b> = ${Math.ceil(meta/dias)} unidades/d&iacute;a ·
+      Piso 10%: <b>$${minPrice10}</b> · Piso 15%: <b>$${minPrice15}</b>
+    </div>`;
+}
+
+function renderPlan() {
+  const meta = parseInt(document.getElementById('est-meta')?.value) || 600;
+  const dias = parseInt(document.getElementById('est-dias')?.value) || 30;
+  const porDia = Math.ceil(meta / dias);
+  document.getElementById('est-plan').innerHTML = `
+    <b>D&iacute;a 1:</b> Bajar precio a $899 (19% margen) + activar env&iacute;o gratis<br>
+    <b>D&iacute;a 2-5:</b> Si vende >${Math.round(porDia*0.25)}/d&iacute;a → mantener · Si <${Math.round(porDia*0.15)}/d&iacute;a → bajar a $849<br>
+    <b>D&iacute;a 6-15:</b> Ajustar de a $50 seg&uacute;n conversi&oacute;n. Meta: ${porDia} ventas/d&iacute;a<br>
+    <b>D&iacute;a 16-30:</b> Si vamos bien → subir precio gradual · Si atrasados → bajar m&aacute;s<br>
+    <b>Piso absoluto:</b> $784 (10% margen con 5% TACOS)<br>
+    <br>
+    <span style="color:#6b7280;">Estrategia: precio agresivo + env&iacute;o gratis para ganar visibilidad, luego subir gradualmente.</span>`;
+}
+
+function renderEstLog(log) {
+  const el = document.getElementById('est-log');
+  if (!log.length) { el.innerHTML = '<div style="color:#9ca3af;font-size:12px;">Sin cambios registrados</div>'; return; }
+  const rows = log.slice().reverse().map(l => {
+    const date = new Date(l.date).toLocaleString('es-UY');
+    let desc = l.action;
+    if (l.action === 'price_change') desc = `Precio → $${l.price}` + (l.original_price ? ` (tachado $${l.original_price})` : '');
+    if (l.action === 'shipping_change') desc = l.free_shipping ? 'Env&iacute;o gratis activado' : 'Env&iacute;o gratis desactivado';
+    return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f3f4f6;font-size:12px;">
+      <span>${desc}</span><span style="color:#9ca3af;">${date}</span>
+    </div>`;
+  }).join('');
+  el.innerHTML = rows;
+}
+
+async function cambiarPrecio(itemId) {
+  const price = parseInt(document.getElementById('est-new-price').value);
+  const original = parseInt(document.getElementById('est-original-price').value) || null;
+  const result = document.getElementById('est-price-result');
+  if (!price) return;
+  result.innerHTML = '<span style="color:#6b7280;">Aplicando...</span>';
+  try {
+    const body = { itemId, price };
+    if (original) body.original_price = original;
+    const r = await fetch('/api/estrategia/price', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (d.ok) {
+      result.innerHTML = '<span style="color:#059669;">Precio actualizado a $' + d.price + '</span>';
+      setTimeout(() => loadEstrategia(), 1500);
+    } else {
+      result.innerHTML = '<span style="color:#dc2626;">Error: ' + (d.error||'desconocido') + '</span>';
+    }
+  } catch(e) { result.innerHTML = '<span style="color:#dc2626;">Error: ' + e.message + '</span>'; }
+}
+
+async function toggleEnvioGratis(itemId, activate) {
+  try {
+    const r = await fetch('/api/estrategia/shipping', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ itemId, free_shipping: activate }) });
+    const d = await r.json();
+    if (d.ok) { loadEstrategia(); }
+    else { alert('Error: ' + (d.error||'desconocido')); }
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function iniciarPlan(itemId, alreadyFreeShipping) {
+  const btn = document.getElementById('est-iniciar-btn');
+  const status = document.getElementById('est-plan-status');
+  btn.disabled = true;
+  btn.textContent = 'Ejecutando...';
+  status.innerHTML = '';
+
+  try {
+    // Paso 1: Bajar precio a $899
+    status.innerHTML = '<div style="font-size:12px;color:#6b7280;">1/2 Cambiando precio a $899...</div>';
+    const r1 = await fetch('/api/estrategia/price', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ itemId, price: 899, original_price: 1189 }) });
+    const d1 = await r1.json();
+    if (!d1.ok) throw new Error('Precio: ' + (d1.error || 'error'));
+
+    // Paso 2: Activar envío gratis
+    if (!alreadyFreeShipping) {
+      status.innerHTML = '<div style="font-size:12px;color:#6b7280;">2/2 Activando env&iacute;o gratis...</div>';
+      const r2 = await fetch('/api/estrategia/shipping', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ itemId, free_shipping: true }) });
+      const d2 = await r2.json();
+      if (!d2.ok) throw new Error('Env&iacute;o: ' + (d2.error || 'error'));
+    }
+
+    status.innerHTML = '<div style="font-size:13px;font-weight:700;color:#059669;padding:8px;background:#f0fdf4;border-radius:6px;">Plan iniciado: precio $899 + env&iacute;o gratis activado</div>';
+    setTimeout(() => loadEstrategia(), 2000);
+  } catch(e) {
+    status.innerHTML = '<div style="color:#dc2626;font-size:12px;">Error: ' + e.message + '</div>';
+    btn.disabled = false;
+    btn.textContent = 'Iniciar plan';
+  }
+}
+
+async function loadEstSnapshots(itemId) {
+  const el = document.getElementById('est-snapshots');
+  try {
+    const r = await fetch(`/api/estrategia/snapshots/${itemId}`, { headers: authHeaders() });
+    const snaps = await r.json();
+    if (!snaps.length) { el.innerHTML = '<div style="color:#9ca3af;font-size:12px;">A&uacute;n no hay datos. El primer snapshot se toma 30 segundos despu&eacute;s de arrancar el servidor, luego cada hora.</div>'; return; }
+
+    // Calcular ventas entre snapshots
+    let rows = '';
+    for (let i = 0; i < snaps.length; i++) {
+      const s = snaps[i];
+      const prev = i > 0 ? snaps[i-1] : null;
+      const ventasDesde = prev ? s.sold_quantity - prev.sold_quantity : 0;
+      const stockDiff = prev ? prev.stock - s.stock : 0;
+      const date = new Date(s.date);
+      const dateStr = date.toLocaleDateString('es-UY', { day:'2-digit', month:'2-digit' }) + ' ' + date.toLocaleTimeString('es-UY', { hour:'2-digit', minute:'2-digit' });
+      const priceBg = prev && s.price !== prev.price ? '#fef3c7' : '';
+
+      rows += `<tr style="background:${priceBg};">
+        <td style="padding:4px 8px;font-size:11px;white-space:nowrap;">${dateStr}</td>
+        <td style="padding:4px 8px;text-align:right;font-weight:600;">$${s.price}</td>
+        <td style="padding:4px 8px;text-align:right;">${s.stock}</td>
+        <td style="padding:4px 8px;text-align:right;">${s.sold_quantity}</td>
+        <td style="padding:4px 8px;text-align:right;font-weight:700;color:${ventasDesde > 0 ? '#059669' : '#9ca3af'};">${ventasDesde > 0 ? '+' + ventasDesde : '—'}</td>
+        <td style="padding:4px 8px;text-align:right;">${s.visits_30d}</td>
+        <td style="padding:4px 8px;text-align:right;">${s.visits_7d}</td>
+        <td style="padding:4px 8px;text-align:center;">${s.free_shipping ? '&check;' : '—'}</td>
+      </tr>`;
+    }
+
+    // Resumen
+    const first = snaps[0], last = snaps[snaps.length - 1];
+    const totalVentas = last.sold_quantity - first.sold_quantity;
+    const horas = Math.round((new Date(last.date) - new Date(first.date)) / 3600000);
+
+    el.innerHTML = `
+      ${horas > 0 ? `<div style="margin-bottom:8px;font-size:12px;color:#374151;">
+        Desde inicio: <b>${totalVentas} ventas</b> en <b>${horas}h</b> ·
+        Promedio: <b>${horas > 0 ? Math.round(totalVentas / horas * 24 * 10) / 10 : 0}/d&iacute;a</b> ·
+        ${snaps.length} snapshots
+      </div>` : ''}
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="background:#f8fafc;">
+            <th style="padding:4px 8px;text-align:left;">Fecha</th>
+            <th style="padding:4px 8px;text-align:right;">Precio</th>
+            <th style="padding:4px 8px;text-align:right;">Stock</th>
+            <th style="padding:4px 8px;text-align:right;">Vendidos total</th>
+            <th style="padding:4px 8px;text-align:right;">Ventas per&iacute;odo</th>
+            <th style="padding:4px 8px;text-align:right;">Visitas 30d</th>
+            <th style="padding:4px 8px;text-align:right;">Visitas 7d</th>
+            <th style="padding:4px 8px;text-align:center;">Env&iacute;o gratis</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  } catch(e) {
+    el.innerHTML = `<div style="color:#dc2626;font-size:12px;">Error: ${e.message}</div>`;
+  }
+}
 
 async function loadSinDescuento() {
   document.getElementById('sindesc-table-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
@@ -7739,6 +8276,104 @@ function renderPlanTable(items) {
   </table></div>`;
 }
 
+function getBaseSku(sku) {
+  if (!sku) return sku;
+  // SKUs like 19456-BOR, 54505-NEG → base is 19456, 54505
+  const m = sku.match(/^(.+)-([A-Z]{2,4})$/);
+  return m ? m[1] : sku;
+}
+
+function renderOsItem(i, items, c) {
+  const idx = items.indexOf(i);
+  const detailId = 'os-detail-' + String(i.sku || idx).replace(/[^a-zA-Z0-9]/g, '_');
+  const thumb = i.ml_thumbnail
+    ? `<img src="${i.ml_thumbnail}" style="width:40px;height:40px;object-fit:contain;border-radius:6px;background:#f9fafb;">`
+    : '<div style="width:40px;height:40px;background:#f3f4f6;border-radius:6px;"></div>';
+  let razon = '';
+  if (i.sold_comp_month > 0) {
+    razon = `Vendiste <b>${i.sold_comp_month}</b> en ${i.comp_label}. Con +${c.growth_pct}% → necesit&aacute;s <b>${i.estimated}</b>.`;
+  } else {
+    razon = `Promedio &uacute;ltimos 3 meses: <b>${i.avg_last_3}/mes</b>. Con +${c.growth_pct}% → necesit&aacute;s <b>${i.estimated}</b>.`;
+  }
+  const dailyRate = i.avg_month > 0 ? Math.round(i.avg_month / 30 * 10) / 10 : 0;
+  if (dailyRate > 0) razon += ` Venta diaria: <b>${dailyRate}/d&iacute;a</b>.`;
+  razon += ` Ten&eacute;s <b>${i.stock}</b> en stock`;
+  if (i.incoming > 0) razon += ` + <b>${i.incoming}</b> en camino`;
+  if (i.pedido > 0) razon += ` + <b style="color:#4361ee;">${i.pedido}</b> ya pedido`;
+  razon += `. <b style="color:#dc2626;">Faltante: ${i.gap}</b>`;
+  if (i.seasonal_note) razon += ` <span style="color:#d97706;">(${i.seasonal_note})</span>`;
+  if (i.will_break) razon += ` <span style="color:#dc2626;">⚠️ Se queda sin stock antes de que llegue</span>`;
+
+  // Badge canal principal
+  const chColors = { ml: {bg:'#fef3c7',color:'#92400e',label:'ML'}, mayorista: {bg:'#dbeafe',color:'#1e40af',label:'Mayorista'}, local: {bg:'#dcfce7',color:'#166534',label:'Local'}, whatsapp: {bg:'#d1fae5',color:'#065f46',label:'WhatsApp'} };
+  const ch = i.main_channel && chColors[i.main_channel] ? chColors[i.main_channel] : null;
+  const channelBadge = ch ? `<span style="padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;background:${ch.bg};color:${ch.color};">${ch.label}</span>` : '';
+
+  // Detalle expandible: ficha + tabla ventas por canal/mes
+  const margin = i.price > 0 ? Math.round((1 - i.cost / i.price) * 100) : 0;
+  const valorStock = Math.round(i.stock * i.cost);
+  const mlStock = i.ml_status === 'active' ? i.stock : null;
+  const months = (window._osAllMonths || []).slice(-10);
+  const monthHeaders = months.map(m => { const [y,mo] = m.split('-'); return `<th style="padding:3px 6px;font-size:10px;color:#6b7280;text-align:right;">${['','ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'][parseInt(mo)]} ${y.slice(2)}</th>`; }).join('');
+
+  const channels = [
+    { key: 'ml', label: 'ML', bg: '#fef3c7', color: '#92400e' },
+    { key: 'local', label: 'Local', bg: '#dcfce7', color: '#166534' },
+    { key: 'mayorista', label: 'Mayorista', bg: '#dbeafe', color: '#1e40af' },
+    { key: 'whatsapp', label: 'WhatsApp', bg: '#d1fae5', color: '#065f46' },
+  ];
+  const sbc = i.sales_by_channel || { ml:{}, mayorista:{}, local:{}, whatsapp:{} };
+  let channelRows = '';
+  for (const cc of channels) {
+    const chData = sbc[cc.key] || {};
+    const total = Object.values(chData).reduce((s,v) => s + v, 0);
+    const cells = months.map(m => {
+      const v = chData[m] || 0;
+      return `<td style="padding:3px 6px;text-align:right;font-size:11px;${v > 0 ? 'font-weight:600;' : 'color:#d1d5db;'}">${v || '—'}</td>`;
+    }).join('');
+    channelRows += `<tr><td style="padding:3px 8px;font-weight:600;font-size:11px;white-space:nowrap;"><span style="display:inline-block;padding:1px 6px;border-radius:4px;background:${cc.bg};color:${cc.color};">${cc.label}</span></td>${cells}<td style="padding:3px 8px;text-align:right;font-weight:700;font-size:11px;">${total}</td></tr>`;
+  }
+  // Total row
+  const totalCells = months.map(m => {
+    const v = (sbc.ml?.[m]||0) + (sbc.mayorista?.[m]||0) + (sbc.local?.[m]||0) + (sbc.whatsapp?.[m]||0);
+    return `<td style="padding:3px 6px;text-align:right;font-size:11px;font-weight:700;">${v || '—'}</td>`;
+  }).join('');
+  const grandTotal = Object.values(sbc.ml||{}).reduce((s,v)=>s+v,0) + Object.values(sbc.mayorista||{}).reduce((s,v)=>s+v,0) + Object.values(sbc.local||{}).reduce((s,v)=>s+v,0) + Object.values(sbc.whatsapp||{}).reduce((s,v)=>s+v,0);
+  channelRows += `<tr style="border-top:2px solid #e5e7eb;"><td style="padding:3px 8px;font-weight:700;font-size:11px;">Total</td>${totalCells}<td style="padding:3px 8px;text-align:right;font-weight:800;font-size:11px;">${grandTotal}</td></tr>`;
+
+  const detail = `<div id="${detailId}" style="display:none;padding:12px 16px 12px 56px;background:#fafbfc;border-bottom:2px solid #e5e7eb;">
+    <div style="display:flex;gap:24px;margin-bottom:10px;flex-wrap:wrap;">
+      <div><span style="font-size:10px;color:#6b7280;">Costo:</span> <b>$${i.cost}</b></div>
+      <div><span style="font-size:10px;color:#6b7280;">Precio:</span> <b>$${i.price}</b></div>
+      <div><span style="font-size:10px;color:#6b7280;">Margen:</span> <b style="color:${margin>=30?'#059669':'#dc2626'};">${margin}%</b></div>
+      <div><span style="font-size:10px;color:#6b7280;">Valor stock:</span> <b>$${valorStock.toLocaleString('es-UY')}</b></div>
+      ${mlStock !== null ? `<div><span style="font-size:10px;color:#6b7280;">Stock ML:</span> <b>${i.stock}</b> · <b>$${i.price}</b></div>` : ''}
+    </div>
+    <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#374151;">Ventas por mes / canal</div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;"><thead><tr>
+        <th style="padding:3px 8px;text-align:left;font-size:10px;color:#6b7280;"></th>${monthHeaders}<th style="padding:3px 8px;text-align:right;font-size:10px;color:#6b7280;">TOTAL</th>
+      </tr></thead><tbody>${channelRows}</tbody></table>
+    </div>
+  </div>`;
+
+  return `<div style="padding:10px 16px;border-bottom:1px solid #f3f4f6;display:flex;gap:10px;align-items:center;cursor:pointer;" onclick="const d=document.getElementById('${detailId}');d.style.display=d.style.display==='none'?'':'none';">
+    ${thumb}
+    <div style="flex:1;min-width:0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+        <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:300px;">${i.name}</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:12px;">
+          ${channelBadge}
+          <span style="font-size:16px;font-weight:800;color:#4361ee;">Sug: ${i.gap}</span>
+          <button onclick="event.stopPropagation();var it=window._osItems[${idx}];addToOrden(it.sku,it.name.slice(0,40),it.gap,it.origen,it.ml_thumbnail||'')" style="padding:4px 10px;background:#dc2626;color:white;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">+</button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#9ca3af;margin-bottom:3px;">${i.sku || '—'} · ${i.categ} · <span style="padding:1px 5px;border-radius:4px;font-size:9px;font-weight:600;background:${i.origen==='Brasil'?'#dcfce7':'#fef3c7'};color:${i.origen==='Brasil'?'#166534':'#92400e'};">${i.origen} ${i.lead_days}d</span> → ${i.target_label} · <span style="padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;background:${i.xyz==='X'?'#dcfce7':i.xyz==='Y'?'#fef3c7':'#fee2e2'};color:${i.xyz==='X'?'#166534':i.xyz==='Y'?'#92400e':'#991b1b'};">${i.abc_xyz||''}</span> <span style="font-size:10px;color:#9ca3af;">${i.months_with_sales||0}/6 meses · máx ${i.max_month||0}/mes</span></div>
+      <div style="font-size:11px;color:#475569;line-height:1.4;">${razon}</div>
+    </div>
+  </div>${detail}`;
+}
+
 async function loadOrdenSugerida() {
   const content = document.getElementById('os-content');
   const btn = document.getElementById('os-btn');
@@ -7755,6 +8390,7 @@ async function loadOrdenSugerida() {
     const d = await r.json();
     if (d.error) { content.innerHTML = `<div class="card" style="color:#dc2626;">${d.error}</div>`; return; }
     _planData = d;
+    window._osAllMonths = d.all_months || [];
 
     const c = d.config;
     // Filtrar: solo con faltante, con ventas mínimas, sin estacionalidad 0
@@ -7803,12 +8439,109 @@ async function loadOrdenSugerida() {
         <div style="font-size:24px;font-weight:700;"><span style="color:#dc2626;">${aCount}</span> <span style="color:#d97706;">${bCount}</span> <span style="color:#9ca3af;">${cCount}</span></div>
         <div style="font-size:10px;color:#6b7280;">A · B · C</div>
       </div>
+      <div class="card" style="flex:1;min-width:100px;margin:0;text-align:center;border-top:3px solid #10b981;">
+        <div style="font-size:24px;font-weight:700;"><span style="color:#10b981;">${items.filter(i=>i.xyz==='X').length}</span> <span style="color:#d97706;">${items.filter(i=>i.xyz==='Y').length}</span> <span style="color:#dc2626;">${items.filter(i=>i.xyz==='Z').length}</span></div>
+        <div style="font-size:10px;color:#6b7280;">X estable · Y variable · Z err&aacute;tico</div>
+      </div>
     </div>
 
     <!-- Acciones -->
     <div style="display:flex;gap:8px;margin-bottom:16px;">
       <button onclick="_osItems=${JSON.stringify(items).replace(/'/g,"\\'")}; exportarOrdenExcelOS()" style="padding:10px 20px;background:#059669;color:white;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">📥 Exportar Excel</button>
     </div>`;
+
+    // ── POR CATEGORÍA / PROVEEDOR ──
+    if (d.categoryGroups && d.categoryGroups.length > 0) {
+      html += `<div style="font-size:16px;font-weight:700;margin-bottom:12px;color:#1a1d23;">🏭 Por categor&iacute;a (proveedor) &mdash; completar contenedores</div>`;
+      for (const cg of d.categoryGroups) {
+        const catLabel = cg.category.charAt(0).toUpperCase() + cg.category.slice(1);
+        const cgId = 'os-cat-' + cg.category.replace(/\s/g,'-');
+        const totalProducts = cg.withGap.length + cg.complement.length;
+        html += `<div class="card" style="margin-bottom:12px;border-left:4px solid #2563eb;padding:0;overflow:hidden;">
+          <div style="padding:10px 16px;background:#eff6ff;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="const el=document.getElementById('${cgId}');const a=this.querySelector('.ga');if(el.style.display==='none'){el.style.display='';a.textContent='▼'}else{el.style.display='none';a.textContent='▶'}">
+            <span style="font-weight:700;color:#2563eb;"><span class="ga">▶</span> ${catLabel} <span style="font-weight:400;color:#6b7280;">(${cg.withGap.length} a pedir + ${cg.complement.length} para completar)</span></span>
+          </div>
+          <div id="${cgId}" style="display:none;padding:8px 16px;">
+            <div style="font-size:12px;font-weight:600;color:#dc2626;margin-bottom:6px;">Necesitan reponer (${cg.withGap.length}):</div>
+            <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:12px;"><tbody>`;
+        for (const i of cg.withGap) {
+          const th = i.ml_thumbnail ? `<img src="${i.ml_thumbnail}" style="width:28px;height:28px;object-fit:contain;border-radius:4px;">` : '';
+          html += `<tr style="border-bottom:1px solid #f3f4f6;">
+            <td style="padding:3px 4px;width:32px;">${th}</td>
+            <td style="padding:3px 4px;">${i.sku}</td>
+            <td style="padding:3px 4px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name}</td>
+            <td style="padding:3px 4px;text-align:right;font-weight:700;color:#dc2626;">pedir ${i.gap}</td>
+            <td style="padding:3px 4px;text-align:right;color:#6b7280;">stock: ${i.stock}</td>
+            <td><button onclick="agregarAOrden('${i.sku.replace(/'/g,"\\'")}',${i.gap},'${i.name.replace(/'/g,"\\'")}')" style="padding:2px 6px;background:#dc2626;color:white;border:none;border-radius:3px;font-size:10px;cursor:pointer;">+</button></td>
+          </tr>`;
+        }
+        html += `</tbody></table>`;
+        if (cg.complement.length) {
+          html += `<div style="font-size:12px;font-weight:600;color:#2563eb;margin-bottom:6px;">Complementar (misma categor&iacute;a, tienen ventas, < 3 meses stock):</div>
+            <table style="width:100%;border-collapse:collapse;font-size:11px;"><tbody>`;
+          for (const i of cg.complement) {
+            const sugQty = Math.ceil(i.avg_month * 2);
+            const th = i.ml_thumbnail ? `<img src="${i.ml_thumbnail}" style="width:28px;height:28px;object-fit:contain;border-radius:4px;">` : '';
+            html += `<tr style="border-bottom:1px solid #f3f4f6;background:#f8fafc;">
+              <td style="padding:3px 4px;width:32px;">${th}</td>
+              <td style="padding:3px 4px;">${i.sku}</td>
+              <td style="padding:3px 4px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name}</td>
+              <td style="padding:3px 4px;text-align:right;color:#6b7280;">${i.avg_month}/mes</td>
+              <td style="padding:3px 4px;text-align:right;color:#6b7280;">stock: ${i.stock}</td>
+              <td><button onclick="agregarAOrden('${i.sku.replace(/'/g,"\\'")}',${sugQty},'${i.name.replace(/'/g,"\\'")}')" style="padding:2px 6px;background:#2563eb;color:white;border:none;border-radius:3px;font-size:10px;cursor:pointer;">+ ${sugQty}</button></td>
+            </tr>`;
+          }
+          html += `</tbody></table>`;
+        }
+        html += `</div></div>`;
+      }
+    }
+
+    // ── REPOSICIÓN URGENTE ──
+    if (d.reposicion && d.reposicion.length > 0) {
+      const repItems = d.reposicion;
+      const repQty = repItems.reduce((s,i) => s + Math.ceil(i.avg_month), 0);
+      html += `<div class="card" style="margin-bottom:20px;border-top:4px solid #dc2626;padding:0;overflow:hidden;">
+        <div style="padding:12px 16px;background:#fef2f2;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="const el=document.getElementById('os-repo');const a=this.querySelector('.ga');if(el.style.display==='none'){el.style.display='';a.textContent='▼'}else{el.style.display='none';a.textContent='▶'}">
+          <span style="font-weight:700;color:#dc2626;"><span class="ga">▼</span> 🚨 Reposición urgente — ${repItems.length} productos sin stock con demanda</span>
+        </div>
+        <div id="os-repo"><table><thead><tr>
+          <th></th><th>Producto</th><th style="text-align:right">Stock</th><th style="text-align:right">Venta/mes</th><th style="text-align:right">Pedir (1 mes)</th><th style="text-align:center">ABC</th>
+        </tr></thead><tbody>`;
+      for (const i of repItems) {
+        const thumb = i.ml_thumbnail ? '<img src="'+i.ml_thumbnail+'" style="width:32px;height:32px;object-fit:contain;border-radius:4px;">' : '';
+        const abcColor = i.abc==='A'?'#dc2626':i.abc==='B'?'#d97706':'#9ca3af';
+        const sugQty = Math.ceil(i.avg_month);
+        html += '<tr style="background:#fef2f2;"><td>'+thumb+'</td><td style="font-size:12px;">'+i.name+'<br><span style="color:#9ca3af;font-size:10px;">'+i.sku+' · '+i.origen+'</span></td><td style="text-align:right;color:#dc2626;font-weight:700;">'+i.stock+'</td><td style="text-align:right;">'+i.avg_month+'/mes</td><td style="text-align:right;font-weight:700;">'+sugQty+'</td><td style="text-align:center;color:'+abcColor+';font-weight:700;">'+i.abc+'</td>';
+        html += '<td><button onclick="agregarAOrden(\''+i.sku.replace(/'/g,"\\'")+'\','+sugQty+',\''+i.name.replace(/'/g,"\\'")+'\')" style="padding:4px 8px;background:#dc2626;color:white;border:none;border-radius:4px;font-size:11px;cursor:pointer;">+ Pedir</button></td></tr>';
+      }
+      html += '</tbody></table></div></div>';
+    }
+
+    // ── COMPRA ZAFRAL ──
+    if (d.zafral && d.zafral.length > 0) {
+      const zItems = d.zafral;
+      const zTotal = zItems.reduce((s,i) => s + i.zafral_total, 0);
+      html += `<div class="card" style="margin-bottom:20px;border-top:4px solid #7c3aed;padding:0;overflow:hidden;">
+        <div style="padding:12px 16px;background:#f5f3ff;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="const el=document.getElementById('os-zafral');const a=this.querySelector('.ga');if(el.style.display==='none'){el.style.display='';a.textContent='▼'}else{el.style.display='none';a.textContent='▶'}">
+          <span style="font-weight:700;color:#7c3aed;"><span class="ga">▼</span> 🌊 Compra zafral — ${zItems.length} productos que se vendieron fuerte en ${c.comp_label || 'próx. 4 meses año pasado'} y hoy no tenés</span>
+          <span style="font-size:13px;color:#7c3aed;font-weight:600;">${fmt(zTotal)} facturados</span>
+        </div>
+        <div id="os-zafral"><table><thead><tr>
+          <th></th><th>Producto</th><th style="text-align:right">Vendido (4 meses)</th><th style="text-align:right">Prom/mes</th><th style="text-align:right">Facturado</th><th style="text-align:right">Stock</th><th style="text-align:center">ABC</th><th></th>
+        </tr></thead><tbody>`;
+      for (const i of zItems) {
+        const thumb = i.ml_thumbnail ? '<img src="'+i.ml_thumbnail+'" style="width:32px;height:32px;object-fit:contain;border-radius:4px;">' : '';
+        const abcColor = i.abc==='A'?'#dc2626':i.abc==='B'?'#d97706':'#9ca3af';
+        const mDetail = i.zafral_months.map(m => m.month.slice(5)+':'+m.qty).join(' ');
+        html += '<tr style="background:#f5f3ff;"><td>'+thumb+'</td><td style="font-size:12px;">'+i.name+'<br><span style="color:#9ca3af;font-size:10px;">'+i.sku+' · '+i.origen+' · '+mDetail+'</span></td><td style="text-align:right;font-weight:600;">'+i.zafral_qty+'</td><td style="text-align:right;">'+i.zafral_avg+'/mes</td><td style="text-align:right;font-weight:600;color:#7c3aed;">'+fmt(i.zafral_total)+'</td><td style="text-align:right;color:'+(i.stock<=0?'#dc2626':'#10b981')+';font-weight:700;">'+i.stock+'</td><td style="text-align:center;color:'+abcColor+';font-weight:700;">'+i.abc+'</td>';
+        html += '<td><button onclick="agregarAOrden(\''+i.sku.replace(/'/g,"\\'")+'\','+i.zafral_avg+',\''+i.name.replace(/'/g,"\\'")+'\')" style="padding:4px 8px;background:#7c3aed;color:white;border:none;border-radius:4px;font-size:11px;cursor:pointer;">+ Pedir</button></td></tr>';
+      }
+      html += '</tbody></table></div></div>';
+    }
+
+    // Guardar items para referencia desde botones
+    window._osItems = items;
 
     // Separar por origen
     const origenGroups = [
@@ -7839,42 +8572,56 @@ async function loadOrdenSugerida() {
         </div>
         <div id="${gid}">`;
 
+      // Agrupar por SKU base (sin sufijo de color)
+      const skuGroups = [];
+      const skuGroupMap = {};
       for (const i of gItems) {
-        const thumb = i.ml_thumbnail
-          ? `<img src="${i.ml_thumbnail}" style="width:40px;height:40px;object-fit:contain;border-radius:6px;background:#f9fafb;">`
-          : '<div style="width:40px;height:40px;background:#f3f4f6;border-radius:6px;"></div>';
-
-        // Explicación de por qué pedir
-        let razon = '';
-        if (i.sold_comp_month > 0) {
-          razon = `Vendiste <b>${i.sold_comp_month}</b> en ${i.comp_label}. Con +${c.growth_pct}% → necesit&aacute;s <b>${i.estimated}</b>.`;
-        } else {
-          razon = `Promedio &uacute;ltimos 3 meses: <b>${i.avg_last_3}/mes</b>. Con +${c.growth_pct}% → necesit&aacute;s <b>${i.estimated}</b>.`;
+        const base = getBaseSku(i.sku);
+        if (!skuGroupMap[base]) {
+          skuGroupMap[base] = { base, items: [] };
+          skuGroups.push(skuGroupMap[base]);
         }
-        const dailyRate = i.avg_month > 0 ? Math.round(i.avg_month / 30 * 10) / 10 : 0;
-        if (dailyRate > 0) razon += ` Venta diaria: <b>${dailyRate}/d&iacute;a</b>.`;
-        razon += ` Ten&eacute;s <b>${i.stock}</b> en stock`;
-        if (i.incoming > 0) razon += ` + <b>${i.incoming}</b> en camino`;
-        if (i.pedido > 0) razon += ` + <b style="color:#4361ee;">${i.pedido}</b> ya pedido`;
-        razon += `. <b style="color:#dc2626;">Faltante: ${i.gap}</b>`;
-        if (i.seasonal_note) razon += ` <span style="color:#d97706;">(${i.seasonal_note})</span>`;
-        if (i.will_break) razon += ` <span style="color:#dc2626;">⚠️ Se queda sin stock antes de que llegue</span>`;
+        skuGroupMap[base].items.push(i);
+      }
 
-        html += `<div style="padding:10px 16px;border-bottom:1px solid #f3f4f6;display:flex;gap:10px;align-items:center;">
-          ${thumb}
-          <div style="flex:1;min-width:0;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
-              <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:300px;">${i.name}</div>
-              <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:12px;">
-                <span style="font-size:16px;font-weight:800;color:#4361ee;">Sug: ${i.gap}</span>
-                <button onclick="event.stopPropagation();addToOrden('${(i.sku||'').replace(/'/g,'')}',' ${i.name.replace(/'/g,'').slice(0,40)}',${i.gap},'${i.origen}','${(i.ml_thumbnail||'').replace(/'/g,'')}')" style="padding:4px 10px;background:#4361ee;color:white;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">+ Agregar</button>
+      for (const sg of skuGroups) {
+        const isGroup = sg.items.length > 1;
+        const groupGap = sg.items.reduce((s,i) => s + i.gap, 0);
+
+        if (isGroup) {
+          const sgid = gid + '-' + sg.base;
+          const firstThumb = sg.items.find(i => i.ml_thumbnail)?.ml_thumbnail;
+          const thumbHtml = firstThumb
+            ? `<img src="${firstThumb}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;background:#f9fafb;">`
+            : '<div style="width:36px;height:36px;background:#f3f4f6;border-radius:6px;"></div>';
+          const groupName = sg.items[0].name.replace(/\s*(negro|blanco|azul|rojo|gris|verde|celeste|naranja|rosa|bordo|beige|marr[oó]n|amarillo|violeta).*$/i, '').trim() || sg.items[0].name;
+
+          html += `<div style="border-bottom:2px solid #e5e7eb;">
+            <div style="padding:10px 16px;display:flex;gap:10px;align-items:center;background:#f8fafc;cursor:pointer;" onclick="const el=document.getElementById('${sgid}');el.style.display=el.style.display==='none'?'':'none';">
+              ${thumbHtml}
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <div style="font-weight:700;font-size:13px;">${groupName} <span style="font-weight:400;color:#6b7280;font-size:11px;">(${sg.items.length} colores)</span></div>
+                  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:12px;">
+                    <span style="font-size:16px;font-weight:800;color:#4361ee;">Total: ${groupGap}</span>
+                    <button onclick="event.stopPropagation();[${sg.items.map(i => items.indexOf(i)).join(',')}].forEach(function(idx){var it=window._osItems[idx];addToOrden(it.sku,it.name.slice(0,40),it.gap,it.origen,it.ml_thumbnail||'')});" style="padding:4px 10px;background:#dc2626;color:white;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">+ Todos</button>
+                  </div>
+                </div>
+                <div style="font-size:11px;color:#9ca3af;">${sg.base} · ${sg.items[0].categ} · ${sg.items.map(i => { const suffix = i.sku.includes('-') ? i.sku.split('-').pop() : i.sku; return suffix + ':' + i.gap; }).join(', ')}</div>
               </div>
             </div>
-            <div style="font-size:11px;color:#9ca3af;margin-bottom:3px;">${i.sku || '—'} · ${i.categ} · <span style="padding:1px 5px;border-radius:4px;font-size:9px;font-weight:600;background:${i.origen==='Brasil'?'#dcfce7':'#fef3c7'};color:${i.origen==='Brasil'?'#166534':'#92400e'};">${i.origen} ${i.lead_days}d</span> → ${i.target_label}</div>
-            <div style="font-size:11px;color:#475569;line-height:1.4;">${razon}</div>
-          </div>
-        </div>`;
+            <div id="${sgid}" style="display:none;">`;
+
+          for (const i of sg.items) {
+            html += renderOsItem(i, items, c);
+          }
+          html += `</div></div>`;
+        } else {
+          const i = sg.items[0];
+          html += renderOsItem(i, items, c);
+        }
       }
+
       html += `</div></div>`;
     }
     } // end origenGroups
@@ -7895,6 +8642,12 @@ async function loadOrdenSugerida() {
 
 // ── Carrito de orden manual ──
 let _ordenItems = [];
+
+function agregarAOrden(sku, qty, name) {
+  // Find item in _osItems to get origen and thumbnail
+  const it = (window._osItems || []).find(x => x.sku === sku);
+  addToOrden(sku, name, qty, it?.origen || '', it?.ml_thumbnail || '');
+}
 
 function addToOrden(sku, name, sugQty, origen, thumb) {
   const existing = _ordenItems.find(i => i.sku === sku);
@@ -7976,14 +8729,18 @@ async function renderOrdenCart() {
       ${i.thumb ? `<img src="${i.thumb}" style="width:28px;height:28px;object-fit:contain;border-radius:4px;">` : '<div style="width:28px;height:28px;background:#f3f4f6;border-radius:4px;"></div>'}
       <div style="flex:1;min-width:0;">
         <div style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name}</div>
-        <div style="font-size:10px;color:#9ca3af;">${ihome ? '<b>'+ihome+'</b> · ' : ''}${i.sku} · <span style="color:${i.origen==='Brasil'?'#059669':'#d97706'}">${i.origen}</span></div>
+        <div style="font-size:10px;color:#9ca3af;">${ihome ? '<b>'+ihome+'</b> · ' : ''}${i.sku} · <span style="color:${i.origen==='Brasil'?'#059669':'#d97706'}">${i.origen}</span>${(map[i.sku]||{}).cbm_per_unit ? ' · '+Math.round((map[i.sku].cbm_per_unit*i.qty)*100)/100+' cbm' : ''}</div>
       </div>
       <input type="number" value="${i.qty}" min="1" style="width:55px;padding:4px 6px;border:1px solid #e5e7eb;border-radius:4px;font-size:12px;font-weight:600;text-align:center;" onchange="updateOrdenQty('${i.sku}',this.value)">
       <button onclick="removeFromOrden('${i.sku}')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;">✕</button>
     </div>`;
   }).join('');
 
-  totalEl.textContent = totalQty.toLocaleString('es-UY') + ' unidades total';
+  const totalCbm = _ordenItems.reduce((s, i) => {
+    const m = (_ihomeMap || {})[i.sku] || {};
+    return s + (m.cbm_per_unit || 0) * (i.qty || 0);
+  }, 0);
+  totalEl.innerHTML = `${totalQty.toLocaleString('es-UY')} unidades · <b>${Math.round(totalCbm * 100) / 100} CBM</b>`;
 }
 
 async function exportarMiOrden() {
@@ -8012,6 +8769,76 @@ async function exportarMiOrden() {
     </div>
   </div>`;
   document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+async function armarContenedores() {
+  if (!_ordenItems.length) return;
+  try {
+    const r = await fetch('/api/orden/contenedores', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: _ordenItems }),
+    });
+    const d = await r.json();
+    if (d.error) { alert(d.error); return; }
+
+    const fillColor = pct => pct >= 90 ? '#059669' : pct >= 70 ? '#d97706' : '#dc2626';
+
+    let html = `<div id="container-modal" style="position:fixed;inset:0;background:#0006;z-index:1000;display:flex;align-items:center;justify-content:center;">
+      <div style="background:white;border-radius:16px;padding:24px;width:100%;max-width:800px;max-height:90vh;overflow-y:auto;margin:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div>
+            <h3 style="font-size:18px;font-weight:700;margin:0;">📦 Distribución en contenedores</h3>
+            <div style="font-size:12px;color:#6b7280;">Total: ${d.total_cbm} CBM · ${d.containers.length} contenedor${d.containers.length > 1 ? 'es' : ''} ${d.sin_cbm ? ' · ⚠️ ' + d.sin_cbm + ' productos sin datos de CBM' : ''}</div>
+          </div>
+          <button onclick="document.getElementById('container-modal').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;">✕</button>
+        </div>`;
+
+    for (const c of d.containers) {
+      const fc = fillColor(c.fill_pct);
+      html += `<div class="card" style="margin-bottom:12px;border-left:4px solid ${fc};padding:0;overflow:hidden;">
+        <div style="padding:12px 16px;background:${fc}08;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <span style="font-size:15px;font-weight:700;">Contenedor ${c.id} ${c.label||''} <span style="background:#e5e7eb;padding:2px 8px;border-radius:4px;font-size:12px;">${c.type}</span></span>
+              <span style="font-size:12px;color:#6b7280;margin-left:8px;">${c.items_count} productos · ${c.total_qty} uds · $${c.total_fob.toLocaleString('es-UY')} USD${c.categories?.length ? ' · ' + c.categories.join(', ') : ''}</span>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:20px;font-weight:800;color:${fc};">${c.fill_pct}%</div>
+              <div style="font-size:10px;color:#6b7280;">${c.used_cbm} / ${c.capacity} CBM</div>
+            </div>
+          </div>
+          <div style="margin-top:6px;background:#e5e7eb;border-radius:4px;height:8px;overflow:hidden;">
+            <div style="background:${fc};height:100%;width:${c.fill_pct}%;border-radius:4px;"></div>
+          </div>
+        </div>
+        <div style="padding:8px 16px;">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;">
+            <thead><tr style="color:#6b7280;">
+              <th style="text-align:left;padding:3px 4px;">IHOME</th>
+              <th style="text-align:left;padding:3px 4px;">SKU</th>
+              <th style="text-align:left;padding:3px 4px;">Producto</th>
+              <th style="text-align:right;padding:3px 4px;">Qty</th>
+              <th style="text-align:right;padding:3px 4px;">CBM</th>
+            </tr></thead>
+            <tbody>${c.items.map(i => `<tr style="border-bottom:1px solid #f9fafb;">
+              <td style="padding:3px 4px;font-weight:600;">${i.ihome||''}</td>
+              <td style="padding:3px 4px;">${i.sku}</td>
+              <td style="padding:3px 4px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name}</td>
+              <td style="padding:3px 4px;text-align:right;font-weight:600;">${i.qty}</td>
+              <td style="padding:3px 4px;text-align:right;color:#6b7280;">${i.total_cbm || '?'}</td>
+            </tr>`).join('')}</tbody>
+          </table>
+        </div>
+      </div>`;
+    }
+
+    html += `<div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button onclick="document.getElementById('container-modal').remove()" style="padding:8px 16px;background:#e5e7eb;color:#374151;border:none;border-radius:6px;font-size:13px;cursor:pointer;">Cerrar</button>
+    </div></div></div>`;
+
+    document.body.insertAdjacentHTML('beforeend', html);
+  } catch(e) { alert('Error: ' + e.message); }
 }
 
 async function ejecutarOrden() {
@@ -8217,6 +9044,105 @@ async function cargarOrdenPrevisiones() {
     const modal = document.getElementById('orden-modal');
     if (modal) modal.remove();
   } catch(e) { alert('Error: ' + e.message); }
+}
+
+// ── Objetivos mensuales ──
+async function loadObjetivos() {
+  const content = document.getElementById('obj-content');
+  const growth = document.getElementById('obj-growth').value || 30;
+  const canal = document.getElementById('obj-canal').value || 'total';
+  content.innerHTML = '<div class="loading"><span class="spinner"></span>Cargando objetivos...</div>';
+
+  try {
+    const r = await fetch(`/api/objetivos?growth=${growth}&canal=${canal}`, { headers: authHeaders() });
+    const d = await r.json();
+    if (d.error) { content.innerHTML = `<div class="card" style="color:#dc2626;">${d.error}</div>`; return; }
+
+    const fmt = n => '$' + Math.round(n/1000).toLocaleString('es-UY') + 'k';
+    const fmtFull = n => '$' + Math.round(n).toLocaleString('es-UY');
+
+    // Mes actual destacado
+    const curr = d.months[0];
+    let html = '';
+
+    if (curr.objetivo > 0) {
+      const pct = curr.progreso || 0;
+      const pctColor = pct >= 100 ? '#059669' : pct >= 70 ? '#d97706' : '#dc2626';
+      const proyColor = curr.proyeccion >= curr.objetivo ? '#059669' : '#dc2626';
+
+      html += `<div class="card" style="margin-bottom:20px;border:2px solid #4361ee;padding:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div>
+            <div style="font-size:20px;font-weight:800;color:#4361ee;">${curr.label} — Mes actual</div>
+            <div style="font-size:13px;color:#6b7280;">Día ${curr.days_passed} de ${curr.days_total} · +${d.growth_pct}% crecimiento</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:28px;font-weight:800;color:${pctColor};">${pct}%</div>
+            <div style="font-size:11px;color:#6b7280;">del objetivo</div>
+          </div>
+        </div>
+        <div style="background:#e5e7eb;border-radius:8px;height:16px;overflow:hidden;margin-bottom:12px;">
+          <div style="background:${pctColor};height:100%;width:${Math.min(pct,100)}%;border-radius:8px;transition:width 0.3s;"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;text-align:center;">
+          <div style="background:#f9fafb;border-radius:8px;padding:10px;">
+            <div style="font-size:10px;color:#6b7280;">${curr.prev2 ? curr.prev2.year : '—'}</div>
+            <div style="font-size:16px;font-weight:700;">${curr.prev2 ? fmt(curr.prev2.total) : '—'}</div>
+            <div style="font-size:9px;color:#9ca3af;">${curr.prev2 ? curr.prev2.qty + ' uds' : ''}</div>
+          </div>
+          <div style="background:#f9fafb;border-radius:8px;padding:10px;">
+            <div style="font-size:10px;color:#6b7280;">${curr.prev1 ? curr.prev1.year : '—'}</div>
+            <div style="font-size:16px;font-weight:700;">${curr.prev1 ? fmt(curr.prev1.total) : '—'}</div>
+            <div style="font-size:9px;color:#9ca3af;">${curr.prev1 ? curr.prev1.qty + ' uds' : ''}</div>
+          </div>
+          <div style="background:#eef2ff;border-radius:8px;padding:10px;border:2px solid #4361ee;">
+            <div style="font-size:10px;color:#4361ee;font-weight:600;">Objetivo</div>
+            <div style="font-size:16px;font-weight:800;color:#4361ee;">${fmt(curr.objetivo)}</div>
+            <div style="font-size:9px;color:#6b7280;">+${d.growth_pct}%</div>
+          </div>
+          <div style="background:#f9fafb;border-radius:8px;padding:10px;">
+            <div style="font-size:10px;color:#6b7280;">Actual</div>
+            <div style="font-size:16px;font-weight:700;color:${pctColor};">${curr.actual ? fmt(curr.actual.total) : '—'}</div>
+            <div style="font-size:9px;color:#9ca3af;">${curr.actual ? curr.actual.qty + ' uds' : ''}</div>
+          </div>
+          <div style="background:#f9fafb;border-radius:8px;padding:10px;">
+            <div style="font-size:10px;color:#6b7280;">Proyecci&oacute;n</div>
+            <div style="font-size:16px;font-weight:700;color:${proyColor};">${curr.proyeccion ? fmt(curr.proyeccion) : '—'}</div>
+            <div style="font-size:9px;color:${proyColor};">${curr.proyeccion >= curr.objetivo ? '✅ cumple' : '⚠️ no llega'}</div>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    // Tabla de los 12 meses
+    html += `<div class="table-card"><div style="overflow-x:auto;"><table>
+      <thead><tr>
+        <th>Mes</th>
+        <th style="text-align:right;">2 a&ntilde;os atr&aacute;s</th>
+        <th style="text-align:right;">A&ntilde;o pasado</th>
+        <th style="text-align:right;">Objetivo (+${d.growth_pct}%)</th>
+        <th style="text-align:right;">Actual</th>
+        <th style="text-align:right;">Progreso</th>
+      </tr></thead>
+      <tbody>${d.months.map(m => {
+        const pct = m.progreso;
+        const pctColor = pct >= 100 ? '#059669' : pct >= 70 ? '#d97706' : pct !== null ? '#dc2626' : '#9ca3af';
+        const isCurr = m.is_current;
+        return `<tr style="${isCurr ? 'background:#eef2ff;font-weight:600;' : ''}">
+          <td style="font-weight:600;">${m.label}</td>
+          <td style="text-align:right;color:#9ca3af;">${m.prev2 ? fmtFull(m.prev2.total) : '—'}</td>
+          <td style="text-align:right;">${m.prev1 ? fmtFull(m.prev1.total) : '—'}</td>
+          <td style="text-align:right;font-weight:700;color:#4361ee;">${m.objetivo ? fmtFull(m.objetivo) : '—'}</td>
+          <td style="text-align:right;">${m.actual ? fmtFull(m.actual.total) : '—'}</td>
+          <td style="text-align:right;">${pct !== null ? `<span style="color:${pctColor};font-weight:700;">${pct}%</span>` : '—'}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div></div>`;
+
+    content.innerHTML = html;
+  } catch(e) {
+    content.innerHTML = `<div class="card" style="color:#dc2626;">Error: ${e.message}</div>`;
+  }
 }
 
 // ── Stock Odoo ──
@@ -8677,6 +9603,523 @@ async function loadDimensiones() {
     renderDimensionesTable();
   } catch(e) {
     kpis.innerHTML = `<div class="table-card" style="color:#dc2626;padding:16px;">Error: ${e.message}</div>`;
+  }
+}
+
+// ── Comparador por producto ──
+let _icData = null;
+
+async function loadItemCompare() {
+  const kpis = document.getElementById('ic-kpis');
+  const table = document.getElementById('ic-table');
+  const y1 = document.getElementById('ic-year1').value;
+  const y2 = document.getElementById('ic-year2').value;
+  const sort = document.getElementById('ic-sort').value;
+  const q = document.getElementById('ic-filter').value;
+  kpis.innerHTML = '<div class="loading"><span class="spinner"></span>Comparando productos...</div>';
+  table.innerHTML = '';
+
+  try {
+    const r = await fetch(`/api/zureo/comparador?year1=${y1}&year2=${y2}&sort=${sort}&q=${encodeURIComponent(q)}&limit=300`, { headers: authHeaders() });
+    _icData = await r.json();
+    const d = _icData;
+    const s = d.summary;
+
+    const totalGrowth = s.totY2 > 0 ? ((s.totY1 - s.totY2) / s.totY2 * 100).toFixed(1) : '—';
+    const growthColor = s.diff > 0 ? '#10b981' : s.diff < 0 ? '#ef4444' : '#9ca3af';
+    const arrow = s.diff > 0 ? '▲' : s.diff < 0 ? '▼' : '=';
+
+    kpis.innerHTML = `
+      <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:20px;">
+        <div class="kpi-card" style="--accent:#4361ee">
+          <div class="kpi-label">${d.year1}</div>
+          <div class="kpi-value">${fmt(s.totY1)}</div>
+          <div class="kpi-sub">${s.totQtyY1.toLocaleString('es-UY')} uds</div>
+        </div>
+        <div class="kpi-card" style="--accent:#f59e0b">
+          <div class="kpi-label">${d.year2}</div>
+          <div class="kpi-value">${fmt(s.totY2)}</div>
+          <div class="kpi-sub">${s.totQtyY2.toLocaleString('es-UY')} uds</div>
+        </div>
+        <div class="kpi-card" style="--accent:${growthColor}">
+          <div class="kpi-label">Diferencia</div>
+          <div class="kpi-value" style="color:${growthColor}">${arrow} ${fmt(Math.abs(s.diff))}</div>
+          <div class="kpi-sub" style="color:${growthColor}">${totalGrowth}%</div>
+        </div>
+        <div class="kpi-card" style="--accent:#10b981">
+          <span class="kpi-icon">📈</span>
+          <div class="kpi-label">Crecieron</div>
+          <div class="kpi-value" style="color:#10b981">${s.grew}</div>
+          <div class="kpi-sub">productos</div>
+        </div>
+        <div class="kpi-card" style="--accent:#ef4444">
+          <span class="kpi-icon">📉</span>
+          <div class="kpi-label">Cayeron</div>
+          <div class="kpi-value" style="color:#ef4444">${s.dropped}</div>
+          <div class="kpi-sub">productos</div>
+        </div>
+      </div>`;
+
+    renderItemCompareTable();
+  } catch(e) {
+    kpis.innerHTML = `<div class="table-card" style="color:#dc2626;padding:16px;">Error: ${e.message}</div>`;
+  }
+}
+
+function renderItemCompareTable() {
+  const table = document.getElementById('ic-table');
+  if (!_icData) return;
+  const d = _icData;
+  const MNAMES_S = ['','E','F','M','A','M','J','J','A','S','O','N','D'];
+
+  const rows = d.items.map(it => {
+    const growthColor = it.diffTotal > 0 ? '#10b981' : it.diffTotal < 0 ? '#ef4444' : '#9ca3af';
+    const arrow = it.diffTotal > 0 ? '▲' : it.diffTotal < 0 ? '▼' : '=';
+    const mlLink = it.mlId ? `<a href="https://articulo.mercadolibre.com.uy/${it.mlId.replace('MLU','MLU-')}" target="_blank" style="font-size:10px;color:#3b82f6;text-decoration:none;" onclick="event.stopPropagation();">↗ ML</a>` : '';
+
+    // Mini sparkline: 12 months side by side
+    const maxQ = Math.max(...it.monthly.map(m => Math.max(m.y1Qty, m.y2Qty)), 1);
+    const spark = it.monthly.map(m => {
+      const h1 = Math.max(1, Math.round(m.y1Qty / maxQ * 22));
+      const h2 = Math.max(1, Math.round(m.y2Qty / maxQ * 22));
+      return `<div style="display:flex;flex-direction:column;align-items:center;gap:0;width:7px;" title="${MNAMES_S[m.month]}: ${d.year1}=${m.y1Qty} / ${d.year2}=${m.y2Qty}">
+        <div style="display:flex;gap:1px;align-items:flex-end;height:22px;">
+          <div style="width:3px;height:${h1}px;background:#4361ee;border-radius:1px;"></div>
+          <div style="width:3px;height:${h2}px;background:#f59e0b;border-radius:1px;opacity:0.7;"></div>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Monthly detail rows (hidden by default)
+    const detailId = 'ic-detail-' + it.code;
+    const monthRows = it.monthly.map(m => {
+      const diffQ = m.y1Qty - m.y2Qty;
+      const diffT = m.y1Total - m.y2Total;
+      const pct = m.y2Total > 0 ? Math.round((m.y1Total - m.y2Total) / m.y2Total * 100) : (m.y1Total > 0 ? 100 : 0);
+      const c = diffT > 0 ? '#10b981' : diffT < 0 ? '#ef4444' : '#9ca3af';
+      const a = diffT > 0 ? '▲' : diffT < 0 ? '▼' : '=';
+      if (m.y1Qty === 0 && m.y2Qty === 0) return '';
+      return `<tr style="background:#f8fafc;">
+        <td></td>
+        <td style="font-size:12px;color:#6b7280;padding-left:24px;">${MNAMES_S[m.month] === 'E' ? 'Ene' : MNAMES_S[m.month] === 'F' ? 'Feb' : MNAMES_S[m.month] === 'M' ? 'Mar' : MNAMES_S[m.month] === 'A' ? 'Abr' : MNAMES_S[m.month] === 'J' ? 'Jun' : MNAMES_S[m.month] === 'S' ? 'Sep' : MNAMES_S[m.month] === 'O' ? 'Oct' : MNAMES_S[m.month] === 'N' ? 'Nov' : MNAMES_S[m.month] === 'D' ? 'Dic' : ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][m.month]}</td>
+        <td></td>
+        <td style="text-align:right;font-size:12px;font-weight:600;">${m.y1Qty}</td>
+        <td style="text-align:right;font-size:12px;color:#6b7280;">${m.y2Qty}</td>
+        <td style="text-align:right;font-size:12px;font-weight:600;">${fmt(m.y1Total)}</td>
+        <td style="text-align:right;font-size:12px;color:#6b7280;">${fmt(m.y2Total)}</td>
+        <td style="text-align:right;font-size:12px;color:${c};font-weight:600;">${a} ${fmt(Math.abs(diffT))}</td>
+        <td style="text-align:right;font-size:12px;color:${c};">${pct > 0 ? '+' : ''}${pct}%</td>
+      </tr>`;
+    }).filter(Boolean).join('');
+
+    return `<tr onclick="const el=document.getElementById('${detailId}');el.style.display=el.style.display==='none'?'':'none';" style="cursor:pointer;">
+      <td style="font-size:11px;color:#6b7280;font-family:monospace;">${it.code}</td>
+      <td style="max-width:200px;">
+        <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;" title="${it.name}">${it.name}</div>
+        ${mlLink}
+      </td>
+      <td style="text-align:center;"><div style="display:flex;gap:1px;justify-content:center;">${spark}</div></td>
+      <td style="text-align:right;font-weight:600;">${it.y1Qty.toLocaleString('es-UY')}</td>
+      <td style="text-align:right;color:#6b7280;">${it.y2Qty.toLocaleString('es-UY')}</td>
+      <td style="text-align:right;font-weight:600;">${fmt(it.y1Total)}</td>
+      <td style="text-align:right;color:#6b7280;">${fmt(it.y2Total)}</td>
+      <td style="text-align:right;font-weight:700;color:${growthColor}">${arrow} ${fmt(Math.abs(it.diffTotal))}</td>
+      <td style="text-align:right;color:${growthColor};font-weight:600;">${it.growthPct > 0 ? '+' : ''}${it.growthPct}%</td>
+    </tr><tbody id="${detailId}" style="display:none;">${monthRows}</tbody>`;
+  }).join('');
+
+  table.innerHTML = `
+    <div class="table-card">
+      <div class="table-header" style="flex-wrap:wrap;gap:8px;">
+        <span class="table-title">${d.total} productos &mdash; ${d.year1} vs ${d.year2}</span>
+        <span style="font-size:11px;color:#6b7280;">🔵 ${d.year1} &nbsp; 🟡 ${d.year2}</span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr>
+            <th>C&oacute;d</th>
+            <th>Producto</th>
+            <th style="text-align:center">Mes a mes</th>
+            <th style="text-align:right">Uds ${d.year1}</th>
+            <th style="text-align:right">Uds ${d.year2}</th>
+            <th style="text-align:right">$ ${d.year1}</th>
+            <th style="text-align:right">$ ${d.year2}</th>
+            <th style="text-align:right">Diferencia</th>
+            <th style="text-align:right">%</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+// Buscar con debounce
+document.addEventListener('DOMContentLoaded', () => {
+  const icFilter = document.getElementById('ic-filter');
+  if (icFilter) {
+    let icTimeout;
+    icFilter.addEventListener('input', () => {
+      clearTimeout(icTimeout);
+      icTimeout = setTimeout(() => loadItemCompare(), 400);
+    });
+  }
+});
+
+// ── Productos perdidos mes a mes ──
+let _perdidosData = null;
+let _perdidosMonth = 0;
+
+async function loadPerdidos() {
+  const kpis = document.getElementById('perdidos-kpis');
+  const table = document.getElementById('perdidos-table');
+  const minQty = document.getElementById('perdidos-min').value || 3;
+  const stockFilter = document.getElementById('perdidos-stock-filter').value;
+  kpis.innerHTML = '<div class="loading"><span class="spinner"></span>Analizando mes a mes...</div>';
+  table.innerHTML = '';
+
+  try {
+    const r = await fetch(`/api/perdidos?min=${minQty}&filter=${stockFilter}`, { headers: authHeaders() });
+    _perdidosData = await r.json();
+    _perdidosMonth = 0;
+
+    // KPIs resumen
+    const totalItems = _perdidosData.months.reduce((s, m) => s + m.count, 0);
+    const totalLost = _perdidosData.months.reduce((s, m) => s + m.totalLost, 0);
+    const worstMonth = _perdidosData.months.reduce((a, b) => b.totalLost > a.totalLost ? b : a, _perdidosData.months[0]);
+
+    kpis.innerHTML = `
+      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+        <div class="kpi-card" style="--accent:#ef4444">
+          <span class="kpi-icon">📉</span>
+          <div class="kpi-label">Total perdido (12 meses)</div>
+          <div class="kpi-value" style="color:#ef4444">${fmt(totalLost)}</div>
+          <div class="kpi-sub">facturado el a&ntilde;o anterior, no vendido este</div>
+        </div>
+        <div class="kpi-card" style="--accent:#f59e0b">
+          <span class="kpi-icon">📦</span>
+          <div class="kpi-label">Productos afectados</div>
+          <div class="kpi-value">${totalItems}</div>
+          <div class="kpi-sub">suma de todos los meses</div>
+        </div>
+        <div class="kpi-card" style="--accent:#dc2626">
+          <span class="kpi-icon">🔻</span>
+          <div class="kpi-label">Peor mes</div>
+          <div class="kpi-value" style="font-size:18px;">${worstMonth?.label || '—'}</div>
+          <div class="kpi-sub">${fmt(worstMonth?.totalLost || 0)} perdidos</div>
+        </div>
+      </div>
+
+      <!-- Month tabs -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;" id="perdidos-tabs"></div>
+    `;
+
+    renderPerdidosTabs();
+    renderPerdidosMonth();
+  } catch(e) {
+    kpis.innerHTML = `<div class="table-card" style="color:#dc2626;padding:16px;">Error: ${e.message}</div>`;
+  }
+}
+
+function renderPerdidosTabs() {
+  const tabs = document.getElementById('perdidos-tabs');
+  tabs.innerHTML = _perdidosData.months.map((m, i) => {
+    const active = i === _perdidosMonth;
+    const hasLost = m.count > 0;
+    return `<button onclick="_perdidosMonth=${i};renderPerdidosTabs();renderPerdidosMonth();"
+      style="padding:6px 12px;border-radius:8px;border:none;cursor:pointer;font-size:12px;font-weight:600;
+        background:${active ? '#dc2626' : hasLost ? '#334155' : '#f3f4f6'};
+        color:${active ? '#fff' : hasLost ? '#f1f5f9' : '#9ca3af'};">
+      ${m.label} <span style="font-weight:400;opacity:0.7;">(${m.count})</span>
+    </button>`;
+  }).join('');
+}
+
+function renderPerdidosMonth() {
+  const table = document.getElementById('perdidos-table');
+  const m = _perdidosData.months[_perdidosMonth];
+  const q = (document.getElementById('perdidos-filter').value || '').toLowerCase();
+  let items = m.items;
+  if (q) items = items.filter(i => i.name.toLowerCase().includes(q) || i.code.toLowerCase().includes(q));
+
+  if (!items.length) {
+    table.innerHTML = `<div class="table-card" style="text-align:center;padding:32px;">
+      <div style="font-size:40px;margin-bottom:8px;">✅</div>
+      <div style="color:#10b981;font-weight:600;">${m.label}: sin productos perdidos vs ${m.vs}</div>
+    </div>`;
+    return;
+  }
+
+  const rows = items.map(it => {
+    function stockCell(val) {
+      if (val === null) return '<span style="color:#d1d5db;">—</span>';
+      if (val === 0) return '<span style="color:#ef4444;font-weight:700;">0</span>';
+      return `<span style="color:#10b981;font-weight:700;">${val}</span>`;
+    }
+    const mlLink = it.mlId ? `<a href="https://articulo.mercadolibre.com.uy/${it.mlId.replace('MLU','MLU-')}" target="_blank" style="font-size:10px;color:#3b82f6;text-decoration:none;" onclick="event.stopPropagation();">↗ ML</a>` : '';
+    const odooName = it.odooName && it.odooName !== it.name ? `<div style="font-size:10px;color:#9ca3af;margin-top:1px;" title="${it.odooName}">Odoo: ${it.odooName.substring(0,35)}</div>` : '';
+    const noStock = (it.odooStock === 0 || it.odooStock === null) && (it.mlStock === 0 || it.mlStock === null);
+    return `<tr style="${noStock ? 'background:#fef2f2;' : ''}">
+      <td style="font-size:11px;color:#6b7280;font-family:monospace;">${it.code}</td>
+      <td style="max-width:250px;">
+        <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px;" title="${it.name}">${it.name}</div>
+        ${odooName}${mlLink}
+      </td>
+      <td style="text-align:right;font-weight:600;">${it.prevQty}</td>
+      <td style="text-align:right;font-weight:600;color:#ef4444;">${fmt(it.prevTotal)}</td>
+      <td style="text-align:center;">${stockCell(it.odooStock)}</td>
+      <td style="text-align:center;">${stockCell(it.mlStock)}</td>
+    </tr>`;
+  }).join('');
+
+  table.innerHTML = `
+    <div class="table-card">
+      <div class="table-header" style="flex-wrap:wrap;gap:8px;">
+        <span class="table-title">${m.label}: ${items.length} productos que vend&iacute;as en ${m.vs} y no vend&iacute;s ahora</span>
+        <span style="font-size:13px;font-weight:700;color:#ef4444;">${fmt(m.totalLost)} perdidos</span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr>
+            <th>C&oacute;digo</th>
+            <th>Producto</th>
+            <th style="text-align:right">Uds ${m.vs}</th>
+            <th style="text-align:right">Facturado ${m.vs}</th>
+            <th style="text-align:center">Stock Odoo</th>
+            <th style="text-align:center">Stock ML</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function filterPerdidos() { renderPerdidosMonth(); }
+
+// ── Histórico unificado ──
+let _zureoMonthly = null;
+let _historicoChart = null;
+const MNAMES = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+function hPct(now, before) {
+  if (!before) return now > 0 ? { label: 'nuevo', color: '#10b981' } : { label: '—', color: '#9ca3af' };
+  const pct = ((now - before) / before * 100).toFixed(1);
+  const color = pct > 0 ? '#10b981' : pct < 0 ? '#ef4444' : '#9ca3af';
+  const arrow = pct > 0 ? '▲' : pct < 0 ? '▼' : '=';
+  return { label: `${arrow} ${Math.abs(pct)}%`, color };
+}
+
+async function loadZureo() {
+  const kpis = document.getElementById('zureo-kpis');
+  const chartDiv = document.getElementById('zureo-chart');
+  const compareDiv = document.getElementById('zureo-mes-compare');
+  const monthlyTable = document.getElementById('zureo-monthly-table');
+  kpis.innerHTML = '<div class="loading"><span class="spinner"></span>Cargando hist&oacute;rico...</div>';
+
+  try {
+    const r = await fetch('/api/historico', { headers: authHeaders() });
+    const d = await r.json();
+    _zureoMonthly = d.monthly;
+
+    const months = Object.keys(d.monthly).sort();
+    const byYear = {};
+    let grandTotal = 0, grandQty = 0;
+    for (const m of months) {
+      const y = m.slice(0,4);
+      if (!byYear[y]) byYear[y] = { total: 0, qty: 0 };
+      byYear[y].total += d.monthly[m].revenue;
+      byYear[y].qty += d.monthly[m].count;
+      grandTotal += d.monthly[m].revenue;
+      grandQty += d.monthly[m].count;
+    }
+
+    // ── KPIs anuales ──
+    const years = Object.keys(byYear).sort();
+    const kpiCards = years.map((y, i) => {
+      const prev = i > 0 ? byYear[years[i-1]] : null;
+      const chg = prev ? hPct(byYear[y].total, prev.total) : { label: '', color: '' };
+      return `<div class="kpi-card" style="--accent:#4361ee">
+        <div class="kpi-label">${y}</div>
+        <div class="kpi-value">${fmt(byYear[y].total)}</div>
+        <div class="kpi-sub">${byYear[y].qty.toLocaleString('es-UY')} uds${chg.label ? ` <span style="color:${chg.color};font-weight:700;">${chg.label}</span>` : ''}</div>
+      </div>`;
+    }).join('');
+
+    kpis.innerHTML = `
+      <div class="kpi-grid" style="grid-template-columns:repeat(${Math.min(years.length + 1, 5)},1fr);margin-bottom:20px;">
+        ${kpiCards}
+        <div class="kpi-card" style="--accent:#10b981">
+          <div class="kpi-label">Total acumulado</div>
+          <div class="kpi-value">${fmt(grandTotal)}</div>
+          <div class="kpi-sub">${grandQty.toLocaleString('es-UY')} uds &bull; ${months.length} meses</div>
+        </div>
+      </div>`;
+
+    // ── Comparador mismo mes (actual vs -1 vs -2 años) ──
+    const now = new Date();
+    const curMonth = now.getMonth() + 1;
+    const curYear = now.getFullYear();
+    const pad2 = n => String(n).padStart(2,'0');
+    const m0key = `${curYear}-${pad2(curMonth)}`;
+    const m1key = `${curYear-1}-${pad2(curMonth)}`;
+    const m2key = `${curYear-2}-${pad2(curMonth)}`;
+    const m0 = d.monthly[m0key];
+    const m1 = d.monthly[m1key];
+    const m2 = d.monthly[m2key];
+
+    const mesName = MNAMES[curMonth];
+    function mesCard(label, data, vs) {
+      if (!data) return `<div class="kpi-card" style="--accent:#6b7280"><div class="kpi-label">${label}</div><div class="kpi-value" style="color:#6b7280;">Sin datos</div></div>`;
+      const chg = vs ? hPct(data.revenue, vs.revenue) : { label: '', color: '' };
+      return `<div class="kpi-card" style="--accent:${chg.color || '#4361ee'}">
+        <div class="kpi-label">${label}</div>
+        <div class="kpi-value">${fmt(data.revenue)}</div>
+        <div class="kpi-sub">${data.count.toLocaleString('es-UY')} uds${chg.label ? ` <span style="color:${chg.color};font-weight:700;">${chg.label}</span>` : ''}</div>
+      </div>`;
+    }
+
+    compareDiv.innerHTML = `
+      <div style="font-size:14px;font-weight:700;color:#374151;margin-bottom:8px;">${mesName} &mdash; mismo mes, a&ntilde;o a a&ntilde;o</div>
+      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:0;">
+        ${mesCard(mesName + ' ' + curYear, m0, m1)}
+        ${mesCard(mesName + ' ' + (curYear-1), m1, m2)}
+        ${mesCard(mesName + ' ' + (curYear-2), m2, null)}
+      </div>`;
+
+    // ── Gráfico principal ──
+    const labels = months.map(m => { const [y,mo] = m.split('-'); return MNAMES[+mo] + ' ' + y.slice(2); });
+    const revenues = months.map(m => d.monthly[m].revenue);
+    const counts = months.map(m => d.monthly[m].count);
+    const colors = months.map(m => d.monthly[m].source === 'ml' ? 'rgba(67,97,238,0.7)' : 'rgba(249,115,22,0.7)');
+
+    chartDiv.innerHTML = '<div class="table-card" style="padding:16px;"><canvas id="zureo-chart-canvas" height="250"></canvas><div style="margin-top:8px;display:flex;gap:16px;justify-content:center;font-size:12px;color:#6b7280;"><span>🟠 Zureo</span><span>🔵 MercadoLibre</span></div></div>';
+
+    if (_historicoChart) _historicoChart.destroy();
+    const ctx = document.getElementById('zureo-chart-canvas').getContext('2d');
+    _historicoChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Facturación ($)', data: revenues, backgroundColor: colors, yAxisID: 'y' },
+          { label: 'Unidades', data: counts, type: 'line', borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', yAxisID: 'y1', tension: 0.3, fill: true },
+        ]
+      },
+      options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          y: { position: 'left', ticks: { callback: v => '$' + (v/1000000).toFixed(1) + 'M' } },
+          y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v.toLocaleString('es-UY') } },
+        }
+      }
+    });
+
+    // ── Tabla mensual año a año ──
+    const allYears = years;
+    const monthRows = [];
+    for (let m = 1; m <= 12; m++) {
+      const cells = allYears.map(y => {
+        const key = `${y}-${pad2(m)}`;
+        const data = d.monthly[key];
+        return data ? data.revenue : null;
+      });
+      monthRows.push({ month: m, cells });
+    }
+    // Year totals
+    const yearTotals = allYears.map(y => byYear[y]?.total || 0);
+
+    const tRows = monthRows.map(row => {
+      const tds = row.cells.map((val, i) => {
+        if (val === null) return '<td style="text-align:right;color:#d1d5db;font-size:12px;">—</td>';
+        // Compare with previous year same month
+        const prevVal = i > 0 ? row.cells[i-1] : null;
+        const chg = prevVal ? hPct(val, prevVal) : { label: '', color: '' };
+        return `<td style="text-align:right;font-size:12px;">
+          ${fmt(val)}
+          ${chg.label ? `<div style="font-size:10px;color:${chg.color};font-weight:600;">${chg.label}</div>` : ''}
+        </td>`;
+      }).join('');
+      return `<tr><td style="font-weight:600;font-size:13px;">${MNAMES[row.month]}</td>${tds}</tr>`;
+    }).join('');
+
+    const totalRow = `<tr style="border-top:2px solid #e5e7eb;font-weight:700;">
+      <td>TOTAL</td>
+      ${yearTotals.map(t => `<td style="text-align:right;">${fmt(t)}</td>`).join('')}
+    </tr>`;
+
+    monthlyTable.innerHTML = `
+      <div class="table-card">
+        <div class="table-header"><span class="table-title">Facturaci&oacute;n mensual por a&ntilde;o</span></div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr>
+              <th>Mes</th>
+              ${allYears.map(y => `<th style="text-align:right">${y}</th>`).join('')}
+            </tr></thead>
+            <tbody>${tRows}${totalRow}</tbody>
+          </table>
+        </div>
+      </div>`;
+
+    loadZureoItems();
+  } catch(e) {
+    kpis.innerHTML = `<div class="table-card" style="color:#dc2626;padding:16px;">Error: ${e.message}</div>`;
+  }
+}
+
+async function loadZureoItems() {
+  const table = document.getElementById('zureo-table');
+  const q = document.getElementById('zureo-filter').value;
+  const sort = document.getElementById('zureo-sort').value;
+
+  try {
+    const r = await fetch(`/api/zureo/items?q=${encodeURIComponent(q)}&sort=${sort}&limit=100`, { headers: authHeaders() });
+    const d = await r.json();
+
+    if (!d.items.length) {
+      table.innerHTML = '<div class="table-card" style="text-align:center;color:#9ca3af;padding:32px;">Sin resultados</div>';
+      return;
+    }
+
+    const allMonths = _zureoMonthly ? Object.keys(_zureoMonthly).sort() : [];
+    // Group months by year for column headers
+    const years = [...new Set(allMonths.map(m => m.slice(0,4)))].sort();
+
+    const rows = d.items.map(it => {
+      const yearTotals = years.map(y => {
+        let t = 0;
+        for (const [m, v] of Object.entries(it.months || {})) { if (m.startsWith(y)) t += v.total; }
+        return t;
+      });
+      return `<tr>
+        <td style="font-family:monospace;font-size:11px;color:#6b7280;">${it.code}</td>
+        <td style="max-width:250px;"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:250px;" title="${it.name}">${it.name}</span></td>
+        ${yearTotals.map(t => `<td style="text-align:right;font-size:12px;">${t ? fmt(t) : '<span style="color:#d1d5db;">—</span>'}</td>`).join('')}
+        <td style="text-align:right;font-weight:600;">${fmt(it.totalAmount)}</td>
+        <td style="text-align:right;color:#6b7280;">${it.totalQty.toLocaleString('es-UY')}</td>
+      </tr>`;
+    }).join('');
+
+    table.innerHTML = `
+      <div class="table-card">
+        <div class="table-header">
+          <span class="table-title">${d.total} artículos ${d.total > 100 ? '(mostrando 100)' : ''}</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr>
+              <th>Código</th>
+              <th>Artículo</th>
+              ${years.map(y => `<th style="text-align:right">${y}</th>`).join('')}
+              <th style="text-align:right">Total</th>
+              <th style="text-align:right">Uds</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  } catch(e) {
+    table.innerHTML = `<div class="table-card" style="color:#dc2626;padding:16px;">Error: ${e.message}</div>`;
   }
 }
 

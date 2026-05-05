@@ -778,6 +778,174 @@ setInterval(refreshMLToken, 5 * 60 * 60 * 1000);
 // Refrescar al arrancar si ya hay token guardado
 if (tokenData?.refresh_token) refreshMLToken();
 
+// ── Estrategia ML: datos de pricing ──
+const ESTRATEGIA_FILE = path.join(__dirname, 'data', 'estrategia_log.json');
+function loadEstrategiaLog() { try { return fs.existsSync(ESTRATEGIA_FILE) ? JSON.parse(fs.readFileSync(ESTRATEGIA_FILE, 'utf8')) : { campaigns: [], log: [] }; } catch { return { campaigns: [], log: [] }; } }
+function saveEstrategiaLog(data) { fs.writeFileSync(ESTRATEGIA_FILE, JSON.stringify(data, null, 2)); }
+
+app.get('/api/estrategia/item/:itemId', requireToken, async (req, res) => {
+  try {
+    const itemId = req.params.itemId;
+    const token = tokenData?.access_token;
+    if (!token) return res.status(401).json({ error: 'Sin token ML' });
+
+    // Item details
+    const itemRes = await fetch(`https://api.mercadolibre.com/items/${itemId}`, { headers: { Authorization: `Bearer ${token}` } });
+    const item = await itemRes.json();
+
+    // Visits last 30 days
+    const visitsRes = await fetch(`https://api.mercadolibre.com/items/${itemId}/visits/time_window?last=30&unit=days`, { headers: { Authorization: `Bearer ${token}` } });
+    const visits30 = await visitsRes.json();
+
+    // Visits last 7 days
+    const visits7Res = await fetch(`https://api.mercadolibre.com/items/${itemId}/visits/time_window?last=7&unit=days`, { headers: { Authorization: `Bearer ${token}` } });
+    const visits7 = await visits7Res.json();
+
+    // ML fees
+    const feesRes = await fetch(`https://api.mercadolibre.com/sites/MLU/listing_prices?price=${item.price}&listing_type_id=${item.listing_type_id}&category_id=${item.category_id}`, { headers: { Authorization: `Bearer ${token}` } });
+    const fees = await feesRes.json();
+
+    // Log history
+    const logData = loadEstrategiaLog();
+    const campaignLog = logData.log.filter(l => l.item_id === itemId);
+
+    res.json({
+      item: {
+        id: item.id,
+        title: item.title,
+        price: item.price,
+        original_price: item.original_price,
+        available_quantity: item.available_quantity,
+        sold_quantity: item.sold_quantity,
+        status: item.status,
+        listing_type_id: item.listing_type_id,
+        permalink: item.permalink,
+        thumbnail: item.thumbnail,
+        shipping_free: item.shipping?.free_shipping || false,
+        category_id: item.category_id,
+      },
+      visits_30d: visits30.total_visits || 0,
+      visits_7d: visits7.total_visits || 0,
+      fees: {
+        percentage: fees.sale_fee_details?.percentage_fee || 0,
+        fixed: fees.sale_fee_details?.fixed_fee || 0,
+        total: fees.sale_fee_amount || 0,
+      },
+      log: campaignLog,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/estrategia/price', requireToken, async (req, res) => {
+  try {
+    const { itemId, price, original_price } = req.body;
+    const token = tokenData?.access_token;
+    const body = { price };
+    if (original_price) body.original_price = original_price;
+    const r = await fetch(`https://api.mercadolibre.com/items/${itemId}`, {
+      method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const result = await r.json();
+    // Log
+    const logData = loadEstrategiaLog();
+    logData.log.push({ item_id: itemId, action: 'price_change', price, original_price: original_price || null, date: new Date().toISOString() });
+    saveEstrategiaLog(logData);
+    res.json({ ok: true, price: result.price, original_price: result.original_price });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/estrategia/shipping', requireToken, async (req, res) => {
+  try {
+    const { itemId, free_shipping } = req.body;
+    const token = tokenData?.access_token;
+    const r = await fetch(`https://api.mercadolibre.com/items/${itemId}`, {
+      method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shipping: { free_shipping } }),
+    });
+    const result = await r.json();
+    const logData = loadEstrategiaLog();
+    logData.log.push({ item_id: itemId, action: 'shipping_change', free_shipping, date: new Date().toISOString() });
+    saveEstrategiaLog(logData);
+    res.json({ ok: true, free_shipping: result.shipping?.free_shipping });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/estrategia/log', requireToken, (req, res) => {
+  const { item_id, action, data } = req.body;
+  const logData = loadEstrategiaLog();
+  logData.log.push({ item_id, action, ...data, date: new Date().toISOString() });
+  saveEstrategiaLog(logData);
+  res.json({ ok: true });
+});
+
+// Tracker automático: snapshot cada hora de items monitoreados
+const ESTRATEGIA_SNAPSHOTS_FILE = path.join(__dirname, 'data', 'estrategia_snapshots.json');
+function loadSnapshots() { try { return fs.existsSync(ESTRATEGIA_SNAPSHOTS_FILE) ? JSON.parse(fs.readFileSync(ESTRATEGIA_SNAPSHOTS_FILE, 'utf8')) : []; } catch { return []; } }
+function saveSnapshots(data) { fs.writeFileSync(ESTRATEGIA_SNAPSHOTS_FILE, JSON.stringify(data)); }
+
+async function trackEstrategiaItems() {
+  const logData = loadEstrategiaLog();
+  const trackedItems = logData.tracked_items || ['MLU480822453']; // default: tolix metal negra
+  const token = tokenData?.access_token;
+  if (!token) return;
+
+  const snapshots = loadSnapshots();
+  for (const itemId of trackedItems) {
+    try {
+      const [itemRes, visits30Res, visits7Res] = await Promise.all([
+        fetch(`https://api.mercadolibre.com/items/${itemId}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`https://api.mercadolibre.com/items/${itemId}/visits/time_window?last=30&unit=days`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`https://api.mercadolibre.com/items/${itemId}/visits/time_window?last=7&unit=days`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      const item = await itemRes.json();
+      const v30 = await visits30Res.json();
+      const v7 = await visits7Res.json();
+
+      snapshots.push({
+        item_id: itemId,
+        date: new Date().toISOString(),
+        price: item.price,
+        original_price: item.original_price || null,
+        stock: item.available_quantity,
+        sold_quantity: item.sold_quantity,
+        visits_30d: v30.total_visits || 0,
+        visits_7d: v7.total_visits || 0,
+        free_shipping: item.shipping?.free_shipping || false,
+        status: item.status,
+      });
+      console.log(`[estrategia] snapshot ${itemId}: precio=$${item.price} stock=${item.available_quantity} visitas30d=${v30.total_visits||0} vendidos=${item.sold_quantity}`);
+    } catch (e) {
+      console.error(`[estrategia] error tracking ${itemId}:`, e.message);
+    }
+  }
+  saveSnapshots(snapshots);
+}
+
+// Ejecutar cada hora
+setInterval(trackEstrategiaItems, 60 * 60 * 1000);
+// Primera ejecución a los 30 segundos de arrancar
+setTimeout(trackEstrategiaItems, 30000);
+
+// Endpoint para ver snapshots
+app.get('/api/estrategia/snapshots/:itemId', requireToken, (req, res) => {
+  const snapshots = loadSnapshots().filter(s => s.item_id === req.params.itemId);
+  res.json(snapshots);
+});
+
+// Endpoint para agregar/quitar items del tracking
+app.post('/api/estrategia/track', requireToken, (req, res) => {
+  const { itemId, track } = req.body;
+  const logData = loadEstrategiaLog();
+  if (!logData.tracked_items) logData.tracked_items = ['MLU480822453'];
+  if (track && !logData.tracked_items.includes(itemId)) logData.tracked_items.push(itemId);
+  if (!track) logData.tracked_items = logData.tracked_items.filter(i => i !== itemId);
+  saveEstrategiaLog(logData);
+  res.json({ ok: true, tracked: logData.tracked_items });
+});
+
 // GET /api/stock — devuelve cache inmediatamente, refresca en background si hace falta
 app.get('/api/stock', requireToken, async (req, res) => {
   const forceRefresh = req.query.refresh === 'true';
@@ -1367,21 +1535,57 @@ app.get('/api/devoluciones', requireToken, async (req, res) => {
 });
 
 // ── Odoo ─────────────────────────────────────────────────────────
+// Odoo PRODUCCIÓN (solo lectura)
 const ODOO_HOST    = process.env.ODOO_HOST;
 const ODOO_DB      = process.env.ODOO_DB;
 const ODOO_USER    = process.env.ODOO_USER;
 const ODOO_API_KEY = process.env.ODOO_API_KEY;
 
-function odooCall(path, method, params) {
-  return new Promise((resolve, reject) => {
-    const client = xmlrpc.createClient({ host: ODOO_HOST, port: 80, path });
-    client.methodCall(method, params, (err, val) => err ? reject(err) : resolve(val));
-  });
+// Odoo STAGING (escritura - cotizaciones)
+const ODOO_STAGING_HOST    = process.env.ODOO_STAGING_HOST || ODOO_HOST;
+const ODOO_STAGING_DB      = process.env.ODOO_STAGING_DB || ODOO_DB;
+const ODOO_STAGING_API_KEY = process.env.ODOO_STAGING_API_KEY || ODOO_API_KEY;
+
+console.log(`[odoo] producción: ${ODOO_HOST} / ${ODOO_DB}`);
+console.log(`[odoo] staging: ${ODOO_STAGING_HOST} / ${ODOO_STAGING_DB}`);
+
+// JSON-RPC call to Odoo (más rápido que XML-RPC)
+let jsonRpcId = 1;
+async function odooCall(path, method, params, host = ODOO_HOST) {
+  const protocol = host.includes('odoo.com') ? 'https' : 'http';
+  const url = `${protocol}://${host}/jsonrpc`;
+
+  // Map XML-RPC style calls to JSON-RPC format
+  const body = {
+    jsonrpc: '2.0',
+    id: jsonRpcId++,
+    method: 'call',
+    params: { service: path.includes('common') ? 'common' : 'object', method, args: params },
+  };
+
+  const r = await axios.post(url, body, { headers: { 'Content-Type': 'application/json' }, timeout: 60000 });
+  if (r.data.error) throw new Error(r.data.error.data?.message || r.data.error.message || JSON.stringify(r.data.error));
+  return r.data.result;
+}
+
+function odooCallStaging(path, method, params) {
+  return odooCall(path, method, params, ODOO_STAGING_HOST);
 }
 
 async function odooAuth() {
   return odooCall('/xmlrpc/2/common', 'authenticate', [ODOO_DB, ODOO_USER, ODOO_API_KEY, {}]);
 }
+async function odooAuthStaging() {
+  return odooCallStaging('/xmlrpc/2/common', 'authenticate', [ODOO_STAGING_DB, ODOO_USER, ODOO_STAGING_API_KEY, {}]);
+}
+
+// API endpoint to tell frontend which DB is connected
+app.get('/api/odoo/status', (req, res) => {
+  res.json({
+    produccion: { host: ODOO_HOST, db: ODOO_DB },
+    staging: { host: ODOO_STAGING_HOST, db: ODOO_STAGING_DB },
+  });
+});
 
 async function odooSearchRead(uid, model, domain, fields, opts = {}) {
   const allItems = [];
@@ -1434,6 +1638,15 @@ async function getOdooProducts(force = false) {
 }
 
 loadOdooCacheFromDisk();
+
+// Refresh automático cada 1 hora
+setInterval(async () => {
+  try {
+    console.log('[odoo] auto-refresh iniciando...');
+    await getOdooProducts(true);
+    console.log('[odoo] auto-refresh completo');
+  } catch (e) { console.error('[odoo] auto-refresh error:', e.message); }
+}, 60 * 60 * 1000);
 
 app.get('/api/odoo/buscar-partner', async (req, res) => {
   try {
@@ -1958,7 +2171,8 @@ app.post('/api/odoo/cotizacion-crear', express.json(), async (req, res) => {
     if (!partner_id) return res.status(400).json({ error: 'Se requiere partner_id' });
     if (!lineas?.length) return res.status(400).json({ error: 'Se requieren líneas de productos' });
 
-    const uid = await odooAuth();
+    // ⚠️ ESCRITURA → usa STAGING, nunca producción
+    const uid = await odooAuthStaging();
 
     const order_lines = lineas.map(l => [0, 0, {
       product_id:      l.product_id,
@@ -1970,8 +2184,8 @@ app.post('/api/odoo/cotizacion-crear', express.json(), async (req, res) => {
       ...(l.descuento ? { discount: l.descuento } : {}),
     }]);
 
-    const orderId = await odooCall('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_DB, uid, ODOO_API_KEY, 'sale.order', 'create',
+    const orderId = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'create',
       [{
         partner_id,
         pricelist_id: 2, // MAYORISTA UYU
@@ -1982,8 +2196,8 @@ app.post('/api/odoo/cotizacion-crear', express.json(), async (req, res) => {
     ]);
 
     // Leer el nombre asignado
-    const [order] = await odooCall('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_DB, uid, ODOO_API_KEY, 'sale.order', 'read',
+    const [order] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'read',
       [[orderId]], { fields: ['name', 'amount_total', 'partner_id'] },
     ]);
 
@@ -2068,11 +2282,12 @@ Respondé ÚNICAMENTE con JSON válido, sin texto adicional:
       return reply('No pude leer el pedido de la imagen. ¿Podés mandar una foto más clara?');
     }
 
-    const uid = await odooAuth();
+    // ⚠️ ESCRITURA → usa STAGING
+    const uid = await odooAuthStaging();
 
-    // Buscar cliente
-    const partners = await odooCall('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_DB, uid, ODOO_API_KEY, 'res.partner', 'search_read',
+    // Buscar cliente en staging
+    const partners = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'res.partner', 'search_read',
       [[['name', 'ilike', parsed.cliente], ['customer_rank', '>', 0]]],
       { fields: ['id', 'name'], limit: 1 },
     ]);
@@ -2082,10 +2297,10 @@ Respondé ÚNICAMENTE con JSON válido, sin texto adicional:
     }
     const partner = partners[0];
 
-    // Buscar productos
+    // Buscar productos en staging
     const skus = parsed.productos.map(p => p.sku);
-    const products = await odooCall('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_DB, uid, ODOO_API_KEY, 'product.product', 'search_read',
+    const products = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'product.product', 'search_read',
       [[['default_code', 'in', skus], ['active', '=', true]]],
       { fields: ['id', 'name', 'default_code', 'lst_price', 'uom_id', 'taxes_id'] },
     ]);
@@ -2098,7 +2313,7 @@ Respondé ÚNICAMENTE con JSON válido, sin texto adicional:
       return reply(`No encontré estos SKUs en Odoo: ${notFound.join(', ')}. Revisá y volvé a intentar.`);
     }
 
-    // Crear cotización
+    // Crear cotización en staging
     const order_lines = parsed.productos.map(p => {
       const prod = productMap[p.sku];
       return [0, 0, {
@@ -2111,8 +2326,8 @@ Respondé ÚNICAMENTE con JSON válido, sin texto adicional:
       }];
     });
 
-    const orderId = await odooCall('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_DB, uid, ODOO_API_KEY, 'sale.order', 'create',
+    const orderId = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'create',
       [{
         partner_id:   partner.id,
         pricelist_id: 2,
@@ -2121,8 +2336,8 @@ Respondé ÚNICAMENTE con JSON válido, sin texto adicional:
       }],
     ]);
 
-    const [order] = await odooCall('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_DB, uid, ODOO_API_KEY, 'sale.order', 'read',
+    const [order] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'read',
       [[orderId]], { fields: ['name', 'amount_total'] },
     ]);
 
@@ -4871,6 +5086,235 @@ app.get('/api/dimensiones', requireToken, async (req, res) => {
   }
 });
 
+// ── Zureo ventas históricas ──────────────────────────────────────
+const ZUREO_FILE = path.join(__dirname, 'data', 'zureo_ventas.json');
+let zureoData = null;
+try { if (fs.existsSync(ZUREO_FILE)) { zureoData = JSON.parse(fs.readFileSync(ZUREO_FILE, 'utf8')); console.log(`[zureo] cargado: ${Object.keys(zureoData.monthly).length} meses, ${Object.keys(zureoData.items).length} artículos`); } } catch(e) { console.error('[zureo] error:', e.message); }
+
+app.get('/api/zureo/resumen', requireToken, (req, res) => {
+  if (!zureoData) return res.json({ monthly: {}, items: [] });
+  res.json({ monthly: zureoData.monthly });
+});
+
+// Histórico unificado: Zureo (hasta 2025-08) + ML (desde 2025-09)
+app.get('/api/historico', requireToken, (req, res) => {
+  const monthly = {};
+  const ML_START = '2025-09'; // ML toma desde acá
+
+  // Zureo primero (2023-08 a 2025-08)
+  if (zureoData) {
+    for (const [k, v] of Object.entries(zureoData.monthly)) {
+      if (k < ML_START) {
+        monthly[k] = { count: v.qty, revenue: v.total, source: 'zureo' };
+      }
+    }
+  }
+
+  // ML desde 2025-09
+  for (const [k, v] of Object.entries(monthlyStats)) {
+    if (k >= ML_START) {
+      monthly[k] = { count: v.count, revenue: v.revenue, units: v.units || 0, source: 'ml' };
+    }
+  }
+
+  res.json({ monthly });
+});
+
+app.get('/api/zureo/items', requireToken, (req, res) => {
+  if (!zureoData) return res.json({ items: [] });
+  const q = (req.query.q || '').toLowerCase();
+  const sortBy = req.query.sort || 'total'; // total, qty, name
+  let items = Object.values(zureoData.items).map(it => {
+    let totalQty = 0, totalAmount = 0;
+    for (const m of Object.values(it.months)) { totalQty += m.qty; totalAmount += m.total; }
+    return { ...it, totalQty, totalAmount };
+  });
+  if (q) items = items.filter(it => it.name.toLowerCase().includes(q) || it.code.toLowerCase().includes(q));
+  if (sortBy === 'total') items.sort((a,b) => b.totalAmount - a.totalAmount);
+  else if (sortBy === 'qty') items.sort((a,b) => b.totalQty - a.totalQty);
+  else items.sort((a,b) => a.name.localeCompare(b.name));
+  res.json({ items: items.slice(0, parseInt(req.query.limit) || 200), total: items.length });
+});
+
+// ── Comparador de productos año a año ────────────────────────────
+app.get('/api/zureo/comparador', requireToken, (req, res) => {
+  if (!zureoData) return res.json({ items: [] });
+  const q = (req.query.q || '').toLowerCase();
+  const sortBy = req.query.sort || 'diff'; // diff, total, qty, name, growth
+  const year1 = parseInt(req.query.year1) || new Date().getFullYear();
+  const year2 = parseInt(req.query.year2) || year1 - 1;
+
+  const pad2 = n => String(n).padStart(2, '0');
+  const results = [];
+
+  for (const [code, item] of Object.entries(zureoData.items)) {
+    if (q && !item.name.toLowerCase().includes(q) && !code.toLowerCase().includes(q)) continue;
+
+    const y1 = { qty: 0, total: 0, months: {} };
+    const y2 = { qty: 0, total: 0, months: {} };
+
+    for (const [m, v] of Object.entries(item.months)) {
+      const y = parseInt(m.slice(0, 4));
+      const mo = parseInt(m.slice(5));
+      if (y === year1) { y1.qty += v.qty; y1.total += v.total; y1.months[mo] = v; }
+      if (y === year2) { y2.qty += v.qty; y2.total += v.total; y2.months[mo] = v; }
+    }
+
+    if (y1.qty === 0 && y2.qty === 0) continue;
+
+    const diffTotal = y1.total - y2.total;
+    const diffQty = y1.qty - y2.qty;
+    const growthPct = y2.total > 0 ? ((y1.total - y2.total) / y2.total * 100) : (y1.total > 0 ? 100 : 0);
+
+    // Odoo stock
+    const mapping = zureoOdooMap[code];
+    const odooSku = mapping?.odooSku || code;
+    const mlItem = cachedStock.find(s => s.sku === odooSku || s.sku === code);
+
+    const monthly = [];
+    for (let m = 1; m <= 12; m++) {
+      monthly.push({
+        month: m,
+        y1Qty: y1.months[m]?.qty || 0, y1Total: Math.round(y1.months[m]?.total || 0),
+        y2Qty: y2.months[m]?.qty || 0, y2Total: Math.round(y2.months[m]?.total || 0),
+      });
+    }
+
+    results.push({
+      code, name: item.name,
+      year1, year2,
+      y1Qty: y1.qty, y1Total: Math.round(y1.total),
+      y2Qty: y2.qty, y2Total: Math.round(y2.total),
+      diffTotal: Math.round(diffTotal), diffQty,
+      growthPct: Math.round(growthPct * 10) / 10,
+      monthly,
+      mlStock: mlItem?.stock ?? null,
+      mlId: mlItem?.id || null,
+    });
+  }
+
+  // Sort
+  switch (sortBy) {
+    case 'diff': results.sort((a, b) => b.diffTotal - a.diffTotal); break;
+    case 'drop': results.sort((a, b) => a.diffTotal - b.diffTotal); break;
+    case 'total': results.sort((a, b) => b.y1Total - a.y1Total); break;
+    case 'qty': results.sort((a, b) => b.y1Qty - a.y1Qty); break;
+    case 'growth': results.sort((a, b) => b.growthPct - a.growthPct); break;
+    case 'name': results.sort((a, b) => a.name.localeCompare(b.name)); break;
+  }
+
+  // Totals
+  const totY1 = results.reduce((s, i) => s + i.y1Total, 0);
+  const totY2 = results.reduce((s, i) => s + i.y2Total, 0);
+  const totQtyY1 = results.reduce((s, i) => s + i.y1Qty, 0);
+  const totQtyY2 = results.reduce((s, i) => s + i.y2Qty, 0);
+  const grew = results.filter(i => i.diffTotal > 0).length;
+  const dropped = results.filter(i => i.diffTotal < 0).length;
+
+  res.json({
+    items: results.slice(0, parseInt(req.query.limit) || 500),
+    total: results.length, year1, year2,
+    summary: { totY1, totY2, totQtyY1, totQtyY2, grew, dropped, diff: totY1 - totY2 },
+  });
+});
+
+// ── Productos perdidos mes a mes ─────────────────────────────────
+const ZUREO_ODOO_MAP_FILE = path.join(__dirname, 'data', 'zureo_odoo_mapping.json');
+let zureoOdooMap = {};
+try { if (fs.existsSync(ZUREO_ODOO_MAP_FILE)) { zureoOdooMap = JSON.parse(fs.readFileSync(ZUREO_ODOO_MAP_FILE, 'utf8')); console.log(`[mapping] zureo→odoo: ${Object.keys(zureoOdooMap).length} items`); } } catch {}
+
+app.get('/api/perdidos', requireToken, (req, res) => {
+  if (!zureoData) return res.json({ months: [] });
+  const minQty = parseInt(req.query.min) || 1;
+  const filter = req.query.filter || 'todos'; // todos, sin_stock, con_stock
+
+  const now = new Date();
+  const curYear = now.getFullYear();
+  const curMonth = now.getMonth() + 1;
+  const monthNames = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const itemData = zureoData.items;
+
+  // Build Odoo stock lookup from cache — sum all variants (19446-BLA + 19446-NEG → 19446)
+  const odooStockMap = {};     // exact sku → { stock, name }
+  const odooBaseStock = {};    // base code → total stock across variants
+  try {
+    const cache = path.join(__dirname, 'data', 'odoo_cache.json');
+    if (fs.existsSync(cache)) {
+      const d = JSON.parse(fs.readFileSync(cache, 'utf8'));
+      // Support multiple formats
+      let allItems = [];
+      if (d.categories) {
+        for (const cat of d.categories) allItems.push(...(cat.items || []));
+      } else if (Array.isArray(d.products)) {
+        // Raw Odoo format: {id, name, default_code, qty_available, ...}
+        allItems = d.products.map(p => ({
+          id: p.id, name: p.name,
+          sku: p.default_code || p.sku || null,
+          stock: p.qty_available ?? p.stock ?? 0,
+        }));
+      }
+      for (const item of allItems) {
+        if (!item.sku) continue;
+        odooStockMap[item.sku] = { stock: item.stock, name: item.name, id: item.id };
+        const base = item.sku.replace(/-[A-Z]{2,}$/, '');
+        if (!odooBaseStock[base]) odooBaseStock[base] = { stock: 0, name: item.name, variants: [] };
+        odooBaseStock[base].stock += Math.max(0, item.stock || 0);
+        odooBaseStock[base].variants.push({ sku: item.sku, stock: item.stock });
+      }
+    }
+  } catch {}
+
+  const monthResults = [];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(curYear, curMonth - 1 - i, 1);
+    const m = d.getMonth() + 1;
+    const y = d.getFullYear();
+    const key = `${y}-${pad(m)}`;
+    const keyPrev = `${y - 1}-${pad(m)}`;
+
+    let lost = [];
+    for (const [code, item] of Object.entries(itemData)) {
+      const prev = item.months[keyPrev];
+      const curr = item.months[key];
+      if (prev && prev.qty >= minQty && (!curr || curr.qty === 0)) {
+        const mapping = zureoOdooMap[code];
+        const odooSku = mapping?.odooSku || code;
+        // Try exact, then base code for summed variants
+        const odooExact = odooStockMap[odooSku] || odooStockMap[code];
+        const odooBase = odooBaseStock[code] || odooBaseStock[odooSku];
+        const odooStock = odooBase?.stock ?? odooExact?.stock ?? null;
+        const odooName = mapping?.odooName || odooBase?.name || odooExact?.name || null;
+        const mlItem = cachedStock.find(s => s.sku === odooSku || s.sku === code);
+
+        lost.push({
+          code, name: item.name,
+          prevQty: prev.qty, prevTotal: Math.round(prev.total),
+          odooSku, odooName,
+          odooStock,
+          mlStock: mlItem?.stock ?? null,
+          mlId: mlItem?.id || null,
+        });
+      }
+    }
+
+    // Filter by stock
+    if (filter === 'sin_stock') lost = lost.filter(i => (i.odooStock === 0 || i.odooStock === null) && (i.mlStock === 0 || i.mlStock === null));
+    if (filter === 'con_stock') lost = lost.filter(i => (i.odooStock > 0) || (i.mlStock > 0));
+
+    lost.sort((a, b) => b.prevTotal - a.prevTotal);
+    const totalLost = lost.reduce((s, i) => s + i.prevTotal, 0);
+
+    monthResults.push({
+      key, label: monthNames[m] + ' ' + y,
+      vs: monthNames[m] + ' ' + (y - 1),
+      count: lost.length, totalLost,
+      items: lost,
+    });
+  }
+
+  res.json({ months: monthResults });
+});
+
 // ── Comparador año a año ─────────────────────────────────────────
 app.get('/api/comparador', requireToken, async (req, res) => {
   const headers = { Authorization: `Bearer ${tokenData.access_token}` };
@@ -5193,35 +5637,119 @@ app.get('/api/planificador', requireToken, async (req, res) => {
 
     const monthLabels = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
-    // Traer ventas de TODOS los meses por producto desde Odoo
+    // Traer ventas de TODOS los meses por producto desde Odoo — separado por canal
     const uid = await odooAuth();
     if (!uid) return res.status(500).json({ error: 'No se pudo autenticar con Odoo' });
 
-    const salesData = await odooCall('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_DB, uid, ODOO_API_KEY, 'sale.order.line', 'read_group',
-      [[['state', 'in', ['sale', 'done']]]],
-      { fields: ['product_id', 'product_uom_qty', 'create_date'], groupby: ['product_id', 'create_date:month'], lazy: false }
-    ]);
-
-    // Parse month names
     const monthNames = { enero:'01',febrero:'02',marzo:'03',abril:'04',mayo:'05',junio:'06',julio:'07',agosto:'08',septiembre:'09',setiembre:'09',octubre:'10',noviembre:'11',diciembre:'12',
       january:'01',february:'02',march:'03',april:'04',may:'05',june:'06',july:'07',august:'08',september:'09',october:'10',november:'11',december:'12' };
 
-    // Build: product_id -> { 'YYYY-MM': qty }
+    function parseMonth(str) {
+      const parts = (str || '').toLowerCase().split(' ');
+      if (parts.length !== 2) return null;
+      const mm = monthNames[parts[0]];
+      return mm ? parts[1] + '-' + mm : null;
+    }
+
+    // Queries: total + por canal en paralelo
+    // WhatsApp: salesman_id 8 (Atención al cliente / Giorgina), 9 (Tatiana), 14 (Rodrigo), 15 (Agustin)
+    const [allSales, mlSales, maySales, wppSales, posSales] = await Promise.all([
+      odooCall('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_DB, uid, ODOO_API_KEY, 'sale.order.line', 'read_group',
+        [[['state', 'in', ['sale', 'done']]]],
+        { fields: ['product_id', 'product_uom_qty', 'create_date'], groupby: ['product_id', 'create_date:month'], lazy: false }
+      ]),
+      odooCall('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_DB, uid, ODOO_API_KEY, 'sale.order.line', 'read_group',
+        [[['state', 'in', ['sale', 'done']], ['salesman_id', '=', 2]]],
+        { fields: ['product_id', 'product_uom_qty', 'create_date'], groupby: ['product_id', 'create_date:month'], lazy: false }
+      ]),
+      odooCall('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_DB, uid, ODOO_API_KEY, 'sale.order.line', 'read_group',
+        [[['state', 'in', ['sale', 'done']], ['salesman_id', 'in', [17, 18]]]],
+        { fields: ['product_id', 'product_uom_qty', 'create_date'], groupby: ['product_id', 'create_date:month'], lazy: false }
+      ]),
+      odooCall('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_DB, uid, ODOO_API_KEY, 'sale.order.line', 'read_group',
+        [[['state', 'in', ['sale', 'done']], ['salesman_id', 'in', [8, 9, 14, 15]]]],
+        { fields: ['product_id', 'product_uom_qty', 'create_date'], groupby: ['product_id', 'create_date:month'], lazy: false }
+      ]),
+      odooCall('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_DB, uid, ODOO_API_KEY, 'pos.order.line', 'read_group',
+        [[]],
+        { fields: ['product_id', 'qty', 'create_date'], groupby: ['product_id', 'create_date:month'], lazy: false }
+      ]),
+    ]);
+
+    // Build: product_id -> { 'YYYY-MM': qty } (total, para cálculos)
     const salesByProdMonth = {};
     const allMonths = new Set();
-    for (const r of salesData) {
+    for (const r of allSales) {
       if (!r.product_id) continue;
       const pid = r.product_id[0];
-      const monthStr = (r['create_date:month'] || '').toLowerCase();
-      const parts = monthStr.split(' ');
-      if (parts.length !== 2) continue;
-      const mm = monthNames[parts[0]];
-      if (!mm) continue;
-      const key = parts[1] + '-' + mm;
+      const key = parseMonth(r['create_date:month']);
+      if (!key) continue;
       allMonths.add(key);
       if (!salesByProdMonth[pid]) salesByProdMonth[pid] = {};
       salesByProdMonth[pid][key] = (salesByProdMonth[pid][key] || 0) + (r.product_uom_qty || 0);
+    }
+
+    // Build: sales_by_channel por producto (para desglose)
+    const salesByChannel = {}; // pid -> { ml: {}, mayorista: {}, local: {}, whatsapp: {} }
+    function processPlanChannelSales(data, channel, qtyField) {
+      for (const r of data) {
+        if (!r.product_id) continue;
+        const pid = r.product_id[0];
+        const qty = r[qtyField] || 0;
+        const key = parseMonth(r['create_date:month']);
+        if (!key) continue;
+        allMonths.add(key);
+        if (!salesByChannel[pid]) salesByChannel[pid] = { ml: {}, mayorista: {}, local: {}, whatsapp: {} };
+        salesByChannel[pid][channel][key] = (salesByChannel[pid][channel][key] || 0) + qty;
+      }
+    }
+
+    processPlanChannelSales(mlSales, 'ml', 'product_uom_qty');
+    processPlanChannelSales(maySales, 'mayorista', 'product_uom_qty');
+    processPlanChannelSales(wppSales, 'whatsapp', 'product_uom_qty');
+    processPlanChannelSales(posSales, 'local', 'qty');
+
+    // ── Enriquecer con historial de Zureo ──
+    // Zureo tiene data 2023-08 a 2025-08 que Odoo puede no tener
+    if (zureoData) {
+      const products = await getOdooProducts(false);
+      // Build SKU → product_id map
+      const skuToPid = {};
+      for (const p of products) {
+        if (p.default_code) {
+          skuToPid[p.default_code.trim()] = p.id;
+          // Also map base code (without -BLA, -NEG suffix)
+          const base = p.default_code.trim().replace(/-[A-Z]{2,}$/, '');
+          if (!skuToPid[base]) skuToPid[base] = p.id;
+        }
+      }
+      // Also use zureo→odoo mapping
+      for (const [zureoCode, mapping] of Object.entries(zureoOdooMap)) {
+        if (mapping.odooSku && skuToPid[mapping.odooSku]) {
+          skuToPid[zureoCode] = skuToPid[mapping.odooSku];
+        }
+      }
+
+      let zureoAdded = 0;
+      for (const [code, item] of Object.entries(zureoData.items)) {
+        const pid = skuToPid[code];
+        if (!pid) continue;
+        if (!salesByProdMonth[pid]) salesByProdMonth[pid] = {};
+        for (const [month, data] of Object.entries(item.months)) {
+          // Solo agregar meses que Odoo NO tiene (no sobreescribir)
+          if (!salesByProdMonth[pid][month]) {
+            salesByProdMonth[pid][month] = data.qty;
+            allMonths.add(month);
+            zureoAdded++;
+          }
+        }
+      }
+      console.log(`[planificador] zureo: ${zureoAdded} meses agregados al historial`);
     }
 
     const sortedMonths = [...allMonths].sort();
@@ -5242,6 +5770,24 @@ app.get('/api/planificador', requireToken, async (req, res) => {
       }
     }
 
+    // Pack BOM: descomponer ventas de packs a componentes unitarios
+    const packBom = loadPackBom();
+    const packDemandBySku = {}; // SKU unitario → qty extra por ventas de packs
+    for (const [packSku, pack] of Object.entries(packBom)) {
+      // Buscar ventas del pack en salesByProdMonth
+      const packProduct = products.find(p => (p.default_code || '') === packSku);
+      if (!packProduct) continue;
+      const packSales = salesByProdMonth[packProduct.id] || {};
+      const packTotal = sortedMonths.reduce((s, m) => s + (packSales[m] || 0), 0);
+      if (packTotal <= 0) continue;
+      // Distribuir demanda a componentes
+      for (const comp of pack.components) {
+        if (comp.sku) {
+          packDemandBySku[comp.sku] = (packDemandBySku[comp.sku] || 0) + packTotal * comp.qty;
+        }
+      }
+    }
+
     // Productos ya pedidos (órdenes en estado "pedida")
     const pedidosBySku = getProductosPedidos();
 
@@ -5257,6 +5803,9 @@ app.get('/api/planificador', requireToken, async (req, res) => {
       if (p.type === 'service') continue;
 
       const sku = p.default_code || '';
+      // Filtrar packs: no sugerir pedir packs, solo unitarios
+      if (packBom[sku.trim()]) continue;
+
       const ml = mlMap[sku.trim()] || null;
       const categ = Array.isArray(p.categ_id) ? p.categ_id[1] : (p.categ_id || '');
       const sales = salesByProdMonth[p.id] || {};
@@ -5286,14 +5835,19 @@ app.get('/api/planificador', requireToken, async (req, res) => {
       // Ventas del mes objetivo año pasado
       const soldCompMonth = sales[compKey] || 0;
 
-      // Promedio mensual últimos 6 meses
-      const sold6m = last6.reduce((s, m) => s + (sales[m] || 0), 0);
-      const avgMonth = sold6m / Math.max(last6.length, 1);
+      // Promedio mensual últimos 6 meses — solo dividir por meses con ventas
+      // Ventas unitarias + ventas via packs descompuestas
+      const soldDirect = last6.reduce((s, m) => s + (sales[m] || 0), 0);
+      const soldViaPacks = packDemandBySku[sku.trim()] || 0;
+      const sold6m = soldDirect + Math.round(soldViaPacks * last6.length / Math.max(sortedMonths.length, 1));
+      const monthsWithSalesCount = last6.filter(m => (sales[m] || 0) > 0).length;
+      const avgMonth = monthsWithSalesCount > 0 ? sold6m / monthsWithSalesCount : 0;
 
       // Estacionalidad: mirar los últimos 3 meses para ver si el producto está activo
       const last3 = sortedMonths.slice(-3);
       const sold3m = last3.reduce((s, m) => s + (sales[m] || 0), 0);
-      const avgLast3 = sold3m / Math.max(last3.length, 1);
+      const last3WithSales = last3.filter(m => (sales[m] || 0) > 0).length;
+      const avgLast3 = last3WithSales > 0 ? sold3m / last3WithSales : 0;
 
       // Detectar si es estacional / inactivo:
       // Si no vendió nada en los últimos 3 meses → no pedir (producto estacional fuera de temporada)
@@ -5377,8 +5931,23 @@ app.get('/api/planificador', requireToken, async (req, res) => {
         sold_6m: sold6m,
         revenue_6m: Math.round(rev6m),
         sales_by_month: sales,
+        sales_by_channel: salesByChannel[p.id] || { ml: {}, mayorista: {}, local: {} },
         abc: null, // se calcula abajo
       });
+    }
+
+    // Calcular canal principal de cada item
+    for (const item of items) {
+      const ch = item.sales_by_channel;
+      const totals = {
+        ml: Object.values(ch.ml || {}).reduce((s,v) => s + v, 0),
+        mayorista: Object.values(ch.mayorista || {}).reduce((s,v) => s + v, 0),
+        local: Object.values(ch.local || {}).reduce((s,v) => s + v, 0),
+        whatsapp: Object.values(ch.whatsapp || {}).reduce((s,v) => s + v, 0),
+      };
+      const maxCh = Object.entries(totals).sort((a,b) => b[1] - a[1]);
+      item.main_channel = maxCh[0][1] > 0 ? maxCh[0][0] : null;
+      item.channel_totals = totals;
     }
 
     // ABC classification
@@ -5388,6 +5957,28 @@ app.get('/api/planificador', requireToken, async (req, res) => {
       cumRev += item.revenue_6m;
       const pct = totalRevenue > 0 ? cumRev / totalRevenue : 0;
       item.abc = pct <= 0.8 ? 'A' : pct <= 0.95 ? 'B' : 'C';
+    }
+
+    // XYZ classification (estabilidad de demanda)
+    for (const item of items) {
+      const monthlyQtys = last6.map(m => item.sales_by_month[m] || 0);
+      const avg = monthlyQtys.reduce((s, v) => s + v, 0) / last6.length;
+      const monthsWithSales = monthlyQtys.filter(v => v > 0).length;
+      const maxMonth = Math.max(...monthlyQtys);
+
+      if (avg > 0) {
+        const variance = monthlyQtys.reduce((s, v) => s + Math.pow(v - avg, 2), 0) / last6.length;
+        const stdDev = Math.sqrt(variance);
+        const cv = stdDev / avg; // coeficiente de variación
+        item.xyz = cv < 0.5 ? 'X' : cv < 1.0 ? 'Y' : 'Z';
+        item.cv = Math.round(cv * 100) / 100;
+      } else {
+        item.xyz = 'Z';
+        item.cv = null;
+      }
+      item.abc_xyz = item.abc + item.xyz;
+      item.months_with_sales = monthsWithSales;
+      item.max_month = maxMonth;
     }
 
     // Ordenar por gap descendente (los que más necesitás primero)
@@ -5404,14 +5995,83 @@ app.get('/api/planificador', requireToken, async (req, res) => {
     const chinaItems = items.filter(i => i.origen === 'China');
     const brasilItems = items.filter(i => i.origen === 'Brasil');
 
+    // ── Por categoría (proveedor): agrupar y completar ──
+    // Si hay productos con gap en una categoría, sugerir también otros de esa categoría
+    // que tengan ventas pero poco stock, para completar un contenedor
+    const byCategory = {};
+    for (const item of items) {
+      const cat = getCategoryGroup(item.name);
+      if (!byCategory[cat]) byCategory[cat] = { withGap: [], complement: [] };
+      if (item.gap > 0 && item.avg_month > 0 && item.seasonal_factor > 0) {
+        byCategory[cat].withGap.push(item);
+      } else if (item.avg_month > 0 && item.stock < item.avg_month * 3) {
+        // Tiene ventas y menos de 3 meses de stock → candidato a complementar
+        byCategory[cat].complement.push(item);
+      }
+    }
+
+    // Para cada categoría con gap, agregar complementos
+    const categoryGroups = [];
+    for (const [cat, data] of Object.entries(byCategory)) {
+      if (!data.withGap.length) continue;
+      categoryGroups.push({
+        category: cat,
+        withGap: data.withGap.sort((a,b) => b.gap - a.gap),
+        complement: data.complement.sort((a,b) => b.avg_month - a.avg_month).slice(0, 20),
+        totalGapCbm: 0, // se calcula en contenedores
+      });
+    }
+
+    // ── Reposición urgente: available (stock + incoming + pedido) ≤ 0 con ventas recientes ──
+    const reposicion = items.filter(i => i.available <= 0 && i.avg_month > 0 && i.seasonal_factor > 0)
+      .sort((a, b) => b.avg_month - a.avg_month)
+      .map(i => ({ ...i, tipo: 'reposicion' }));
+
+    // ── Compra zafral: productos vendidos en próximos 120 días año pasado, sin disponible hoy ──
+    const now = new Date();
+    const zafralItems = [];
+    for (const item of items) {
+      if (item.available > 5) continue; // ya tiene stock + incoming + pedido
+      // Mirar ventas de los próximos 4 meses del año pasado
+      let zafralQty = 0, zafralTotal = 0;
+      const zafralMonths = [];
+      for (let i = 0; i < 4; i++) {
+        const d = new Date(now.getFullYear() - 1, now.getMonth() + i, 1);
+        const key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+        const sold = item.sales_by_month[key] || 0;
+        if (sold > 0) {
+          zafralQty += sold;
+          zafralTotal += sold * item.price;
+          zafralMonths.push({ month: key, qty: sold });
+        }
+      }
+      if (zafralQty >= 5) { // vendió al menos 5 en esos 4 meses
+        zafralItems.push({
+          ...item,
+          tipo: 'zafral',
+          zafral_qty: zafralQty,
+          zafral_total: Math.round(zafralTotal),
+          zafral_months: zafralMonths,
+          zafral_avg: Math.round(zafralQty / 4),
+        });
+      }
+    }
+    zafralItems.sort((a, b) => b.zafral_total - a.zafral_total);
+
+    const compLabel = monthLabels[now.getMonth() + 1] + '-' + monthLabels[Math.min(12, now.getMonth() + 4)] + ' ' + (now.getFullYear() - 1);
+
     res.json({
       config: {
         lead_days_china: leadDaysChina, lead_days_brasil: leadDaysBrasil, growth_pct: growthPct,
         china: { target: targetKeyChina, comp: compKeyChina, label: chinaLabel },
         brasil: { target: targetKeyBrasil, comp: compKeyBrasil, label: brasilLabel },
+        comp_label: compLabel,
       },
       kpis: { total_items: items.length, total_gap: totalGap, total_inversion: Math.round(totalInversion), will_break: willBreakCount, a_items: aItems, china_count: chinaItems.length, brasil_count: brasilItems.length },
       items,
+      categoryGroups,
+      reposicion,
+      zafral: zafralItems,
       all_months: sortedMonths,
     });
   } catch(e) {
@@ -5489,9 +6149,311 @@ function getProductosPedidos() {
   return pedidos;
 }
 
+// ── Objetivos mensuales ──
+
+app.get('/api/objetivos', requireToken, (req, res) => {
+  const growthPct = parseFloat(req.query.growth) || 30;
+  const growthFactor = 1 + growthPct / 100;
+  const canal = req.query.canal || 'total'; // total, ml, mayorista, local
+
+  try {
+    // Load data sources
+    const zureoTotal = zureoData?.monthly || {};
+    const CANALES_FILE = path.join(__dirname, 'data', 'zureo_canales.json');
+    let canales = {};
+    try { if (fs.existsSync(CANALES_FILE)) canales = JSON.parse(fs.readFileSync(CANALES_FILE, 'utf8')); } catch {}
+
+    // Build unified monthly based on selected channel
+    function getMonthly(key) {
+      if (canal === 'mayorista') {
+        const d = canales.mayorista?.[key];
+        return d ? { qty: d.qty, total: d.total } : null;
+      }
+      if (canal === 'local') {
+        const d = canales.local?.[key];
+        return d ? { qty: d.qty, total: d.total } : null;
+      }
+      if (canal === 'ml') {
+        // ML only: total minus local minus mayorista
+        const t = zureoTotal[key];
+        const l = canales.local?.[key];
+        const m = canales.mayorista?.[key];
+        if (!t) {
+          // Try from monthlyStats (ML direct)
+          const ms = monthlyStats[key];
+          return ms ? { qty: ms.count, total: ms.revenue } : null;
+        }
+        const mlTotal = t.total - (l?.total || 0) - (m?.total || 0);
+        const mlQty = t.qty - (l?.qty || 0) - (m?.qty || 0);
+        return { qty: Math.max(0, mlQty), total: Math.max(0, mlTotal) };
+      }
+      // total: use historico (zureo + ml)
+      const z = zureoTotal[key];
+      if (z) return { qty: z.qty, total: z.total };
+      const ms = monthlyStats[key];
+      if (ms) return { qty: ms.count, total: ms.revenue };
+      return null;
+    }
+
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    const currentDay = now.getDate();
+    const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+    const monthNames = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+    const months = [];
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(currentYear, currentMonth - 1 + i, 1);
+      const m = d.getMonth() + 1;
+      const y = d.getFullYear();
+      const key = `${y}-${pad(m)}`;
+      const keyPrev1 = `${y - 1}-${pad(m)}`;
+      const keyPrev2 = `${y - 2}-${pad(m)}`;
+
+      const prev1 = getMonthly(keyPrev1);
+      const prev2 = getMonthly(keyPrev2);
+      const actual = getMonthly(key);
+
+      let base = 0;
+      if (prev1) base = prev1.total;
+      else if (prev2) base = prev2.total;
+      const objetivo = Math.round(base * growthFactor);
+
+      let progreso = null, proyeccion = null;
+      const isCurrent = i === 0;
+      if (isCurrent && actual && objetivo > 0) {
+        progreso = Math.round(actual.total / objetivo * 100);
+        proyeccion = Math.round(actual.total / currentDay * daysInMonth);
+      }
+
+      months.push({
+        key, label: monthNames[m] + ' ' + y, month: m, year: y,
+        prev2: prev2 ? { qty: prev2.qty, total: Math.round(prev2.total), year: y - 2 } : null,
+        prev1: prev1 ? { qty: prev1.qty, total: Math.round(prev1.total), year: y - 1 } : null,
+        actual: actual ? { qty: actual.qty, total: Math.round(actual.total) } : null,
+        objetivo, progreso, proyeccion,
+        is_current: isCurrent, days_passed: isCurrent ? currentDay : null, days_total: daysInMonth,
+      });
+    }
+
+    // Channel summary for current view
+    const channelSummary = {};
+    if (canal === 'total') {
+      const curKey = `${currentYear}-${pad(currentMonth)}`;
+      for (const ch of ['ml','mayorista','local']) {
+        const orig = req.query.canal;
+        // Quick calc for each channel this month
+        let val = null;
+        if (ch === 'mayorista') val = canales.mayorista?.[curKey];
+        else if (ch === 'local') val = canales.local?.[curKey];
+        else {
+          const t = zureoTotal[curKey] || (monthlyStats[curKey] ? { qty: monthlyStats[curKey].count, total: monthlyStats[curKey].revenue } : null);
+          const l = canales.local?.[curKey];
+          const m2 = canales.mayorista?.[curKey];
+          if (t) val = { total: t.total - (l?.total || 0) - (m2?.total || 0) };
+        }
+        channelSummary[ch] = val ? Math.round(val.total) : 0;
+      }
+    }
+
+    res.json({ growth_pct: growthPct, canal, months, channelSummary });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Pack BOM (lista de materiales) ──
+const PACK_BOM_FILE = path.join(__dirname, 'data', 'pack_bom.json');
+function loadPackBom() {
+  try { return fs.existsSync(PACK_BOM_FILE) ? JSON.parse(fs.readFileSync(PACK_BOM_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function isPackSku(sku) {
+  const bom = loadPackBom();
+  return !!bom[sku];
+}
+
 // ── IHOME Mapping + Product Images ──
 const IHOME_MAP_FILE = path.join(__dirname, 'data', 'ihome_mapping.json');
 const PRODUCT_IMAGES_DIR = path.join(__dirname, 'data', 'product_images');
+
+// ── Armado de contenedores ──
+
+// Productos grandes → contenedor dedicado
+const LARGE_KEYWORDS = ['biciclet', 'caminador', 'spinning', 'silla escritorio', 'silla gamer', 'silla gaming', 'colchon', 'mesa futbol', 'soccer table', 'cinta caminadora'];
+
+function isLargeProduct(name) {
+  const n = (name || '').toLowerCase();
+  return LARGE_KEYWORDS.some(k => n.includes(k));
+}
+
+// Categorías similares que van juntas
+const CATEGORY_GROUPS = {
+  'iluminacion': ['lampara', 'aplique', 'luz led', 'tira led', 'guia de luces', 'foco', 'bombita', 'dimmer', 'cable sal'],
+  'decoracion': ['cuadro', 'espejo', 'reloj', 'vela', 'portarretrato', 'marco', 'triptico'],
+  'hogar': ['organizador', 'canasto', 'cesto', 'tender', 'cortina', 'alfombra', 'tapete', 'manta'],
+  'cocina': ['jarra', 'tarro', 'hermetico', 'recipiente', 'tabla', 'cuchillo'],
+  'exterior': ['carpa', 'reposera', 'silla plegable', 'hamaca', 'camping', 'sombrilla'],
+  'deporte': ['mancuerna', 'pesa', 'yoga', 'gym', 'fitness', 'inflador'],
+  'jardin': ['enredadera', 'planta artificial', 'maceta', 'jardin vertical'],
+  'bano': ['baño', 'jabonera', 'toallero', 'cortina baño', 'dispensador'],
+  'musica': ['guitarra', 'ukelele', 'soporte guitarra', 'atril'],
+};
+
+function getCategoryGroup(name) {
+  const n = (name || '').toLowerCase();
+  for (const [group, keywords] of Object.entries(CATEGORY_GROUPS)) {
+    if (keywords.some(k => n.includes(k))) return group;
+  }
+  return 'general';
+}
+
+app.post('/api/orden/contenedores', requireToken, (req, res) => {
+  const { items } = req.body;
+  if (!items?.length) return res.status(400).json({ error: 'Sin items' });
+
+  let ihomeMap = {};
+  try { if (fs.existsSync(IHOME_MAP_FILE)) ihomeMap = JSON.parse(fs.readFileSync(IHOME_MAP_FILE, 'utf8')); } catch {}
+
+  const CONTAINER_20 = 28;
+  const CONTAINER_40 = 67;
+
+  // Enriquecer items con CBM, categoría, etc
+  const enriched = items.map(i => {
+    const m = ihomeMap[i.sku] || {};
+    const cbmPerUnit = m.cbm_per_unit || 0;
+    const totalCbm = cbmPerUnit * (i.qty || 0);
+    return {
+      ...i,
+      cbm_per_unit: cbmPerUnit,
+      total_cbm: Math.round(totalCbm * 1000) / 1000,
+      ihome: m.ihome || '',
+      fob: m.fob || 0,
+      is_large: isLargeProduct(i.name),
+      category_group: getCategoryGroup(i.name),
+    };
+  });
+
+  const totalCbm = enriched.reduce((s, i) => s + i.total_cbm, 0);
+  const sinCbm = enriched.filter(i => !i.cbm_per_unit);
+
+  // 1. Separar productos grandes por tipo → contenedor dedicado
+  const largeItems = enriched.filter(i => i.is_large && i.total_cbm > 0);
+  const normalItems = enriched.filter(i => !i.is_large && i.total_cbm > 0);
+
+  const containers = [];
+
+  // Agrupar grandes por nombre similar
+  const largeGroups = {};
+  for (const item of largeItems) {
+    // Agrupar por las primeras 2 palabras del nombre
+    const groupKey = (item.name || '').split(/\s+/).slice(0, 2).join(' ').toLowerCase();
+    if (!largeGroups[groupKey]) largeGroups[groupKey] = [];
+    largeGroups[groupKey].push(item);
+  }
+
+  for (const [groupName, groupItems] of Object.entries(largeGroups)) {
+    const groupCbm = groupItems.reduce((s, i) => s + i.total_cbm, 0);
+    const capacity = groupCbm > CONTAINER_20 ? CONTAINER_40 : CONTAINER_20;
+    const c = {
+      id: containers.length + 1,
+      type: capacity === CONTAINER_40 ? '40ft HQ' : '20ft',
+      label: '🚲 ' + groupName.charAt(0).toUpperCase() + groupName.slice(1),
+      capacity,
+      used_cbm: Math.round(groupCbm * 1000) / 1000,
+      items: groupItems.map(i => ({ ...i })),
+    };
+    containers.push(c);
+  }
+
+  // 2. Productos normales: agrupar por categoría
+  const byCatGroup = {};
+  for (const item of normalItems) {
+    if (!byCatGroup[item.category_group]) byCatGroup[item.category_group] = [];
+    byCatGroup[item.category_group].push(item);
+  }
+
+  // Ordenar grupos por CBM total descendente
+  const catEntries = Object.entries(byCatGroup).sort((a, b) =>
+    b[1].reduce((s, i) => s + i.total_cbm, 0) - a[1].reduce((s, i) => s + i.total_cbm, 0)
+  );
+
+  // Llenar contenedores por grupo de categoría
+  for (const [catGroup, catItems] of catEntries) {
+    // Ordenar items dentro de categoría por CBM desc
+    catItems.sort((a, b) => b.total_cbm - a.total_cbm);
+
+    for (const item of catItems) {
+      let remaining = item.qty;
+      while (remaining > 0) {
+        // Buscar contenedor existente de misma categoría o con espacio
+        let placed = false;
+
+        // Primero: buscar contenedor que ya tenga items de esta categoría
+        for (const c of containers) {
+          if (c.label && c.label.startsWith('🚲')) continue; // no mezclar con grandes
+          const sameCategory = c.items.some(ci => ci.category_group === catGroup);
+          if (!sameCategory) continue;
+          const spaceLeft = c.capacity - c.used_cbm;
+          const unitsCanFit = Math.floor(spaceLeft / item.cbm_per_unit);
+          if (unitsCanFit > 0) {
+            const unitsToPlace = Math.min(remaining, unitsCanFit);
+            c.items.push({ ...item, qty: unitsToPlace, total_cbm: Math.round(unitsToPlace * item.cbm_per_unit * 1000) / 1000 });
+            c.used_cbm = Math.round((c.used_cbm + unitsToPlace * item.cbm_per_unit) * 1000) / 1000;
+            remaining -= unitsToPlace;
+            placed = true;
+            break;
+          }
+        }
+
+        // Segundo: buscar contenedor de MISMA categoría que tenga espacio (NUNCA mezclar categorías = proveedores distintos)
+        // NO mezclar con otras categorías
+
+        // Tercero: nuevo contenedor
+        if (!placed) {
+          const remainingCbm = remaining * item.cbm_per_unit;
+          const capacity = remainingCbm > CONTAINER_20 ? CONTAINER_40 : CONTAINER_20;
+          const catLabel = catGroup.charAt(0).toUpperCase() + catGroup.slice(1);
+          const c = { id: containers.length + 1, type: capacity === CONTAINER_40 ? '40ft HQ' : '20ft', label: '📦 ' + catLabel, capacity, used_cbm: 0, items: [] };
+          const unitsCanFit = Math.floor(capacity / item.cbm_per_unit);
+          const unitsToPlace = Math.min(remaining, unitsCanFit);
+          c.items.push({ ...item, qty: unitsToPlace, total_cbm: Math.round(unitsToPlace * item.cbm_per_unit * 1000) / 1000 });
+          c.used_cbm = Math.round(unitsToPlace * item.cbm_per_unit * 1000) / 1000;
+          remaining -= unitsToPlace;
+          containers.push(c);
+        }
+      }
+    }
+  }
+
+  // Agregar items sin CBM al último contenedor normal
+  if (sinCbm.length) {
+    const normalContainer = containers.find(c => !c.label?.startsWith('🚲')) || containers[containers.length - 1];
+    if (normalContainer) {
+      for (const item of sinCbm) normalContainer.items.push({ ...item, total_cbm: 0 });
+    } else {
+      containers.push({ id: containers.length + 1, type: '20ft', label: '📦 Sin CBM', capacity: CONTAINER_20, used_cbm: 0, items: sinCbm.map(i => ({ ...i, total_cbm: 0 })) });
+    }
+  }
+
+  // Stats por contenedor
+  containers.forEach(c => {
+    c.total_qty = c.items.reduce((s, i) => s + (i.qty || 0), 0);
+    c.total_fob = Math.round(c.items.reduce((s, i) => s + (i.qty || 0) * (i.fob || 0), 0) * 100) / 100;
+    c.fill_pct = c.capacity > 0 ? Math.round(c.used_cbm / c.capacity * 100) : 0;
+    c.items_count = c.items.length;
+    // Categorías en el contenedor
+    const cats = [...new Set(c.items.map(i => i.category_group))];
+    c.categories = cats;
+  });
+
+  res.json({
+    total_cbm: Math.round(totalCbm * 100) / 100,
+    total_items: items.length,
+    sin_cbm: sinCbm.length,
+    containers,
+  });
+});
 
 app.get('/api/ihome-mapping', requireToken, (req, res) => {
   try {
