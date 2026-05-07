@@ -873,6 +873,113 @@ app.post('/api/estrategia/shipping', requireToken, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Notebook: consultas con IA sobre datos del negocio ──
+app.post('/api/notebook/query', requireToken, async (req, res) => {
+  try {
+    if (!anthropic) return res.status(400).json({ error: 'ANTHROPIC_API_KEY no configurada' });
+    const { question, history } = req.body;
+    if (!question) return res.status(400).json({ error: 'Sin pregunta' });
+
+    // Get available data context
+    const products = odooCache || [];
+    const productSummary = products.slice(0, 20).map(p => `${p.default_code}: ${p.name} (stock: ${p.qty_available}, precio: ${p.list_price})`).join('\n');
+    const categories = [...new Set(products.map(p => Array.isArray(p.categ_id) ? p.categ_id[1] : '').filter(Boolean))].sort();
+
+    // Build Odoo query function for Claude
+    const uid = await odooAuth();
+
+    const systemPrompt = `Sos un analista de datos de un e-commerce uruguayo (MUNDO SHOP). Tenés acceso a datos de Odoo (ERP) con productos, ventas, stock.
+
+DATOS DISPONIBLES:
+- ${products.length} productos en Odoo
+- Categorías: ${categories.slice(0, 30).join(', ')}
+- Vendedores: Mateo (ID 2, MercadoLibre), Gustavo (17) y Omar (18, Mayorista), Giorgina/Atención al cliente (8), Tatiana (9), Rodrigo (14), Agustin (15) = WhatsApp, POS = Local
+- Modelos Odoo: sale.order.line (ventas), product.product (productos), pos.order.line (POS), stock.move (movimientos)
+- Moneda: UYU (pesos uruguayos)
+
+Ejemplos de productos:
+${productSummary}
+
+INSTRUCCIONES:
+1. Respondé la pregunta del usuario con datos concretos
+2. Generá una respuesta JSON con este formato exacto:
+{
+  "text": "Explicación en texto con los datos",
+  "table": { "headers": ["Col1","Col2"], "rows": [["val1","val2"]] } | null,
+  "chart": { "type": "bar|line|pie|doughnut", "title": "Título", "labels": ["A","B"], "datasets": [{ "label": "Serie", "data": [1,2], "backgroundColor": "#color" }] } | null,
+  "queries": [{ "model": "sale.order.line", "method": "read_group", "domain": [...], "fields": [...], "groupby": [...] }]
+}
+
+3. En "queries" poné las queries de Odoo que necesitás para responder. Yo las ejecuto y te devuelvo los resultados.
+4. Si necesitás datos, SIEMPRE incluí queries. No inventes números.
+5. Para fechas usá formato YYYY-MM-DD
+6. Para ventas por mes usá groupby ['create_date:month']
+7. Para ventas por producto usá groupby ['product_id']
+8. Respondé SOLO con el JSON, sin texto adicional ni markdown.`;
+
+    // First call: Claude decides what queries to run
+    const msg1 = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2000,
+      system: systemPrompt,
+      messages: [
+        ...(history || []).slice(-4),
+        { role: 'user', content: question }
+      ],
+    });
+
+    let parsed;
+    try {
+      const raw = msg1.content[0].text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      parsed = JSON.parse(raw);
+    } catch(e) {
+      return res.json({ text: msg1.content[0].text, table: null, chart: null });
+    }
+
+    // Execute queries if any
+    let queryResults = [];
+    if (parsed.queries && parsed.queries.length > 0 && uid) {
+      for (const q of parsed.queries.slice(0, 5)) {
+        try {
+          const result = await odooCall('/xmlrpc/2/object', 'execute_kw', [
+            ODOO_DB, uid, ODOO_API_KEY, q.model, q.method || 'read_group',
+            [q.domain || []],
+            { fields: q.fields || [], groupby: q.groupby || [], lazy: false, ...(q.limit ? { limit: q.limit } : {}) },
+          ]);
+          queryResults.push({ query: q, result });
+        } catch(e) {
+          queryResults.push({ query: q, error: e.message });
+        }
+      }
+
+      // Second call: Claude interprets results and generates chart/table
+      const msg2 = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 3000,
+        system: systemPrompt + '\n\nAhora tenés los resultados de las queries. Generá la respuesta final con texto, tabla y/o gráfica.',
+        messages: [
+          ...(history || []).slice(-4),
+          { role: 'user', content: question },
+          { role: 'assistant', content: JSON.stringify(parsed) },
+          { role: 'user', content: 'Resultados de queries:\n' + JSON.stringify(queryResults, null, 2) + '\n\nGenerá la respuesta final con text, table y chart. Solo JSON.' },
+        ],
+      });
+
+      try {
+        const raw2 = msg2.content[0].text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        parsed = JSON.parse(raw2);
+      } catch(e) {
+        parsed.text = msg2.content[0].text;
+      }
+    }
+
+    res.json({ text: parsed.text || '', table: parsed.table || null, chart: parsed.chart || null });
+  } catch(e) {
+    console.error('[notebook] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/estrategia/log', requireToken, (req, res) => {
   const { item_id, action, data } = req.body;
   const logData = loadEstrategiaLog();
@@ -4947,7 +5054,7 @@ Reglas:
             }
 
             const msg = await anthropic.messages.create({
-              model: 'claude-sonnet-4-20250514',
+              model: 'claude-haiku-4-5-20251001',
               max_tokens: 2000,
               messages: [{ role: 'user', content }],
             });
@@ -6169,14 +6276,24 @@ app.get('/api/ordenes-compra', requireToken, (req, res) => res.json(loadOrdenes(
 app.post('/api/ordenes-compra', requireToken, (req, res) => {
   const { items, notes } = req.body;
   if (!items?.length) return res.status(400).json({ error: 'Sin items' });
+  let ihomeMap = {};
+  try { if (fs.existsSync(IHOME_MAP_FILE)) ihomeMap = JSON.parse(fs.readFileSync(IHOME_MAP_FILE, 'utf8')); } catch {}
   const ordenes = loadOrdenes();
+  const enrichedItems = items.map(i => {
+    const m = ihomeMap[i.sku] || {};
+    return { sku: i.sku, name: i.name, qty: i.qty, origen: i.origen, thumb: i.thumb, cbm_per_unit: m.cbm_per_unit || 0, cbm_total: Math.round((m.cbm_per_unit || 0) * (i.qty || 0) * 1000) / 1000, ihome: m.ihome || '', fob: m.fob || 0 };
+  });
+  const totalCbm = Math.round(enrichedItems.reduce((s, i) => s + i.cbm_total, 0) * 100) / 100;
+  const totalFob = Math.round(enrichedItems.reduce((s, i) => s + (i.fob * i.qty), 0) * 100) / 100;
   const orden = {
     id: Date.now().toString(),
     created_at: new Date().toISOString(),
     status: 'pedida',
     notes: notes || '',
-    items: items.map(i => ({ sku: i.sku, name: i.name, qty: i.qty, origen: i.origen, thumb: i.thumb })),
+    items: enrichedItems,
     total_qty: items.reduce((s, i) => s + (i.qty || 0), 0),
+    total_cbm: totalCbm,
+    total_fob: totalFob,
   };
   ordenes.push(orden);
   saveOrdenes(ordenes);

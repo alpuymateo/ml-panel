@@ -502,6 +502,11 @@
         </div>
       </div>
 
+      <!-- Notebook -->
+      <div class="nav-item" data-page="notebook" onclick="showPage('notebook')" style="margin-top:8px;">
+        <span class="nav-icon">🔬</span> <b>Notebook</b>
+      </div>
+
       <!-- Importaciones -->
       <div class="nav-group-header" onclick="toggleNavGroup('nav-importaciones')">
         <span>📦 Importaciones</span>
@@ -1332,6 +1337,23 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- ══ NOTEBOOK ══ -->
+    <div id="page-notebook" style="display:none">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+        <div>
+          <h1>Notebook</h1>
+          <p>Pregunt&aacute; lo que quieras sobre tus datos &mdash; ventas, stock, estacionalidad, comparaciones</p>
+        </div>
+        <button onclick="limpiarNotebook()" style="padding:6px 14px;background:#fee2e2;color:#dc2626;border:none;border-radius:6px;font-size:12px;cursor:pointer;">Limpiar</button>
+      </div>
+      <div id="nb-cells" style="margin-bottom:16px;"></div>
+      <div style="display:flex;gap:8px;align-items:flex-end;">
+        <textarea id="nb-input" placeholder="Ej: Mostr&aacute;me la estacionalidad de l&aacute;mparas de sal, top 10 productos de abril 2026, compar&aacute; ventas 2025 vs 2026..." style="flex:1;padding:12px;border:2px solid #e5e7eb;border-radius:10px;font-size:14px;min-height:50px;max-height:150px;resize:vertical;font-family:inherit;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ejecutarNotebook();}"></textarea>
+        <button onclick="ejecutarNotebook()" id="nb-btn" style="padding:12px 24px;background:#4361ee;color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;">Consultar</button>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:#9ca3af;">Enter para enviar · Shift+Enter nueva l&iacute;nea · Usa lenguaje natural</div>
     </div>
 
     <!-- ══ ML: Estrategia de pricing ══ -->
@@ -2281,7 +2303,7 @@ function badgeClass(s) {
   return 'badge badge-' + (map[s] || 'default');
 }
 
-const PAGES = ['ventas', 'ordenes', 'stock', 'reclamos', 'devoluciones', 'tareas', 'precios', 'dashboard', 'comparador', 'zureo', 'perdidos', 'item-compare', 'objetivos', 'dimensiones', 'stock-odoo', 'orden-sugerida', 'odoo', 'odooml', 'catalogo', 'pedidos-may', 'previsiones', 'usuarios', 'ml-estrategia', 'ml-sin-descuento', 'ml-ofertas', 'ml-analizar', 'oportunidades', 'lineas', 'trends', 'calculadora', 'importaciones', 'imp-todas', 'imp-buscar', 'imp-detalle', 'imp-pi'];
+const PAGES = ['ventas', 'ordenes', 'stock', 'reclamos', 'devoluciones', 'tareas', 'precios', 'dashboard', 'comparador', 'zureo', 'perdidos', 'item-compare', 'objetivos', 'dimensiones', 'stock-odoo', 'orden-sugerida', 'odoo', 'odooml', 'catalogo', 'pedidos-may', 'previsiones', 'usuarios', 'ml-estrategia', 'ml-sin-descuento', 'ml-ofertas', 'ml-analizar', 'oportunidades', 'lineas', 'trends', 'calculadora', 'notebook', 'importaciones', 'imp-todas', 'imp-buscar', 'imp-detalle', 'imp-pi'];
 // Páginas virtuales que reutilizan ml-analizar
 const ML_TAB_PAGES = { 'ml-preguntas': 'pendientes', 'ml-postventa': 'mensajes', 'ml-reglas': 'reglas' };
 
@@ -4804,6 +4826,111 @@ function renderCatalogo() {
 let sinDescData = [];
 
 // ══ ESTRATEGIA ML ══
+// ══ NOTEBOOK ══
+let _nbHistory = [];
+let _nbChartInstances = {};
+
+async function ejecutarNotebook() {
+  const input = document.getElementById('nb-input');
+  const btn = document.getElementById('nb-btn');
+  const cells = document.getElementById('nb-cells');
+  const question = input.value.trim();
+  if (!question) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Pensando...';
+  input.value = '';
+
+  // Add question cell
+  const qId = 'nb-q-' + Date.now();
+  cells.innerHTML += `<div class="card" style="margin-bottom:8px;border-left:4px solid #4361ee;padding:12px 16px;">
+    <div style="font-size:13px;font-weight:600;color:#4361ee;">${question}</div>
+  </div>`;
+
+  // Add loading cell
+  const rId = 'nb-r-' + Date.now();
+  cells.innerHTML += `<div id="${rId}" class="card" style="margin-bottom:16px;padding:16px;">
+    <div class="loading"><span class="spinner"></span>Analizando datos...</div>
+  </div>`;
+  cells.scrollTop = cells.scrollHeight;
+
+  try {
+    const r = await fetch('/api/notebook/query', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, history: _nbHistory }),
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+
+    _nbHistory.push({ role: 'user', content: question });
+    _nbHistory.push({ role: 'assistant', content: d.text || '' });
+
+    let html = '';
+
+    // Text
+    if (d.text) {
+      html += `<div style="font-size:13px;line-height:1.7;color:#374151;margin-bottom:12px;white-space:pre-wrap;">${d.text}</div>`;
+    }
+
+    // Table
+    if (d.table && d.table.headers && d.table.rows) {
+      html += `<div style="overflow-x:auto;margin-bottom:12px;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="background:#f8fafc;">${d.table.headers.map(h => `<th style="padding:6px 10px;text-align:left;font-weight:600;border-bottom:2px solid #e5e7eb;">${h}</th>`).join('')}</tr></thead>
+          <tbody>${d.table.rows.map(row => `<tr>${row.map(cell => `<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6;">${cell}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+    }
+
+    // Chart
+    if (d.chart) {
+      const chartId = 'nb-chart-' + Date.now();
+      html += `<div style="max-width:700px;margin:0 auto;"><canvas id="${chartId}" height="300"></canvas></div>`;
+      // Render chart after DOM update
+      setTimeout(() => {
+        const ctx = document.getElementById(chartId);
+        if (!ctx) return;
+        if (_nbChartInstances[chartId]) _nbChartInstances[chartId].destroy();
+        const colors = ['#4361ee','#059669','#d97706','#dc2626','#7c3aed','#0ea5e9','#f59e0b','#10b981','#6366f1','#ec4899'];
+        const datasets = (d.chart.datasets || []).map((ds, i) => ({
+          ...ds,
+          backgroundColor: ds.backgroundColor || (d.chart.type === 'pie' || d.chart.type === 'doughnut' ? colors : colors[i % colors.length]),
+          borderColor: ds.borderColor || colors[i % colors.length],
+          borderWidth: ds.borderWidth || (d.chart.type === 'line' ? 2 : 1),
+          tension: 0.3,
+          fill: d.chart.type === 'line' ? false : undefined,
+        }));
+        _nbChartInstances[chartId] = new Chart(ctx, {
+          type: d.chart.type || 'bar',
+          data: { labels: d.chart.labels || [], datasets },
+          options: {
+            responsive: true,
+            plugins: { title: { display: !!d.chart.title, text: d.chart.title || '' }, legend: { display: datasets.length > 1 || d.chart.type === 'pie' || d.chart.type === 'doughnut' } },
+            scales: d.chart.type === 'pie' || d.chart.type === 'doughnut' ? {} : { y: { beginAtZero: true } },
+          },
+        });
+      }, 100);
+    }
+
+    document.getElementById(rId).innerHTML = html || '<div style="color:#9ca3af;font-size:13px;">Sin resultados</div>';
+  } catch(e) {
+    document.getElementById(rId).innerHTML = `<div style="color:#dc2626;font-size:13px;">Error: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Consultar';
+  }
+}
+
+function limpiarNotebook() {
+  document.getElementById('nb-cells').innerHTML = '';
+  _nbHistory = [];
+  for (const id of Object.keys(_nbChartInstances)) {
+    try { _nbChartInstances[id].destroy(); } catch(e) {}
+  }
+  _nbChartInstances = {};
+}
+
 async function loadEstrategia() {
   const content = document.getElementById('est-content');
   content.innerHTML = '<div class="loading"><span class="spinner"></span>Cargando datos...</div>';
@@ -8894,7 +9021,7 @@ async function loadOrdenesCompra() {
         const fecha = new Date(o.created_at).toLocaleDateString('es-UY');
         return `<div style="padding:10px 16px;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center;">
           <div>
-            <div style="font-size:13px;font-weight:600;">${fecha} · ${o.items.length} productos · ${o.total_qty} uds</div>
+            <div style="font-size:13px;font-weight:600;">${fecha} · ${o.items.length} productos · ${o.total_qty} uds${o.total_cbm ? ' · <b>' + o.total_cbm + ' CBM</b>' : ''}${o.total_fob ? ' · $' + o.total_fob.toLocaleString('es-UY') + ' USD' : ''}</div>
             <div style="font-size:11px;color:#9ca3af;">${o.notes || ''}</div>
           </div>
           <div style="display:flex;gap:6px;align-items:center;">
