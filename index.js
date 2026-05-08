@@ -1742,14 +1742,42 @@ function saveOdooCacheToDisk() {
 async function getOdooProducts(force = false) {
   if (!force && odooCache && odooCache.length > 0) return odooCache;
   const uid = await odooAuth();
-  const products = await odooSearchRead(uid, 'product.product', [['active', '=', true]], [
-    'name', 'default_code', 'list_price', 'standard_price', 'categ_id', 'taxes_id', 'uom_id', 'x_studio_producto_mayorista', 'qty_available', 'image_128',
-  ]);
-  odooCache     = products;
+  const fields = ['name', 'default_code', 'list_price', 'standard_price', 'categ_id', 'taxes_id', 'uom_id', 'x_studio_producto_mayorista', 'qty_available', 'image_128'];
+
+  // Incremental: si ya tengo cache, solo traer los modificados desde la última vez
+  if (odooCache && odooCache.length > 0 && odooCacheTime > 0) {
+    const since = new Date(odooCacheTime).toISOString().replace('T', ' ').slice(0, 19);
+    console.log(`[odoo] refresh incremental desde ${since}...`);
+    const updated = await odooSearchRead(uid, 'product.product', [['active', '=', true], ['write_date', '>', since]], fields);
+    if (updated.length > 0) {
+      const cacheMap = {};
+      for (const p of odooCache) cacheMap[p.id] = p;
+      for (const p of updated) cacheMap[p.id] = p;
+      odooCache = Object.values(cacheMap);
+      console.log(`[odoo] incremental: ${updated.length} actualizados, total ${odooCache.length}`);
+    } else {
+      console.log(`[odoo] incremental: sin cambios`);
+    }
+    // También traer nuevos productos que no existían
+    const newProducts = await odooSearchRead(uid, 'product.product', [['active', '=', true], ['create_date', '>', since]], fields);
+    if (newProducts.length > 0) {
+      const existingIds = new Set(odooCache.map(p => p.id));
+      const reallyNew = newProducts.filter(p => !existingIds.has(p.id));
+      if (reallyNew.length > 0) {
+        odooCache.push(...reallyNew);
+        console.log(`[odoo] ${reallyNew.length} productos nuevos agregados`);
+      }
+    }
+  } else {
+    // Primera carga: traer todo
+    console.log(`[odoo] carga completa de productos...`);
+    odooCache = await odooSearchRead(uid, 'product.product', [['active', '=', true]], fields);
+    console.log(`[odoo] ${odooCache.length} productos cargados`);
+  }
+
   odooCacheTime = Date.now();
   saveOdooCacheToDisk();
-  console.log(`[odoo] ${products.length} productos guardados en disco`);
-  return products;
+  return odooCache;
 }
 
 loadOdooCacheFromDisk();
