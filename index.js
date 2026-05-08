@@ -1754,14 +1754,8 @@ async function getOdooProducts(force = false) {
 
 loadOdooCacheFromDisk();
 
-// Refresh automático cada 1 hora
-setInterval(async () => {
-  try {
-    console.log('[odoo] auto-refresh iniciando...');
-    await getOdooProducts(true);
-    console.log('[odoo] auto-refresh completo');
-  } catch (e) { console.error('[odoo] auto-refresh error:', e.message); }
-}, 60 * 60 * 1000);
+// Refresh de productos Odoo solo manual (evitar sobrecargar Odoo)
+// Para refrescar: /api/odoo/productos?refresh=true
 
 app.get('/api/odoo/buscar-partner', async (req, res) => {
   try {
@@ -1855,9 +1849,8 @@ async function buildCatalogoCache(force = false) {
   return result;
 }
 
-// Refresh catalogo en background al arrancar (30s delay) y cada hora
-setTimeout(() => buildCatalogoCache(true).catch(e => console.error('[catalogo] error:', e.message)), 30000);
-setInterval(() => buildCatalogoCache(true).catch(e => console.error('[catalogo] refresh error:', e.message)), 3600000);
+// Catalogo se sirve del cache en disco. Refresh solo manual.
+// Para refrescar: /api/odoo/productos?refresh=true
 
 app.get('/api/odoo/productos', async (req, res) => {
   try {
