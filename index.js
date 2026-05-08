@@ -1782,8 +1782,24 @@ async function getOdooProducts(force = false) {
 
 loadOdooCacheFromDisk();
 
-// Refresh de productos Odoo solo manual (evitar sobrecargar Odoo)
-// Para refrescar: /api/odoo/productos?refresh=true
+// Refresh de productos Odoo solo a las 2am UY (UTC-3 = 5am UTC)
+// Prohibido en horario laboral
+function scheduleOdooNightRefresh() {
+  setInterval(async () => {
+    const nowUY = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Montevideo' }));
+    const hour = nowUY.getHours();
+    // Solo entre 2:00 y 2:59 AM Uruguay
+    if (hour === 2) {
+      try {
+        console.log('[odoo] refresh nocturno iniciando (2am UY)...');
+        await getOdooProducts(true);
+        await buildCatalogoCache(true).catch(e => console.error('[catalogo] error nocturno:', e.message));
+        console.log('[odoo] refresh nocturno completo');
+      } catch (e) { console.error('[odoo] refresh nocturno error:', e.message); }
+    }
+  }, 60 * 60 * 1000); // chequea cada hora
+}
+scheduleOdooNightRefresh();
 
 app.get('/api/odoo/buscar-partner', async (req, res) => {
   try {
@@ -1883,7 +1899,13 @@ async function buildCatalogoCache(force = false) {
 app.get('/api/odoo/productos', async (req, res) => {
   try {
     if (req.query.refresh === 'true') {
-      buildCatalogoCache(true).catch(e => console.error('[catalogo] refresh error:', e.message));
+      const nowUY = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Montevideo' }));
+      const h = nowUY.getHours();
+      if (h >= 8 && h < 22) {
+        console.log('[odoo] refresh bloqueado en horario laboral (' + h + 'h UY)');
+      } else {
+        buildCatalogoCache(true).catch(e => console.error('[catalogo] refresh error:', e.message));
+      }
     }
     // Serve from cache if available
     if (_catalogoCache) return res.json(_catalogoCache);
