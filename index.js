@@ -12,7 +12,45 @@ const multer = require('multer');
 const XLSX = require('xlsx');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+
 const app = express();
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // disabled because of inline scripts in index.html
+  crossOriginEmbedderPolicy: false,
+}));
+
+// HTTPS redirect in production (Railway)
+app.use((req, res, next) => {
+  if (process.env.RAILWAY_ENVIRONMENT && req.headers['x-forwarded-proto'] !== 'https') {
+    return res.redirect('https://' + req.get('host') + req.url);
+  }
+  next();
+});
+
+// Rate limiting on auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // max 20 login attempts per 15 min
+  message: { error: 'Demasiados intentos. Esperá 15 minutos.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/auth/login', authLimiter);
+app.use('/auth/google', authLimiter);
+
+// General rate limiting
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200, // 200 requests per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(generalLimiter);
+
 app.use(express.json({ limit: '25mb' }));
 const PORT = process.env.PORT || 3000;
 
@@ -2584,7 +2622,7 @@ Respondé ÚNICAMENTE con JSON válido, sin texto adicional:
 const USERS_FILE = path.join(__dirname, 'data', 'users.json');
 
 function hashPassword(password, salt) {
-  return crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha256').toString('hex');
+  return crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
 }
 function loadUsers() {
   try {
@@ -2660,8 +2698,121 @@ app.post('/api/auth/logout', (req, res) => {
 
 // GET /api/auth/me
 app.get('/api/auth/me', requireUser, (req, res) => {
-  const { id, username, name, role } = req.user;
-  res.json({ id, username, name, role });
+  const { id, username, name, role, email } = req.user;
+  res.json({ id, username, name, role, email });
+});
+
+// ── Google OAuth ──
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+
+app.get('/auth/google', (req, res) => {
+  if (!GOOGLE_CLIENT_ID) return res.status(500).send('Google OAuth no configurado');
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const redirectUri = `${baseUrl}/auth/google/callback`;
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: 'openid email profile',
+    access_type: 'online',
+    prompt: 'select_account',
+  });
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+});
+
+app.get('/auth/google/callback', async (req, res) => {
+  try {
+    const { code } = req.query;
+    if (!code) return res.status(400).send('Sin código de autorización');
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const redirectUri = `${baseUrl}/auth/google/callback`;
+
+    // Exchange code for tokens
+    const tokenRes = await axios.post('https://oauth2.googleapis.com/token', {
+      code, client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET,
+      redirect_uri: redirectUri, grant_type: 'authorization_code',
+    });
+    const { access_token } = tokenRes.data;
+
+    // Get user info
+    const userRes = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+    const { email, name, picture } = userRes.data;
+
+    // Check if email is authorized
+    const users = loadUsers();
+    let user = users.find(u => u.email === email);
+
+    if (!user) {
+      // Check allowed emails list
+      const ALLOWED_FILE = path.join(__dirname, 'data', 'allowed_emails.json');
+      let allowed = [];
+      try { allowed = fs.existsSync(ALLOWED_FILE) ? JSON.parse(fs.readFileSync(ALLOWED_FILE, 'utf8')) : []; } catch {}
+
+      if (!allowed.includes(email)) {
+        return res.send('<html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;"><div style="text-align:center;"><h2>Acceso denegado</h2><p>' + email + ' no está autorizado.</p><a href="/">Volver</a></div></body></html>');
+      }
+
+      // Create user automatically
+      const salt = crypto.randomBytes(16).toString('hex');
+      user = {
+        id: crypto.randomUUID(),
+        username: email.split('@')[0],
+        name: name || email,
+        email,
+        picture,
+        role: 'user',
+        salt,
+        hash: hashPassword(crypto.randomBytes(32).toString('hex'), salt), // random password
+        createdAt: new Date().toISOString(),
+        googleAuth: true,
+      };
+      users.push(user);
+      saveUsers(users);
+      console.log('[auth] nuevo usuario Google:', email);
+    } else {
+      // Update name/picture
+      if (name && !user.name) user.name = name;
+      if (picture) user.picture = picture;
+      user.email = email;
+      user.googleAuth = true;
+      saveUsers(users);
+    }
+
+    // Create session
+    const sessionTok = createSession(user.id);
+    res.send(`<html><body><script>
+      localStorage.setItem('session_token', '${sessionTok}');
+      window.location.href = '/';
+    </script></body></html>`);
+  } catch (e) {
+    console.error('[auth] Google OAuth error:', e.message);
+    res.status(500).send('Error de autenticación: ' + e.message);
+  }
+});
+
+// API para gestionar emails autorizados (admin)
+const ALLOWED_EMAILS_FILE = path.join(__dirname, 'data', 'allowed_emails.json');
+function loadAllowedEmails() { try { return fs.existsSync(ALLOWED_EMAILS_FILE) ? JSON.parse(fs.readFileSync(ALLOWED_EMAILS_FILE, 'utf8')) : ['alpuy.mateo@gmail.com']; } catch { return ['alpuy.mateo@gmail.com']; } }
+function saveAllowedEmails(list) { fs.writeFileSync(ALLOWED_EMAILS_FILE, JSON.stringify(list, null, 2)); }
+
+// Initialize file if not exists
+if (!fs.existsSync(ALLOWED_EMAILS_FILE)) saveAllowedEmails(['alpuy.mateo@gmail.com']);
+
+app.get('/api/auth/allowed-emails', requireAdmin, (req, res) => {
+  res.json(loadAllowedEmails());
+});
+
+app.post('/api/auth/allowed-emails', requireAdmin, (req, res) => {
+  const { email, action } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email requerido' });
+  let list = loadAllowedEmails();
+  if (action === 'add' && !list.includes(email)) list.push(email);
+  if (action === 'remove') list = list.filter(e => e !== email);
+  saveAllowedEmails(list);
+  res.json({ ok: true, emails: list });
 });
 
 // GET /api/users  (admin)
