@@ -2001,9 +2001,9 @@
       <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
         <div>
           <h1>📋 Orden de compra sugerida</h1>
-          <p>Listado de productos a pedir basado en historial, estacionalidad y crecimiento</p>
+          <p>Todos los productos a pedir &mdash; filtr&aacute; y orden&aacute; como quieras</p>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <div>
             <label style="font-size:10px;color:#6b7280;">China (d&iacute;as)</label>
             <input type="number" id="os-lead" value="120" min="30" style="width:60px;padding:6px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">
@@ -2016,13 +2016,45 @@
             <label style="font-size:10px;color:#6b7280;">Crecimiento %</label>
             <input type="number" id="os-growth" value="30" min="0" style="width:60px;padding:6px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">
           </div>
-          <div>
-            <label style="font-size:10px;color:#6b7280;">Min ventas/mes</label>
-            <input type="number" id="os-min" value="10" min="0" style="width:60px;padding:6px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">
-          </div>
           <button class="btn-refresh" onclick="loadOrdenSugerida()" id="os-btn">Generar orden</button>
         </div>
       </div>
+      <!-- Filtros unificados -->
+      <div id="os-filters" style="display:none;margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <input type="text" class="search-input" id="os-search" placeholder="Buscar producto o SKU..." style="width:220px;" oninput="renderOsItems()">
+        <select class="filter-select" id="os-f-tipo" onchange="renderOsItems()">
+          <option value="">Todos</option>
+          <option value="reposicion">🚨 Sin stock</option>
+          <option value="zafral">🌊 Zafral</option>
+          <option value="quiebre">⚠️ Quiebre antes de llegada</option>
+        </select>
+        <select class="filter-select" id="os-f-abc" onchange="renderOsItems()">
+          <option value="">ABC: Todos</option>
+          <option value="A">A (top)</option>
+          <option value="B">B (medio)</option>
+          <option value="C">C (bajo)</option>
+        </select>
+        <select class="filter-select" id="os-f-xyz" onchange="renderOsItems()">
+          <option value="">XYZ: Todos</option>
+          <option value="X">X (estable)</option>
+          <option value="Y">Y (variable)</option>
+          <option value="Z">Z (err&aacute;tico)</option>
+        </select>
+        <select class="filter-select" id="os-f-origen" onchange="renderOsItems()">
+          <option value="">Origen: Todos</option>
+          <option value="China">🇨🇳 China</option>
+          <option value="Brasil">🇧🇷 Brasil</option>
+        </select>
+        <select class="filter-select" id="os-f-sort" onchange="renderOsItems()">
+          <option value="gap">Mayor faltante</option>
+          <option value="revenue">Mayor facturaci&oacute;n</option>
+          <option value="avg">Mayor venta/mes</option>
+          <option value="abc">ABC prioridad</option>
+          <option value="categ">Por categor&iacute;a</option>
+        </select>
+        <span id="os-count" style="font-size:12px;color:#6b7280;"></span>
+      </div>
+      <div id="os-kpis" style="margin-bottom:16px;"></div>
       <div style="display:flex;gap:16px;">
         <div id="os-content" style="flex:1;min-width:0;"><div class="loading"><span class="spinner"></span>Calculando...</div></div>
         <div id="os-cart" style="width:320px;flex-shrink:0;position:sticky;top:80px;align-self:flex-start;display:none;">
@@ -8719,13 +8751,160 @@ function renderOsItem(i, items, c) {
   </div>${detail}`;
 }
 
+let _osAllItems = []; // All items from planificador
+let _osConfig = null;
+let _osZafral = [];
+
+function renderOsItems() {
+  const content = document.getElementById('os-content');
+  if (!_osAllItems.length) return;
+
+  const search = (document.getElementById('os-search')?.value || '').toLowerCase();
+  const fTipo = document.getElementById('os-f-tipo')?.value || '';
+  const fAbc = document.getElementById('os-f-abc')?.value || '';
+  const fXyz = document.getElementById('os-f-xyz')?.value || '';
+  const fOrigen = document.getElementById('os-f-origen')?.value || '';
+  const fSort = document.getElementById('os-f-sort')?.value || 'gap';
+
+  const zafralSkus = new Set(_osZafral.map(z => z.sku));
+
+  let items = _osAllItems.filter(i => {
+    if (i.gap <= 0 || i.avg_month <= 0 || i.seasonal_factor <= 0) return false;
+    if (search && !i.name.toLowerCase().includes(search) && !(i.sku||'').toLowerCase().includes(search)) return false;
+    if (fAbc && i.abc !== fAbc) return false;
+    if (fXyz && i.xyz !== fXyz) return false;
+    if (fOrigen && i.origen !== fOrigen) return false;
+    if (fTipo === 'reposicion' && i.available > 0) return false;
+    if (fTipo === 'zafral' && !zafralSkus.has(i.sku)) return false;
+    if (fTipo === 'quiebre' && !i.will_break) return false;
+    return true;
+  });
+
+  // Sort
+  if (fSort === 'gap') items.sort((a,b) => b.gap - a.gap);
+  else if (fSort === 'revenue') items.sort((a,b) => b.revenue_6m - a.revenue_6m);
+  else if (fSort === 'avg') items.sort((a,b) => b.avg_month - a.avg_month);
+  else if (fSort === 'abc') items.sort((a,b) => { const o={A:0,B:1,C:2}; return (o[a.abc]||9)-(o[b.abc]||9) || b.gap-a.gap; });
+
+  document.getElementById('os-count').textContent = items.length + ' productos';
+
+  const c = _osConfig;
+  const allMonths = _osAllMonths || [];
+  const last10 = allMonths.slice(-10);
+
+  let html = '';
+  const grouped = fSort === 'categ';
+  const renderItems = items.slice(0, 200);
+
+  if (grouped) {
+    const byCat = {};
+    for (const i of renderItems) {
+      const cat = getCategoryGroupClient(i.name, i.categ);
+      if (!byCat[cat]) byCat[cat] = [];
+      byCat[cat].push(i);
+    }
+    const sortedCats = Object.entries(byCat).sort((a,b) => b[1].reduce((s,i)=>s+i.gap,0) - a[1].reduce((s,i)=>s+i.gap,0));
+    for (const [cat, catItems] of sortedCats) {
+      const catLabel = cat.charAt(0).toUpperCase() + cat.slice(1);
+      const catGap = catItems.reduce((s,i) => s + i.gap, 0);
+      const catId = 'os-grp-' + cat.replace(/[^a-z0-9]/gi,'-');
+      html += `<div style="padding:8px 16px;background:#f0f4ff;border-bottom:1px solid #e0e7ff;cursor:pointer;display:flex;justify-content:space-between;" onclick="const el=document.getElementById('${catId}');el.style.display=el.style.display==='none'?'':'none';">
+        <span style="font-weight:700;color:#3730a3;">${catLabel} <span style="font-weight:400;color:#6b7280;">(${catItems.length} productos)</span></span>
+        <span style="font-weight:600;color:#4361ee;">${catGap} uds</span>
+      </div><div id="${catId}">`;
+      for (const i of catItems) { html += renderOsItem(i); }
+      html += '</div>';
+    }
+  } else {
+    for (const i of renderItems) { html += renderOsItem(i); }
+  }
+
+  function renderOsItem(i) {
+    let itemHtml = "";
+    const thumb = i.ml_thumbnail ? `<img src="${i.ml_thumbnail}" style="width:48px;height:48px;object-fit:contain;border-radius:6px;background:#f9fafb;">` : '<div style="width:48px;height:48px;background:#f3f4f6;border-radius:6px;"></div>';
+    const abcColor = i.abc==='A'?'#dc2626':i.abc==='B'?'#d97706':'#9ca3af';
+    const xyzColor = i.xyz==='X'?'#059669':i.xyz==='Y'?'#d97706':'#dc2626';
+    const detId = 'os-det-' + (i.sku||'').replace(/[^a-z0-9]/gi,'-');
+
+    // Tags
+    const tags = [];
+    if (i.available <= 0) tags.push('<span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">SIN STOCK</span>');
+    if (i.will_break) tags.push('<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">⚠️ QUIEBRE</span>');
+    if (zafralSkus.has(i.sku)) tags.push('<span style="background:#ede9fe;color:#5b21b6;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">ZAFRAL</span>');
+
+    // Reason
+    let razon = '';
+    if (i.sold_comp_month > 0) razon = `Vendiste <b>${i.sold_comp_month}</b> en ${i.comp_label}. +${c.growth_pct}% → <b>${i.estimated}</b>.`;
+    else razon = `Prom 3m: <b>${i.avg_last_3}/mes</b>. +${c.growth_pct}% → <b>${i.estimated}</b>.`;
+    razon += ` Stock: <b>${i.stock}</b>`;
+    if (i.incoming > 0) razon += ` + <b>${i.incoming}</b> camino`;
+    if (i.pedido > 0) razon += ` + <b style="color:#4361ee;">${i.pedido}</b> pedido`;
+    razon += `. <b style="color:#dc2626;">Faltante: ${i.gap}</b>`;
+    if (i.seasonal_note) razon += ` <span style="color:#d97706;">(${i.seasonal_note})</span>`;
+
+    // Monthly sales
+    const monthHeaders = last10.map(m => { const [y,mo]=m.split('-'); return ['','E','F','M','A','M','J','J','A','S','O','N','D'][+mo]+y.slice(2); });
+    const monthValues = last10.map(m => i.sales_by_month?.[m] || 0);
+    const margin = i.price > 0 && i.cost > 0 ? Math.round((1 - i.cost/i.price)*100) : null;
+
+    itemHtml += `<div style="padding:10px 16px;border-bottom:1px solid #f3f4f6;" data-sku="${i.sku}">
+      <div style="display:flex;gap:10px;align-items:center;cursor:pointer;" onclick="const el=document.getElementById('${detId}');el.style.display=el.style.display==='none'?'':'none';">
+        ${thumb}
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name}</div>
+          <div style="font-size:10px;color:#9ca3af;">${i.sku} · ${i.categ || ''} · <span style="padding:1px 5px;border-radius:4px;font-size:9px;font-weight:600;background:${i.origen==='Brasil'?'#dcfce7':'#fef3c7'};color:${i.origen==='Brasil'?'#166534':'#92400e'};">${i.origen} ${i.lead_days}d</span> → ${i.target_label} · <span style="padding:1px 4px;border-radius:3px;font-weight:700;font-size:9px;background:${abcColor}15;color:${abcColor};">${i.abc}</span><span style="padding:1px 4px;border-radius:3px;font-weight:700;font-size:9px;background:${xyzColor}15;color:${xyzColor};margin-left:2px;">${i.xyz||''}</span> ${i.months_with_sales||0}/6m · máx ${i.max_month||0} ${tags.join(' ')}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:10px;color:#6b7280;">stock</div>
+          <div style="color:${i.stock<=0?'#dc2626':'#374151'};font-weight:700;">${i.stock}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:10px;color:#6b7280;">venta</div>
+          <div style="font-weight:600;">${i.avg_month}/m</div>
+        </div>
+        <div style="text-align:center;flex-shrink:0;min-width:60px;">
+          <div style="font-size:20px;font-weight:800;color:#4361ee;">${i.gap}</div>
+        </div>
+        <button onclick="event.stopPropagation();addToOrden('${(i.sku||'').replace(/'/g,'')}','${i.name.replace(/'/g,'').slice(0,40)}',${i.gap},'${i.origen}','${(i.ml_thumbnail||'').replace(/'/g,'')}')" style="padding:8px 14px;background:#dc2626;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">+ Pedir</button>
+      </div>
+      <div id="${detId}" style="display:none;margin-top:8px;padding:12px;background:#fafafa;border-radius:8px;border:1px solid #e5e7eb;">
+        <div style="font-size:11px;color:#475569;margin-bottom:8px;">${razon}</div>
+        <div style="display:flex;gap:16px;font-size:12px;margin-bottom:8px;">
+          <span>Costo: <b>$${(i.cost||0).toFixed(2)}</b></span>
+          <span>Precio: <b>$${i.price||0}</b></span>
+          ${margin!==null?`<span>Margen: <b style="color:${margin>30?'#059669':'#dc2626'}">${margin}%</b></span>`:''}
+          <span>Valor stock: <b>$${Math.round(i.stock*(i.cost||0))}</b></span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;font-size:11px;border-collapse:collapse;">
+            <thead><tr style="color:#9ca3af;">${monthHeaders.map(h=>`<th style="text-align:center;padding:2px 4px;">${h}</th>`).join('')}<th style="text-align:right;padding:2px 4px;">TOT</th></tr></thead>
+            <tbody><tr>${monthValues.map(v=>`<td style="text-align:center;padding:2px 4px;${v>0?'font-weight:600;':'color:#d1d5db;'}">${v||'—'}</td>`).join('')}<td style="text-align:right;padding:2px 4px;font-weight:700;">${monthValues.reduce((s,v)=>s+v,0)}</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+    return itemHtml;
+  }
+
+  const shown = items.length;
+  const maxShow = 200;
+  if (!items.length) html = '<div style="text-align:center;color:#9ca3af;padding:32px;">Sin productos con estos filtros</div>';
+
+  const limitNote = shown > maxShow ? `<div style="text-align:center;padding:12px;color:#6b7280;font-size:12px;">Mostrando ${maxShow} de ${shown} productos. Usá los filtros para refinar.</div>` : '';
+  content.innerHTML = `<div class="card" style="padding:0;overflow:hidden;">${html}${limitNote}</div>`;
+  document.getElementById('os-count').textContent = shown + ' productos';
+  setTimeout(markOrdenButtons, 100);
+}
+
+let _osAllMonths = [];
+
 async function loadOrdenSugerida() {
   const content = document.getElementById('os-content');
   const btn = document.getElementById('os-btn');
   const lead = document.getElementById('os-lead').value || 120;
   const leadBrasil = document.getElementById('os-lead-brasil').value || 30;
   const growth = document.getElementById('os-growth').value || 30;
-  const minMonth = parseInt(document.getElementById('os-min').value) || 0;
+  const minMonth = parseInt(document.getElementById('os-min')?.value) || 0;
   btn.disabled = true;
   btn.textContent = 'Calculando...';
   content.innerHTML = '<div class="loading"><span class="spinner"></span>Analizando ventas, estacionalidad y stock...</div>';
@@ -8735,16 +8914,38 @@ async function loadOrdenSugerida() {
     const d = await r.json();
     if (d.error) { content.innerHTML = `<div class="card" style="color:#dc2626;">${d.error}</div>`; return; }
     _planData = d;
-    window._osAllMonths = d.all_months || [];
+    _osAllMonths = d.all_months || [];
+    _osConfig = d.config;
+    _osZafral = d.zafral || [];
+    _osAllItems = d.items || [];
+    window._osItems = _osAllItems;
 
     const c = d.config;
-    // Filtrar: solo con faltante, con ventas mínimas, sin estacionalidad 0
-    const items = d.items.filter(i =>
-      i.gap > 0 && i.avg_month > 0 && i.seasonal_factor > 0 && (i.max_month_6m || 0) >= minMonth
-    ).sort((a,b) => {
-      const abc = {A:0,B:1,C:2};
-      return (abc[a.abc]||9) - (abc[b.abc]||9) || b.gap - a.gap;
-    });
+    const items = _osAllItems.filter(i => i.gap > 0 && i.avg_month > 0 && i.seasonal_factor > 0);
+    const totalQty = items.reduce((s,i) => s + i.gap, 0);
+    const totalUsd = Math.round(items.reduce((s,i) => s + i.gap * (i.cost||0), 0));
+    const sinStock = items.filter(i => i.available <= 0).length;
+    const quiebres = items.filter(i => i.will_break).length;
+
+    document.getElementById('os-kpis').innerHTML = `
+      <div class="kpi-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:12px;">
+        <div class="kpi-card" style="--accent:#4361ee"><div class="kpi-label">Productos</div><div class="kpi-value">${items.length}</div></div>
+        <div class="kpi-card" style="--accent:#7c3aed"><div class="kpi-label">Unidades</div><div class="kpi-value">${totalQty.toLocaleString('es-UY')}</div></div>
+        <div class="kpi-card" style="--accent:#059669"><div class="kpi-label">Inversi&oacute;n USD</div><div class="kpi-value">$${totalUsd.toLocaleString('es-UY')}</div></div>
+        <div class="kpi-card" style="--accent:#dc2626"><div class="kpi-label">Sin stock</div><div class="kpi-value" style="color:#dc2626">${sinStock}</div></div>
+        <div class="kpi-card" style="--accent:#f59e0b"><div class="kpi-label">Quiebres</div><div class="kpi-value" style="color:#f59e0b">${quiebres}</div></div>
+        <div class="kpi-card" style="--accent:#7c3aed"><div class="kpi-label">Zafral</div><div class="kpi-value" style="color:#7c3aed">${_osZafral.length}</div></div>
+      </div>
+      <div style="margin-bottom:12px;font-size:12px;color:#475569;background:#f8fafc;padding:8px 12px;border-radius:6px;border:1px solid #e2e8f0;">
+        🇨🇳 China ${c.lead_days_china}d → ${c.china.label} · 🇧🇷 Brasil ${c.lead_days_brasil}d → ${c.brasil.label} · +${c.growth_pct}% · <span style="color:#dc2626;">A</span>=top 80% <span style="color:#d97706;">B</span>=15% <span style="color:#9ca3af;">C</span>=resto · <span style="color:#059669;">X</span>=estable <span style="color:#d97706;">Y</span>=variable <span style="color:#dc2626;">Z</span>=errático
+      </div>`;
+
+    document.getElementById('os-filters').style.display = 'flex';
+    renderOsItems();
+    loadOrdenesCompra();
+    // SKIP OLD RENDERING — replaced by renderOsItems
+    if (false) {
+    const _skipOld = items;
 
     const totalQty = items.reduce((s,i) => s + i.gap, 0);
     const totalUsd = Math.round(items.reduce((s,i) => s + i.gap * (i.cost||0), 0));
@@ -9043,10 +9244,7 @@ async function loadOrdenSugerida() {
       html += '<div class="card" style="text-align:center;color:#9ca3af;padding:32px;">No hay productos que necesiten reposici&oacute;n con estos filtros</div>';
     }
 
-    content.innerHTML = html;
-    setTimeout(markOrdenButtons, 100); // Mark items already in order
-    loadOrdenesPreparadas();
-    loadOrdenesCompra();
+    } // end if(false) skip old rendering
   } catch(e) {
     content.innerHTML = `<div class="card" style="color:#dc2626;">Error: ${e.message}</div>`;
   } finally {
