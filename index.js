@@ -1740,7 +1740,7 @@ app.get('/api/odoo/status', (req, res) => {
   });
 });
 
-async function odooSearchRead(uid, model, domain, fields, opts = {}) {
+async function odooSearchRead(uid, model, domain, fields, opts = {}, onProgress) {
   const allItems = [];
   const pageSize = 200;
   let offset = 0;
@@ -1750,6 +1750,7 @@ async function odooSearchRead(uid, model, domain, fields, opts = {}) {
       { fields, limit: pageSize, offset, ...opts },
     ]);
     allItems.push(...batch);
+    if (onProgress) onProgress(allItems.length, batch.length);
     if (batch.length < pageSize) break;
     offset += pageSize;
   }
@@ -1780,13 +1781,14 @@ function saveOdooCacheToDisk() {
 async function getOdooProducts(force = false) {
   if (!force && odooCache && odooCache.length > 0) return odooCache;
   const uid = await odooAuth();
-  const fields = ['name', 'default_code', 'list_price', 'standard_price', 'categ_id', 'taxes_id', 'uom_id', 'x_studio_producto_mayorista', 'qty_available', 'image_128'];
+  const fieldsAll = ['name', 'default_code', 'list_price', 'standard_price', 'categ_id', 'taxes_id', 'uom_id', 'x_studio_producto_mayorista', 'qty_available', 'image_128'];
+  const fieldsLight = ['name', 'default_code', 'list_price', 'standard_price', 'categ_id', 'taxes_id', 'uom_id', 'x_studio_producto_mayorista', 'qty_available'];
 
-  // Incremental: si ya tengo cache, solo traer los modificados desde la última vez
+  // Incremental: si ya tengo cache, solo traer los modificados (sin imagen, más rápido)
   if (odooCache && odooCache.length > 0 && odooCacheTime > 0) {
     const since = new Date(odooCacheTime).toISOString().replace('T', ' ').slice(0, 19);
     console.log(`[odoo] refresh incremental desde ${since}...`);
-    const updated = await odooSearchRead(uid, 'product.product', [['active', '=', true], ['write_date', '>', since]], fields);
+    const updated = await odooSearchRead(uid, 'product.product', [['active', '=', true], ['write_date', '>', since]], fieldsLight);
     if (updated.length > 0) {
       const cacheMap = {};
       for (const p of odooCache) cacheMap[p.id] = p;
@@ -1797,7 +1799,7 @@ async function getOdooProducts(force = false) {
       console.log(`[odoo] incremental: sin cambios`);
     }
     // También traer nuevos productos que no existían
-    const newProducts = await odooSearchRead(uid, 'product.product', [['active', '=', true], ['create_date', '>', since]], fields);
+    const newProducts = await odooSearchRead(uid, 'product.product', [['active', '=', true], ['create_date', '>', since]], fieldsAll);
     if (newProducts.length > 0) {
       const existingIds = new Set(odooCache.map(p => p.id));
       const reallyNew = newProducts.filter(p => !existingIds.has(p.id));
@@ -1809,7 +1811,7 @@ async function getOdooProducts(force = false) {
   } else {
     // Primera carga: traer todo
     console.log(`[odoo] carga completa de productos...`);
-    odooCache = await odooSearchRead(uid, 'product.product', [['active', '=', true]], fields);
+    odooCache = await odooSearchRead(uid, 'product.product', [['active', '=', true]], fieldsAll);
     console.log(`[odoo] ${odooCache.length} productos cargados`);
   }
 
@@ -1820,24 +1822,333 @@ async function getOdooProducts(force = false) {
 
 loadOdooCacheFromDisk();
 
-// Refresh de productos Odoo solo a las 2am UY (UTC-3 = 5am UTC)
-// Prohibido en horario laboral
-function scheduleOdooNightRefresh() {
-  setInterval(async () => {
-    const nowUY = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Montevideo' }));
-    const hour = nowUY.getHours();
-    // Solo entre 2:00 y 2:59 AM Uruguay
-    if (hour === 2) {
-      try {
-        console.log('[odoo] refresh nocturno iniciando (2am UY)...');
-        await getOdooProducts(true);
-        await buildCatalogoCache(true).catch(e => console.error('[catalogo] error nocturno:', e.message));
-        console.log('[odoo] refresh nocturno completo');
-      } catch (e) { console.error('[odoo] refresh nocturno error:', e.message); }
+// ── Dashboard de Stock ──
+app.get('/api/dashboard-stock', requireToken, async (req, res) => {
+  try {
+    const products = odooCache || [];
+    if (!products.length) return res.status(503).json({ error: 'Sin datos de Odoo. Sincronizá primero.' });
+
+    const compras = loadCompras();
+    const incomingBySku = {};
+    for (const c of compras) {
+      for (const it of (c.items || [])) {
+        if (it.sku) incomingBySku[it.sku] = (incomingBySku[it.sku] || 0) + (parseInt(it.qty) || 0);
+      }
     }
-  }, 60 * 60 * 1000); // chequea cada hora
-}
-scheduleOdooNightRefresh();
+
+    let ihomeMap = {};
+    try { if (fs.existsSync(IHOME_MAP_FILE)) ihomeMap = JSON.parse(fs.readFileSync(IHOME_MAP_FILE, 'utf8')); } catch {}
+
+    // Catalogo cache for sales data
+    let salesData = {};
+    if (_catalogoCache?.categories) {
+      for (const cat of _catalogoCache.categories) {
+        for (const item of cat.items) {
+          if (item.sku) salesData[item.sku] = item;
+        }
+      }
+    }
+
+    const leadTimeChina = parseInt(req.query.lead_time) || 50;
+    const skipNames = ['mercado envios', 'self_service', 'drop_off', 'default', 'cross_docking', 'fulfillment'];
+    const packBom = loadPackBom();
+    const now = new Date();
+
+    const items = [];
+    let totalCapital = 0, totalCapitalTransito = 0, totalCapitalMuerto = 0;
+    let quiebreCount = 0, reponerCount = 0, dormidoCount = 0;
+    let totalDiasCobertura = 0, itemsConVenta = 0;
+
+    for (const p of products) {
+      const nameLower = (p.name || '').toLowerCase();
+      if (skipNames.some(s => nameLower.includes(s))) continue;
+      if (p.type === 'service') continue;
+      const sku = (p.default_code || '').trim();
+      if (!sku) continue;
+      if (packBom[sku]) continue; // skip packs
+
+      const stock = p.qty_available || 0;
+      const cost = p.standard_price || 0;
+      const incoming = incomingBySku[sku] || 0;
+      const sd = salesData[sku] || {};
+      const categ = Array.isArray(p.categ_id) ? p.categ_id[1] : (p.categ_id || '');
+      const ih = ihomeMap[sku] || {};
+
+      // Sales last 90 days (3 months) from sales_by_month
+      const salesByMonth = sd.sales_by_month || {};
+      const months = Object.keys(salesByMonth).sort().slice(-3);
+      const sold90d = months.reduce((s, m) => s + (salesByMonth[m] || 0), 0);
+      const ventaDiaria = months.length > 0 ? sold90d / (months.length * 30) : 0;
+
+      // Coverage days
+      const available = stock + incoming;
+      const diasCobertura = ventaDiaria > 0 ? Math.round(available / ventaDiaria) : (stock > 0 ? 999 : 0);
+
+      // Last sale month
+      const allMonths = Object.keys(salesByMonth).sort();
+      const lastSaleMonth = allMonths.length > 0 ? allMonths[allMonths.length - 1] : null;
+
+      // ABC from sales data
+      const abc = sd.abc || null;
+
+      // Capital
+      const capitalInvertido = Math.round(stock * cost);
+      const capitalTransito = Math.round(incoming * cost);
+      totalCapital += capitalInvertido;
+      totalCapitalTransito += capitalTransito;
+
+      // Coverage target by ABC
+      const coberturaObjetivo = abc === 'A' ? 120 : abc === 'B' ? 90 : 60;
+
+      // Suggested qty to order (reach target coverage post-lead-time)
+      const diasNecesarios = coberturaObjetivo + leadTimeChina;
+      const necesario = Math.ceil(ventaDiaria * diasNecesarios);
+      const sugerido = Math.max(0, necesario - available);
+
+      // Classify
+      let estado = 'ok';
+      if (ventaDiaria === 0 && stock > 0) {
+        // No sales 90d but has stock = dormido
+        estado = 'dormido';
+        dormidoCount++;
+        totalCapitalMuerto += capitalInvertido;
+      } else if (diasCobertura < 30) {
+        estado = 'quiebre';
+        quiebreCount++;
+      } else if (diasCobertura <= 90) {
+        estado = 'reponer';
+        reponerCount++;
+      } else if (diasCobertura > 180 && ventaDiaria > 0) {
+        estado = 'exceso';
+      }
+
+      if (ventaDiaria > 0) {
+        totalDiasCobertura += diasCobertura;
+        itemsConVenta++;
+      }
+
+      items.push({
+        sku, name: p.name, categ, abc,
+        stock, incoming, cost, ventaDiaria: Math.round(ventaDiaria * 100) / 100,
+        diasCobertura, coberturaObjetivo, sugerido, estado,
+        capitalInvertido, capitalTransito,
+        sold90d, lastSaleMonth,
+        fob: ih.fob || 0, ihome: ih.ihome || '',
+        thumbnail: sd.ml_thumbnail || null,
+        canal_principal: sd.canal_principal || null,
+      });
+    }
+
+    // Global coverage (weighted average)
+    const coberturaGlobal = itemsConVenta > 0 ? Math.round(totalDiasCobertura / itemsConVenta) : 0;
+
+    // Insights
+    const insights = [];
+
+    // 1. Categories growing
+    const catSales = {};
+    for (const it of items) {
+      if (!it.categ || it.ventaDiaria === 0) continue;
+      if (!catSales[it.categ]) catSales[it.categ] = { current: 0, items: 0 };
+      catSales[it.categ].current += it.sold90d;
+      catSales[it.categ].items++;
+    }
+    const topCats = Object.entries(catSales).sort((a, b) => b[1].current - a[1].current).slice(0, 3);
+    if (topCats.length) {
+      insights.push({ type: 'growth', text: 'Top categorías 90d: ' + topCats.map(([c, d]) => c + ' (' + d.current + ' uds)').join(', ') });
+    }
+
+    // 2. Supplier with most breaks
+    const supplierBreaks = {};
+    for (const it of items) {
+      if (it.estado !== 'quiebre') continue;
+      const sup = it.categ || 'General';
+      supplierBreaks[sup] = (supplierBreaks[sup] || 0) + 1;
+    }
+    const worstSup = Object.entries(supplierBreaks).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    if (worstSup.length && worstSup[0][1] > 2) {
+      insights.push({ type: 'warning', text: worstSup.map(([s, c]) => s + ': ' + c + ' SKUs en quiebre').join(' · ') });
+    }
+
+    // 3. A products without stock
+    const aNoStock = items.filter(i => i.abc === 'A' && i.stock <= 0 && i.ventaDiaria > 0);
+    if (aNoStock.length) {
+      insights.push({ type: 'critical', text: aNoStock.length + ' productos A sin stock: ' + aNoStock.slice(0, 5).map(i => i.sku).join(', ') + (aNoStock.length > 5 ? '...' : '') });
+    }
+
+    // 4. Dead capital summary
+    if (totalCapitalMuerto > 0) {
+      insights.push({ type: 'info', text: 'Capital muerto: $' + totalCapitalMuerto.toLocaleString('es-UY') + ' en ' + dormidoCount + ' SKUs sin ventas 90d' });
+    }
+
+    // 5. High coverage items that could be liquidated
+    const exceso = items.filter(i => i.estado === 'exceso');
+    if (exceso.length > 5) {
+      const capExceso = exceso.reduce((s, i) => s + i.capitalInvertido, 0);
+      insights.push({ type: 'opportunity', text: exceso.length + ' SKUs con +180 días de cobertura ($' + capExceso.toLocaleString('es-UY') + ' atado). Oportunidad de liquidar.' });
+    }
+
+    res.json({
+      kpis: {
+        capitalTotal: totalCapital + totalCapitalTransito,
+        capitalStock: totalCapital,
+        capitalTransito: totalCapitalTransito,
+        coberturaGlobal,
+        quiebreCount,
+        reponerCount,
+        capitalMuerto: totalCapitalMuerto,
+        dormidoCount,
+        totalSKUs: items.length,
+        itemsConVenta,
+      },
+      quiebre: items.filter(i => i.estado === 'quiebre').sort((a, b) => a.diasCobertura - b.diasCobertura),
+      reponer: items.filter(i => i.estado === 'reponer').sort((a, b) => a.diasCobertura - b.diasCobertura),
+      dormidos: items.filter(i => i.estado === 'dormido').sort((a, b) => b.capitalInvertido - a.capitalInvertido),
+      insights,
+      config: { leadTimeChina },
+      generado: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error('[dashboard-stock] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Odoo: Railway NUNCA conecta a Odoo. Solo se sincroniza localmente y se pushea el cache.
+// En Railway se lee siempre del cache en disco.
+
+// Sync local + push a Railway (con streaming de progreso)
+let _syncLog = [];
+let _syncStatus = 'idle'; // idle, running, done, error
+let _syncProgress = 0;
+
+app.post('/api/odoo/sync-push', requireAdmin, async (req, res) => {
+  if (process.env.RAILWAY_ENVIRONMENT) return res.status(403).json({ error: 'Solo se puede sincronizar desde local' });
+  if (_syncStatus === 'running') return res.status(409).json({ error: 'Ya hay una sincronización en curso' });
+
+  _syncLog = [];
+  _syncStatus = 'running';
+  _syncProgress = 0;
+  res.json({ ok: true, message: 'Sincronización iniciada' });
+
+  // Run in background
+  (async () => {
+    try {
+      const { execSync } = require('child_process');
+
+      // Step 1: Auth
+      _syncProgress = 5;
+      _syncLog.push({ t: Date.now(), msg: 'Conectando a Odoo (' + ODOO_HOST + ')...' });
+      const uid = await odooAuth();
+      _syncLog.push({ t: Date.now(), msg: 'Autenticado con Odoo (uid: ' + uid + ')' });
+      _syncProgress = 10;
+
+      // Step 2: Products (con detalle)
+      const beforeCount = odooCache?.length || 0;
+      const since = odooCacheTime > 0 ? new Date(odooCacheTime).toISOString().replace('T', ' ').slice(0, 19) : null;
+      if (since) {
+        _syncLog.push({ t: Date.now(), msg: 'Modo incremental: trayendo cambios desde ' + since });
+      } else {
+        _syncLog.push({ t: Date.now(), msg: 'Primera carga: trayendo todos los productos...' });
+      }
+
+      const fieldsAll = ['name', 'default_code', 'list_price', 'standard_price', 'categ_id', 'taxes_id', 'uom_id', 'x_studio_producto_mayorista', 'qty_available', 'image_128'];
+      // Incremental: sin imagen (ya la tenemos), mucho más rápido
+      const fieldsLight = ['name', 'default_code', 'list_price', 'standard_price', 'categ_id', 'taxes_id', 'uom_id', 'x_studio_producto_mayorista', 'qty_available'];
+
+      if (since && odooCache?.length > 0) {
+        // Incremental sin imágenes
+        const updated = await odooSearchRead(uid, 'product.product', [['active', '=', true], ['write_date', '>', since]], fieldsLight, {},
+          (total, batch) => { _syncLog.push({ t: Date.now(), msg: '  → ' + total + ' productos modificados encontrados (lote de ' + batch + ')' }); _syncProgress = Math.min(25, 10 + total / 10); }
+        );
+        if (updated.length > 0) {
+          const cacheMap = {};
+          for (const p of odooCache) cacheMap[p.id] = p;
+          for (const p of updated) cacheMap[p.id] = p;
+          odooCache = Object.values(cacheMap);
+          _syncLog.push({ t: Date.now(), msg: updated.length + ' productos actualizados' });
+        } else {
+          _syncLog.push({ t: Date.now(), msg: 'Sin productos modificados' });
+        }
+
+        const newProds = await odooSearchRead(uid, 'product.product', [['active', '=', true], ['create_date', '>', since]], fieldsAll, {},
+          (total) => { _syncLog.push({ t: Date.now(), msg: '  → ' + total + ' productos nuevos encontrados' }); }
+        );
+        const existingIds = new Set(odooCache.map(p => p.id));
+        const reallyNew = newProds.filter(p => !existingIds.has(p.id));
+        if (reallyNew.length > 0) {
+          odooCache.push(...reallyNew);
+          _syncLog.push({ t: Date.now(), msg: reallyNew.length + ' productos nuevos agregados' });
+        } else {
+          _syncLog.push({ t: Date.now(), msg: 'Sin productos nuevos' });
+        }
+      } else {
+        // Full load
+        odooCache = await odooSearchRead(uid, 'product.product', [['active', '=', true]], fieldsAll, {},
+          (total, batch) => { _syncLog.push({ t: Date.now(), msg: '  → ' + total + ' productos cargados...' }); _syncProgress = Math.min(25, 10 + total / 200); }
+        );
+      }
+
+      odooCacheTime = Date.now();
+      saveOdooCacheToDisk();
+      const afterCount = odooCache?.length || 0;
+      _syncLog.push({ t: Date.now(), msg: 'Productos totales en cache: ' + afterCount + (afterCount - beforeCount > 0 ? ' (+' + (afterCount - beforeCount) + ')' : '') });
+      _syncProgress = 30;
+
+      // Step 3: Build catalogo con ventas
+      _syncLog.push({ t: Date.now(), msg: 'Construyendo catálogo con ventas por canal...' });
+      _syncProgress = 35;
+
+      const syncLog = (msg) => { _syncLog.push({ t: Date.now(), msg: '  ' + msg }); };
+      await buildCatalogoCache(true, syncLog);
+      _syncLog.push({ t: Date.now(), msg: 'Catálogo listo: ' + (_catalogoCache?.total || 0) + ' productos' });
+      _syncProgress = 70;
+
+      // Step 5: Save files
+      _syncLog.push({ t: Date.now(), msg: 'Guardando cache en disco...' });
+      const odooSize = Math.round(fs.statSync(path.join(__dirname, 'data', 'odoo_cache.json')).size / 1024);
+      const catSize = Math.round(fs.statSync(CATALOGO_CACHE_FILE).size / 1024);
+      _syncLog.push({ t: Date.now(), msg: 'Archivos: odoo_cache.json (' + odooSize + 'KB) + catalogo_cache.json (' + catSize + 'KB)' });
+      _syncProgress = 80;
+
+      // Step 6: Git
+      _syncLog.push({ t: Date.now(), msg: 'Git: staging archivos...' });
+      const gitDir = __dirname;
+      execSync('git add -f data/odoo_cache.json data/catalogo_cache.json', { cwd: gitDir });
+      _syncProgress = 85;
+
+      const now = new Date().toLocaleString('es-UY', { timeZone: 'America/Montevideo' });
+      try {
+        execSync(`git commit -m "Sync Odoo cache ${now}"`, { cwd: gitDir });
+        _syncLog.push({ t: Date.now(), msg: 'Git: commit creado' });
+      } catch(e) {
+        _syncLog.push({ t: Date.now(), msg: 'Git: sin cambios (datos ya actualizados)' });
+        _syncProgress = 100;
+        _syncStatus = 'done';
+        return;
+      }
+      _syncProgress = 90;
+
+      _syncLog.push({ t: Date.now(), msg: 'Git: pushing a main y testing...' });
+      execSync('git push origin main main:testing --force', { cwd: gitDir });
+      _syncLog.push({ t: Date.now(), msg: 'Push completo. Railway redeploya en ~3 min.' });
+      _syncProgress = 100;
+      _syncStatus = 'done';
+
+    } catch(e) {
+      _syncLog.push({ t: Date.now(), msg: 'ERROR: ' + e.message });
+      _syncStatus = 'error';
+      console.error('[sync] error:', e.message);
+    }
+  })();
+});
+
+// Polling endpoint para el progreso
+app.get('/api/odoo/sync-status', requireAdmin, (req, res) => {
+  const lastUpdate = odooCacheTime ? new Date(odooCacheTime).toISOString() : null;
+  const productCount = odooCache?.length || 0;
+  res.json({ status: _syncStatus, progress: _syncProgress, log: _syncLog, lastUpdate, productCount });
+});
 
 app.get('/api/odoo/buscar-partner', async (req, res) => {
   try {
@@ -1909,9 +2220,8 @@ let _catalogoCache = null;
 let _catalogoCacheTime = 0;
 const CATALOGO_CACHE_FILE = path.join(__dirname, 'data', 'catalogo_cache.json');
 
-async function buildCatalogoCache(force = false) {
+async function buildCatalogoCache(force = false, onLog) {
   if (!force && _catalogoCache && (Date.now() - _catalogoCacheTime < 3600000)) return _catalogoCache;
-  // Try disk cache first
   if (!force && !_catalogoCache) {
     try {
       if (fs.existsSync(CATALOGO_CACHE_FILE)) {
@@ -1923,7 +2233,7 @@ async function buildCatalogoCache(force = false) {
     } catch(e) {}
   }
   console.log('[catalogo] construyendo cache...');
-  const result = await _buildCatalogoData(force);
+  const result = await _buildCatalogoData(force, onLog);
   _catalogoCache = result;
   _catalogoCacheTime = Date.now();
   try { fs.writeFileSync(CATALOGO_CACHE_FILE, JSON.stringify(result)); } catch(e) {}
@@ -1931,19 +2241,12 @@ async function buildCatalogoCache(force = false) {
   return result;
 }
 
-// Catalogo se sirve del cache en disco. Refresh solo manual.
-// Para refrescar: /api/odoo/productos?refresh=true
+// Catalogo se sirve del cache en disco. En Railway nunca conecta a Odoo.
 
 app.get('/api/odoo/productos', async (req, res) => {
   try {
-    if (req.query.refresh === 'true') {
-      const nowUY = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Montevideo' }));
-      const h = nowUY.getHours();
-      if (h >= 8 && h < 22) {
-        console.log('[odoo] refresh bloqueado en horario laboral (' + h + 'h UY)');
-      } else {
-        buildCatalogoCache(true).catch(e => console.error('[catalogo] refresh error:', e.message));
-      }
+    if (req.query.refresh === 'true' && !process.env.RAILWAY_ENVIRONMENT) {
+      buildCatalogoCache(true).catch(e => console.error('[catalogo] refresh error:', e.message));
     }
     // Serve from cache if available
     if (_catalogoCache) return res.json(_catalogoCache);
@@ -1980,9 +2283,11 @@ app.get('/api/odoo/productos', async (req, res) => {
   }
 });
 
-async function _buildCatalogoData(forceProducts) {
+async function _buildCatalogoData(forceProducts, onLog) {
+  const log = onLog || (() => {});
   try {
     const products = await getOdooProducts(forceProducts);
+    log('Productos cargados: ' + products.length);
 
     // Traer ventas de los últimos 6 meses por producto, mes Y canal
     let salesByProduct = {};     // product_id -> total qty
@@ -2008,25 +2313,31 @@ async function _buildCatalogoData(forceProducts) {
         const monthSet = new Set();
 
         // ML: salesman_id = 2 (Mateo)
+        log('Trayendo ventas ML (Mateo, desde ' + dateFrom + ')...');
         const mlSales = await odooCall('/xmlrpc/2/object', 'execute_kw', [
           ODOO_DB, uid, ODOO_API_KEY, 'sale.order.line', 'read_group',
           [[['create_date', '>=', dateFrom], ['state', 'in', ['sale', 'done']], ['salesman_id', '=', 2]]],
           { fields: ['product_id', 'product_uom_qty', 'create_date'], groupby: ['product_id', 'create_date:month'], lazy: false }
         ]);
+        log('  ML: ' + mlSales.length + ' registros');
 
         // Mayorista: salesman_id in [17, 18]
+        log('Trayendo ventas Mayorista (Gustavo/Omar)...');
         const maySales = await odooCall('/xmlrpc/2/object', 'execute_kw', [
           ODOO_DB, uid, ODOO_API_KEY, 'sale.order.line', 'read_group',
           [[['create_date', '>=', dateFrom], ['state', 'in', ['sale', 'done']], ['salesman_id', 'in', [17, 18]]]],
           { fields: ['product_id', 'product_uom_qty', 'create_date'], groupby: ['product_id', 'create_date:month'], lazy: false }
         ]);
+        log('  Mayorista: ' + maySales.length + ' registros');
 
         // POS (local)
+        log('Trayendo ventas Local (POS)...');
         const posSales = await odooCall('/xmlrpc/2/object', 'execute_kw', [
           ODOO_DB, uid, ODOO_API_KEY, 'pos.order.line', 'read_group',
           [[['create_date', '>=', dateFrom]]],
           { fields: ['product_id', 'qty', 'create_date'], groupby: ['product_id', 'create_date:month'], lazy: false }
         ]);
+        log('  Local: ' + posSales.length + ' registros');
 
         function processSales(data, channel, qtyField) {
           for (const r of data) {
@@ -5695,6 +6006,88 @@ app.get('/api/perdidos', requireToken, (req, res) => {
   res.json({ months: monthResults });
 });
 
+// ── CBM consumidos por mes (local/POS) ──────────────────────────
+app.get('/api/cbm-local', requireToken, async (req, res) => {
+  try {
+    const uid = await odooAuth();
+    const monthNames = { enero:'01',febrero:'02',marzo:'03',abril:'04',mayo:'05',junio:'06',julio:'07',agosto:'08',septiembre:'09',setiembre:'09',octubre:'10',noviembre:'11',diciembre:'12',
+      january:'01',february:'02',march:'03',april:'04',may:'05',june:'06',july:'07',august:'08',september:'09',october:'10',november:'11',december:'12' };
+
+    const posSales = await odooCall('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_DB, uid, ODOO_API_KEY, 'pos.order.line', 'read_group',
+      [[]],
+      { fields: ['product_id', 'qty', 'create_date'], groupby: ['product_id', 'create_date:month'], lazy: false }
+    ]);
+
+    const products = await getOdooProducts(false);
+    const prodMap = {};
+    for (const p of products) prodMap[p.id] = p;
+
+    let ihomeMap = {};
+    try { if (fs.existsSync(path.join(__dirname, 'data', 'ihome_mapping.json'))) ihomeMap = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'ihome_mapping.json'), 'utf8')); } catch {}
+
+    const byMonth = {};
+    const byProduct = {};
+
+    for (const r of posSales) {
+      if (!r.product_id) continue;
+      const prod = prodMap[r.product_id[0]];
+      if (!prod) continue;
+      const sku = (prod.default_code || '').trim();
+      const qty = r.qty || 0;
+      if (qty <= 0) continue;
+
+      const monthStr = (r['create_date:month'] || '').toLowerCase();
+      const parts = monthStr.split(' ');
+      if (parts.length !== 2) continue;
+      const mm = monthNames[parts[0]];
+      if (!mm) continue;
+      const key = parts[1] + '-' + mm;
+
+      const cbmUnit = ihomeMap[sku]?.cbm_per_unit || 0;
+      const cbm = cbmUnit * qty;
+
+      if (!byMonth[key]) byMonth[key] = { cbm: 0, qty: 0, products: new Set() };
+      byMonth[key].cbm += cbm;
+      byMonth[key].qty += qty;
+      byMonth[key].products.add(sku);
+
+      if (!byProduct[sku]) byProduct[sku] = { name: prod.name, totalQty: 0, totalCbm: 0, cbmUnit, months: {} };
+      byProduct[sku].totalQty += qty;
+      byProduct[sku].totalCbm += cbm;
+      if (!byProduct[sku].months[key]) byProduct[sku].months[key] = { qty: 0, cbm: 0 };
+      byProduct[sku].months[key].qty += qty;
+      byProduct[sku].months[key].cbm += cbm;
+    }
+
+    for (const v of Object.values(byMonth)) { v.items = v.products.size; delete v.products; v.cbm = Math.round(v.cbm * 100) / 100; }
+
+    const topProducts = Object.entries(byProduct)
+      .map(([sku, d]) => ({ sku, ...d, totalCbm: Math.round(d.totalCbm * 100) / 100 }))
+      .filter(p => p.totalCbm > 0)
+      .sort((a, b) => b.totalCbm - a.totalCbm)
+      .slice(0, 50);
+
+    const months = Object.keys(byMonth).sort();
+    const totalCbm = months.reduce((s, m) => s + byMonth[m].cbm, 0);
+    const avgCbm = months.length > 0 ? Math.round(totalCbm / months.length * 100) / 100 : 0;
+
+    res.json({
+      byMonth, months, topProducts,
+      summary: {
+        totalCbm: Math.round(totalCbm * 100) / 100,
+        avgCbmMonth: avgCbm,
+        totalMonths: months.length,
+        contenedores20ft: Math.round(avgCbm / 28 * 10) / 10,
+        contenedores40ft: Math.round(avgCbm / 67 * 10) / 10,
+      }
+    });
+  } catch (e) {
+    console.error('[cbm-local]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Comparador año a año ─────────────────────────────────────────
 app.get('/api/comparador', requireToken, async (req, res) => {
   const headers = { Authorization: `Bearer ${tokenData.access_token}` };
@@ -6465,10 +6858,32 @@ const ORDENES_FILE = path.join(__dirname, 'data', 'ordenes_compra.json');
 function loadOrdenes() { try { return fs.existsSync(ORDENES_FILE) ? JSON.parse(fs.readFileSync(ORDENES_FILE, 'utf8')) : []; } catch { return []; } }
 function saveOrdenes(data) { fs.writeFileSync(ORDENES_FILE, JSON.stringify(data, null, 2), 'utf8'); }
 
-app.get('/api/ordenes-compra', requireToken, (req, res) => res.json(loadOrdenes()));
+app.get('/api/ordenes-compra', requireToken, (req, res) => {
+  let ihomeMap = {};
+  try { if (fs.existsSync(path.join(__dirname, 'data', 'ihome_mapping.json'))) ihomeMap = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'ihome_mapping.json'), 'utf8')); } catch {}
+
+  const ordenes = loadOrdenes().map(o => {
+    // Enrich items with CBM, FOB, thumb if missing
+    o.items = (o.items || []).map(item => {
+      const ih = ihomeMap[item.sku] || {};
+      const ml = cachedStock.find(s => s.sku === item.sku);
+      return {
+        ...item,
+        cbm: item.cbm || Math.round((ih.cbm_per_unit || 0) * (item.qty || 0) * 100) / 100 || 0,
+        fob: item.fob || ih.fob || 0,
+        thumb: item.thumb || ml?.thumbnail || '',
+      };
+    });
+    o.total_cbm = Math.round(o.items.reduce((s, i) => s + (i.cbm || 0), 0) * 100) / 100;
+    o.total_fob = Math.round(o.items.reduce((s, i) => s + (i.fob || 0) * (i.qty || 0), 0) * 100) / 100;
+    o.total_qty = o.items.reduce((s, i) => s + (i.qty || 0), 0);
+    return o;
+  });
+  res.json(ordenes);
+});
 
 app.post('/api/ordenes-compra', requireToken, (req, res) => {
-  const { items, notes } = req.body;
+  const { items, notes, status: reqStatus } = req.body;
   if (!items?.length) return res.status(400).json({ error: 'Sin items' });
   let ihomeMap = {};
   try { if (fs.existsSync(IHOME_MAP_FILE)) ihomeMap = JSON.parse(fs.readFileSync(IHOME_MAP_FILE, 'utf8')); } catch {}
@@ -6482,7 +6897,7 @@ app.post('/api/ordenes-compra', requireToken, (req, res) => {
   const orden = {
     id: Date.now().toString(),
     created_at: new Date().toISOString(),
-    status: 'pedida',
+    status: reqStatus || 'pedida',
     notes: notes || '',
     items: enrichedItems,
     total_qty: items.reduce((s, i) => s + (i.qty || 0), 0),
@@ -6524,6 +6939,118 @@ app.post('/api/ordenes-compra/:id/confirmar', requireToken, (req, res) => {
 
 app.delete('/api/ordenes-compra/:id', requireToken, (req, res) => {
   saveOrdenes(loadOrdenes().filter(o => o.id !== req.params.id));
+  res.json({ ok: true });
+});
+
+// Edit items within an order
+app.put('/api/ordenes-compra/:id/item', requireToken, (req, res) => {
+  const { index, qty } = req.body;
+  const ordenes = loadOrdenes();
+  const orden = ordenes.find(o => o.id === req.params.id);
+  if (!orden) return res.status(404).json({ error: 'Orden no encontrada' });
+  if (index >= 0 && index < orden.items.length) {
+    if (qty <= 0) {
+      orden.items.splice(index, 1);
+    } else {
+      orden.items[index].qty = qty;
+    }
+    orden.total_qty = orden.items.reduce((s, i) => s + (i.qty || 0), 0);
+    saveOrdenes(ordenes);
+  }
+  res.json({ ok: true });
+});
+
+app.delete('/api/ordenes-compra/:id/item', requireToken, (req, res) => {
+  const { index } = req.body;
+  const ordenes = loadOrdenes();
+  const orden = ordenes.find(o => o.id === req.params.id);
+  if (!orden) return res.status(404).json({ error: 'Orden no encontrada' });
+  if (index >= 0 && index < orden.items.length) {
+    orden.items.splice(index, 1);
+    orden.total_qty = orden.items.reduce((s, i) => s + (i.qty || 0), 0);
+    saveOrdenes(ordenes);
+  }
+  res.json({ ok: true });
+});
+
+app.post('/api/ordenes-compra/:id/item', requireToken, (req, res) => {
+  const { sku, qty } = req.body;
+  const ordenes = loadOrdenes();
+  const orden = ordenes.find(o => o.id === req.params.id);
+  if (!orden) return res.status(404).json({ error: 'Orden no encontrada' });
+
+  // Look up product info
+  const prod = (odooCache || []).find(p => (p.default_code || '').trim() === sku);
+  const name = prod?.name || sku;
+  let ihomeMap = {};
+  try { if (fs.existsSync(path.join(__dirname, 'data', 'ihome_mapping.json'))) ihomeMap = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'ihome_mapping.json'), 'utf8')); } catch {}
+  const ih = ihomeMap[sku] || {};
+  const mlItem = cachedStock.find(s => s.sku === sku);
+
+  const existing = orden.items.find(i => i.sku === sku);
+  if (existing) {
+    existing.qty += qty;
+    existing.cbm = Math.round((ih.cbm_per_unit || 0) * existing.qty * 100) / 100;
+  } else {
+    orden.items.push({
+      sku, name, qty,
+      fob: ih.fob || 0,
+      cbm: Math.round((ih.cbm_per_unit || 0) * qty * 100) / 100,
+      thumb: mlItem?.thumbnail || '',
+    });
+  }
+  orden.total_qty = orden.items.reduce((s, i) => s + (i.qty || 0), 0);
+  orden.total_cbm = Math.round(orden.items.reduce((s, i) => s + (i.cbm || 0), 0) * 100) / 100;
+  orden.total_fob = Math.round(orden.items.reduce((s, i) => s + (i.fob || 0) * (i.qty || 0), 0) * 100) / 100;
+  saveOrdenes(ordenes);
+  res.json({ ok: true });
+});
+
+// ── Orden draft (auto-guardado) ──
+const DRAFT_FILE = path.join(__dirname, 'data', 'orden_draft.json');
+
+function loadDraft() {
+  try { return fs.existsSync(DRAFT_FILE) ? JSON.parse(fs.readFileSync(DRAFT_FILE, 'utf8')) : null; } catch { return null; }
+}
+function saveDraft(data) {
+  fs.writeFileSync(DRAFT_FILE, JSON.stringify(data, null, 2), 'utf8');
+}
+
+function generateOrderNumber() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  // Count existing orders this month
+  const ordenes = loadOrdenes();
+  const thisMonth = ordenes.filter(o => o.number && o.number.startsWith(`OC-${y}${m}`)).length;
+  const seq = String(thisMonth + 1).padStart(3, '0');
+  return `OC-${y}${m}-${seq}`;
+}
+
+app.get('/api/orden-draft', requireToken, (req, res) => {
+  const draft = loadDraft();
+  if (draft) res.json(draft);
+  else res.json({ id: null, number: null, items: [] });
+});
+
+app.post('/api/orden-draft', requireToken, (req, res) => {
+  const { id, items } = req.body;
+  let draft = loadDraft();
+  if (!draft || !draft.id || (id && draft.id !== id)) {
+    // New draft
+    const newId = 'draft-' + Date.now();
+    const number = generateOrderNumber();
+    draft = { id: newId, number, items: items || [], created: new Date().toISOString(), updated: new Date().toISOString() };
+  } else {
+    draft.items = items || [];
+    draft.updated = new Date().toISOString();
+  }
+  saveDraft(draft);
+  res.json({ id: draft.id, number: draft.number });
+});
+
+app.delete('/api/orden-draft', requireToken, (req, res) => {
+  try { fs.unlinkSync(DRAFT_FILE); } catch {}
   res.json({ ok: true });
 });
 

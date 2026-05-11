@@ -1,0 +1,31 @@
+{
+  "campaigns": [],
+  "log": [
+    {
+      "item_id": "MLU480822453",
+      "action": "price_change",
+      "price": 899,
+      "original_price": 1189,
+      "date": "2026-05-03T22:06:31.901Z"
+    },
+    {
+      "item_id": "MLU480822453",
+      "action": "shipping_change",
+      "free_shipping": true,
+      "date": "2026-05-03T22:06:32.079Z"
+    },
+    {
+      "item_id": "MLU480822453",
+      "action": "price_change",
+      "price": 899,
+      "original_price": 1189,
+      "date": "2026-05-03T22:07:14.383Z"
+    },
+    {
+      "item_id": "MLU480822453",
+      "action": "shipping_change",
+      "free_shipping": true,
+      "date": "2026-05-03T22:07:14.558Z"
+    }
+  ]
+}

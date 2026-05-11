@@ -409,8 +409,14 @@
         <div class="nav-item" data-page="orden-sugerida" onclick="showPage('orden-sugerida')">
           <span class="nav-icon">📋</span> Orden sugerida
         </div>
+        <div class="nav-item" data-page="ordenes-compra" onclick="showPage('ordenes-compra')">
+          <span class="nav-icon">📋</span> Mis &oacute;rdenes
+        </div>
         <div class="nav-item" data-page="dimensiones" onclick="showPage('dimensiones')">
           <span class="nav-icon">📐</span> Dimensiones
+        </div>
+        <div class="nav-item" data-page="cbm-local" onclick="showPage('cbm-local')">
+          <span class="nav-icon">📦</span> CBM Local
         </div>
       </div>
 
@@ -1313,6 +1319,19 @@
         <div id="users-table-content"><div class="loading"><span class="spinner"></span>Cargando...</div></div>
       </div>
 
+      <!-- Sync Odoo → Railway -->
+      <div class="card" style="margin-bottom:16px;border-left:4px solid #4361ee;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-size:14px;font-weight:700;">Sincronizar Odoo → Railway</div>
+            <div style="font-size:12px;color:#6b7280;">Trae datos actualizados de Odoo y los sube a testing/producci&oacute;n</div>
+            <div id="sync-last-update" style="font-size:11px;color:#9ca3af;margin-top:4px;"></div>
+          </div>
+          <button onclick="syncOdooPush()" id="sync-push-btn" style="padding:10px 20px;background:#4361ee;color:white;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Sincronizar</button>
+        </div>
+        <div id="sync-push-status" style="margin-top:8px;"></div>
+      </div>
+
       <!-- Emails autorizados Google -->
       <div class="card" style="margin-bottom:16px;">
         <div style="font-size:14px;font-weight:700;margin-bottom:8px;">Emails autorizados (Google Login)</div>
@@ -2022,6 +2041,7 @@
           </div>
         </div>
       </div>
+      <div id="os-preparadas" style="margin-top:20px;"></div>
       <div id="os-ordenes-list" style="margin-top:20px;"></div>
     </div>
 
@@ -2166,6 +2186,29 @@
       </div>
       <div class="kpi-grid" style="grid-template-columns:repeat(6,1fr);" id="odoo-stock-kpis"></div>
       <div class="table-card"><div id="odoo-stock-table"><div class="loading"><span class="spinner"></span>Cargando stock Odoo...</div></div></div>
+    </div>
+
+    <!-- ══ MIS ÓRDENES ══ -->
+    <div id="page-ordenes-compra" style="display:none">
+      <div class="page-header">
+        <h1>📋 Mis &oacute;rdenes de compra</h1>
+        <p>Historial de &oacute;rdenes generadas</p>
+      </div>
+      <div id="oc-kpis"></div>
+      <div id="oc-draft" style="margin-bottom:16px;"></div>
+      <div id="oc-list"></div>
+    </div>
+
+    <!-- ══ CBM LOCAL ══ -->
+    <div id="page-cbm-local" style="display:none">
+      <div class="page-header">
+        <h1>📦 Consumo CBM &mdash; Local</h1>
+        <p>Metros c&uacute;bicos consumidos por mes en punto de venta</p>
+      </div>
+      <div id="cbm-kpis"></div>
+      <div id="cbm-chart" style="margin-bottom:20px;"></div>
+      <div id="cbm-table-monthly" style="margin-bottom:20px;"></div>
+      <div id="cbm-table-products"></div>
     </div>
 
     <!-- ══ DIMENSIONES DE ENVÍO ══ -->
@@ -2322,7 +2365,7 @@ function badgeClass(s) {
   return 'badge badge-' + (map[s] || 'default');
 }
 
-const PAGES = ['ventas', 'ordenes', 'stock', 'reclamos', 'devoluciones', 'tareas', 'precios', 'dashboard', 'comparador', 'zureo', 'perdidos', 'item-compare', 'objetivos', 'dimensiones', 'stock-odoo', 'orden-sugerida', 'odoo', 'odooml', 'catalogo', 'pedidos-may', 'previsiones', 'usuarios', 'ml-estrategia', 'ml-sin-descuento', 'ml-ofertas', 'ml-analizar', 'oportunidades', 'lineas', 'trends', 'calculadora', 'notebook', 'importaciones', 'imp-todas', 'imp-buscar', 'imp-detalle', 'imp-pi'];
+const PAGES = ['ventas', 'ordenes', 'stock', 'reclamos', 'devoluciones', 'tareas', 'precios', 'dashboard', 'comparador', 'zureo', 'perdidos', 'item-compare', 'objetivos', 'dimensiones', 'cbm-local', 'ordenes-compra', 'stock-odoo', 'orden-sugerida', 'odoo', 'odooml', 'catalogo', 'pedidos-may', 'previsiones', 'usuarios', 'ml-estrategia', 'ml-sin-descuento', 'ml-ofertas', 'ml-analizar', 'oportunidades', 'lineas', 'trends', 'calculadora', 'notebook', 'importaciones', 'imp-todas', 'imp-buscar', 'imp-detalle', 'imp-pi'];
 // Páginas virtuales que reutilizan ml-analizar
 const ML_TAB_PAGES = { 'ml-preguntas': 'pendientes', 'ml-postventa': 'mensajes', 'ml-reglas': 'reglas' };
 
@@ -2335,7 +2378,7 @@ function toggleNavGroup(id) {
 
 const navGroupMap = {
   'nav-ventas': ['ventas','ordenes','dashboard','comparador','zureo','perdidos','item-compare','objetivos'],
-  'nav-inventario': ['stock','previsiones','precios','stock-odoo','orden-sugerida','dimensiones'],
+  'nav-inventario': ['stock','previsiones','precios','stock-odoo','orden-sugerida','ordenes-compra','dimensiones','cbm-local'],
   'nav-posventa': ['reclamos','devoluciones','tareas'],
   'nav-mayorista': ['catalogo','pedidos-may'],
   'nav-oportunidades': ['oportunidades','lineas','trends','calculadora'],
@@ -2442,6 +2485,9 @@ function showPage(page) {
   if (page === 'dimensiones') {
     loadDimensiones();
   }
+  if (page === 'cbm-local') {
+    loadCbmLocal();
+  }
   if (page === 'zureo') {
     loadZureo();
   }
@@ -2458,7 +2504,11 @@ function showPage(page) {
     loadObjetivos();
   }
   if (page === 'orden-sugerida') {
+    initOrdenDraft();
     loadOrdenSugerida();
+  }
+  if (page === 'ordenes-compra') {
+    loadOrdenesPage();
   }
 }
 
@@ -3813,6 +3863,76 @@ async function init() {
 init();
 
 // ── Gestión de usuarios ───────────────────────────────────────────
+let _syncPollInterval = null;
+
+async function syncOdooPush() {
+  const btn = document.getElementById('sync-push-btn');
+  const status = document.getElementById('sync-push-status');
+  btn.disabled = true;
+  btn.textContent = 'Sincronizando...';
+
+  try {
+    const r = await fetch('/api/odoo/sync-push', { method: 'POST', headers: authHeaders() });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+
+    // Start polling
+    status.innerHTML = `
+      <div style="margin-top:8px;">
+        <div style="background:#e5e7eb;border-radius:8px;height:8px;overflow:hidden;margin-bottom:8px;">
+          <div id="sync-bar" style="height:100%;background:#4361ee;border-radius:8px;width:0%;transition:width 0.5s;"></div>
+        </div>
+        <div id="sync-pct" style="font-size:11px;color:#6b7280;margin-bottom:8px;">0%</div>
+        <div id="sync-log" style="background:#1a1d23;color:#a3e635;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;max-height:250px;overflow-y:auto;line-height:1.6;"></div>
+      </div>`;
+
+    _syncPollInterval = setInterval(pollSyncStatus, 1000);
+  } catch(e) {
+    status.innerHTML = '<div style="font-size:12px;color:#dc2626;">Error: ' + e.message + '</div>';
+    btn.disabled = false;
+    btn.textContent = 'Sincronizar';
+  }
+}
+
+async function pollSyncStatus() {
+  try {
+    const r = await fetch('/api/odoo/sync-status', { headers: authHeaders() });
+    const d = await r.json();
+
+    const bar = document.getElementById('sync-bar');
+    const pct = document.getElementById('sync-pct');
+    const log = document.getElementById('sync-log');
+    if (!bar) return;
+
+    bar.style.width = d.progress + '%';
+    pct.textContent = d.progress + '%';
+
+    // Render log
+    log.innerHTML = (d.log || []).map(l => {
+      const time = new Date(l.t).toLocaleTimeString('es-UY');
+      const isError = l.msg.startsWith('ERROR');
+      return '<div style="color:' + (isError ? '#ef4444' : '#a3e635') + ';">[' + time + '] ' + l.msg + '</div>';
+    }).join('');
+    log.scrollTop = log.scrollHeight;
+
+    if (d.status === 'done' || d.status === 'error') {
+      clearInterval(_syncPollInterval);
+      _syncPollInterval = null;
+      const btn = document.getElementById('sync-push-btn');
+      btn.disabled = false;
+      btn.textContent = 'Sincronizar';
+
+      if (d.status === 'done') {
+        bar.style.background = '#059669';
+        pct.innerHTML = '<span style="color:#059669;font-weight:700;">Completo</span>';
+      } else {
+        bar.style.background = '#dc2626';
+        pct.innerHTML = '<span style="color:#dc2626;font-weight:700;">Error</span>';
+      }
+    }
+  } catch(e) {}
+}
+
 async function loadAllowedEmails() {
   try {
     const res = await fetch('/api/auth/allowed-emails', { headers: authHeaders() });
@@ -3841,8 +3961,28 @@ async function removeAllowedEmail(email) {
   loadAllowedEmails();
 }
 
+async function loadLastSyncInfo() {
+  try {
+    const r = await fetch('/api/odoo/sync-status', { headers: authHeaders() });
+    const d = await r.json();
+    const el = document.getElementById('sync-last-update');
+    if (!el) return;
+    if (d.lastUpdate) {
+      const date = new Date(d.lastUpdate);
+      const ago = Math.round((Date.now() - date.getTime()) / 3600000);
+      const agoText = ago < 1 ? 'hace menos de 1 hora' : ago < 24 ? 'hace ' + ago + ' horas' : 'hace ' + Math.round(ago/24) + ' días';
+      el.innerHTML = 'Última actualización: <b>' + date.toLocaleString('es-UY') + '</b> (' + agoText + ') · ' + d.productCount + ' productos';
+      el.style.color = ago > 24 ? '#dc2626' : '#059669';
+    } else {
+      el.innerHTML = 'Sin datos de Odoo';
+      el.style.color = '#dc2626';
+    }
+  } catch(e) {}
+}
+
 async function loadUsersPage() {
   loadAllowedEmails();
+  loadLastSyncInfo();
   document.getElementById('users-table-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
   const res   = await fetch('/api/users', { headers: authHeaders() });
   const users = await res.json();
@@ -8806,6 +8946,7 @@ async function loadOrdenSugerida() {
     }
 
     content.innerHTML = html;
+    loadOrdenesPreparadas();
     loadOrdenesCompra();
   } catch(e) {
     content.innerHTML = `<div class="card" style="color:#dc2626;">Error: ${e.message}</div>`;
@@ -8815,11 +8956,39 @@ async function loadOrdenSugerida() {
   }
 }
 
-// ── Carrito de orden manual ──
+// ── Carrito de orden manual con auto-guardado ──
 let _ordenItems = [];
+let _ordenId = null;
+let _ordenNumber = null;
+
+// Recuperar orden en progreso al cargar
+async function initOrdenDraft() {
+  try {
+    const r = await fetch('/api/orden-draft', { headers: authHeaders() });
+    const d = await r.json();
+    if (d.items?.length) {
+      _ordenItems = d.items;
+      _ordenId = d.id;
+      _ordenNumber = d.number;
+      renderOrdenCart();
+    }
+  } catch {}
+}
+
+async function saveOrdenDraft() {
+  try {
+    const r = await fetch('/api/orden-draft', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: _ordenId, items: _ordenItems }),
+    });
+    const d = await r.json();
+    _ordenId = d.id;
+    _ordenNumber = d.number;
+  } catch {}
+}
 
 function agregarAOrden(sku, qty, name) {
-  // Find item in _osItems to get origen and thumbnail
   const it = (window._osItems || []).find(x => x.sku === sku);
   addToOrden(sku, name, qty, it?.origen || '', it?.ml_thumbnail || '');
 }
@@ -8832,21 +9001,28 @@ function addToOrden(sku, name, sugQty, origen, thumb) {
     _ordenItems.push({ sku, name: name.trim(), qty: sugQty, origen, thumb });
   }
   renderOrdenCart();
+  saveOrdenDraft();
 }
 
 function removeFromOrden(sku) {
   _ordenItems = _ordenItems.filter(i => i.sku !== sku);
   renderOrdenCart();
+  saveOrdenDraft();
 }
 
 function updateOrdenQty(sku, qty) {
   const item = _ordenItems.find(i => i.sku === sku);
   if (item) item.qty = parseInt(qty) || 0;
   renderOrdenCart();
+  saveOrdenDraft();
 }
 
 function limpiarOrden() {
+  if (!confirm('¿Limpiar la orden ' + (_ordenNumber || '') + '?')) return;
   _ordenItems = [];
+  _ordenId = null;
+  _ordenNumber = null;
+  fetch('/api/orden-draft', { method: 'DELETE', headers: authHeaders() }).catch(() => {});
   renderOrdenCart();
 }
 
@@ -8895,7 +9071,7 @@ async function renderOrdenCart() {
   cart.style.display = '';
 
   const map = await loadIhomeMap();
-  countEl.textContent = _ordenItems.length + ' productos';
+  countEl.textContent = (_ordenNumber ? _ordenNumber + ' · ' : '') + _ordenItems.length + ' productos';
   const totalQty = _ordenItems.reduce((s, i) => s + (i.qty || 0), 0);
 
   itemsEl.innerHTML = _ordenItems.map(i => {
@@ -8939,7 +9115,7 @@ async function exportarMiOrden() {
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
         <button onclick="document.getElementById('confirm-orden-modal').remove()" style="padding:8px 16px;background:#e5e7eb;color:#374151;border:none;border-radius:6px;font-size:13px;cursor:pointer;">Cancelar</button>
-        <button onclick="ejecutarOrden()" style="padding:8px 20px;background:#059669;color:white;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">✓ Confirmar y descargar Excel</button>
+        <button onclick="ejecutarOrden()" style="padding:8px 20px;background:#059669;color:white;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">✓ Preparar orden</button>
       </div>
     </div>
   </div>`;
@@ -9021,34 +9197,92 @@ async function ejecutarOrden() {
   const modal = document.getElementById('confirm-orden-modal');
 
   try {
-    // 1. Guardar como orden pedida
+    // Guardar como orden preparada
     await fetch('/api/ordenes-compra', {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: _ordenItems, notes: nota || 'Orden ' + new Date().toLocaleDateString('es-UY') }),
+      body: JSON.stringify({ items: _ordenItems, notes: nota || 'Orden ' + new Date().toLocaleDateString('es-UY'), status: 'preparada' }),
     });
 
-    // 2. Exportar Excel
-    const r = await fetch('/api/orden/exportar', {
+    if (modal) modal.remove();
+    _ordenItems = [];
+    renderOrdenCart();
+    loadOrdenesPreparadas();
+    loadOrdenesCompra();
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+async function loadOrdenesPreparadas() {
+  const el = document.getElementById('os-preparadas');
+  if (!el) return;
+  try {
+    const r = await fetch('/api/ordenes-compra', { headers: authHeaders() });
+    const ordenes = await r.json();
+    const preparadas = ordenes.filter(o => o.status === 'preparada');
+    if (!preparadas.length) { el.innerHTML = ''; return; }
+
+    el.innerHTML = `<div class="card" style="padding:0;overflow:hidden;border:2px solid #059669;">
+      <div style="padding:12px 16px;background:#f0fdf4;border-bottom:1px solid #dcfce7;">
+        <span style="font-weight:700;font-size:14px;color:#059669;">📋 Órdenes preparadas (${preparadas.length})</span>
+      </div>
+      ${preparadas.sort((a,b) => b.created_at.localeCompare(a.created_at)).map(o => {
+        const fecha = new Date(o.created_at).toLocaleDateString('es-UY');
+        const cbm = o.total_cbm ? ' · <b>' + o.total_cbm + ' CBM</b>' : '';
+        const fob = o.total_fob ? ' · $' + o.total_fob.toLocaleString('es-UY') + ' USD' : '';
+        return `<div style="padding:10px 16px;border-bottom:1px solid #f3f4f6;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div>
+              <div style="font-size:13px;font-weight:600;">${fecha} · ${o.items.length} productos · ${o.total_qty} uds${cbm}${fob}</div>
+              <div style="font-size:11px;color:#9ca3af;">${o.notes || ''}</div>
+            </div>
+            <div style="display:flex;gap:6px;">
+              <button onclick="enviarOrdenProveedor('${o.id}')" style="padding:6px 14px;background:#059669;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">📥 Excel</button>
+              <button onclick="marcarOrdenPedida('${o.id}')" style="padding:6px 14px;background:#4361ee;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">✓ Marcar pedida</button>
+              <button onclick="eliminarOrdenCompra('${o.id}')" style="padding:6px 8px;background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;">✕</button>
+            </div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;">
+            ${o.items.map(i => `<span style="font-size:10px;background:#f0fdf4;border:1px solid #dcfce7;padding:2px 6px;border-radius:4px;">${i.sku} ×${i.qty}</span>`).join('')}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  } catch {}
+}
+
+async function enviarOrdenProveedor(id) {
+  try {
+    const r = await fetch('/api/ordenes-compra', { headers: authHeaders() });
+    const ordenes = await r.json();
+    const orden = ordenes.find(o => o.id === id);
+    if (!orden) return;
+    const r2 = await fetch('/api/orden/exportar', {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: _ordenItems }),
+      body: JSON.stringify({ items: orden.items }),
     });
-    const blob = await r.blob();
+    const blob = await r2.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = 'order_MA_' + new Date().toISOString().slice(0, 10) + '.xlsx';
     a.click();
     URL.revokeObjectURL(url);
+  } catch(e) { alert('Error: ' + e.message); }
+}
 
-    if (modal) modal.remove();
-    _ordenItems = [];
-    renderOrdenCart();
-    loadOrdenesCompra();
-  } catch(e) {
-    alert('Error: ' + e.message);
-  }
+async function marcarOrdenPedida(id) {
+  const fecha = prompt('Fecha estimada de llegada (YYYY-MM-DD):');
+  if (!fecha) return;
+  await fetch('/api/ordenes-compra/' + id + '/confirmar', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expected_date: fecha }),
+  });
+  loadOrdenesPreparadas();
+  loadOrdenesCompra();
 }
 
 async function loadOrdenesCompra() {
@@ -9099,6 +9333,44 @@ async function eliminarOrdenCompra(id) {
   if (!confirm('¿Eliminar esta orden?')) return;
   await fetch('/api/ordenes-compra/' + id, { method: 'DELETE', headers: authHeaders() });
   loadOrdenesCompra();
+}
+
+async function updateOrdenItem(ordenId, itemIdx, newQty) {
+  try {
+    await fetch('/api/ordenes-compra/' + ordenId + '/item', {
+      method: 'PUT',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ index: itemIdx, qty: newQty }),
+    });
+  } catch {}
+}
+
+async function removeOrdenItem(ordenId, itemIdx) {
+  try {
+    await fetch('/api/ordenes-compra/' + ordenId + '/item', {
+      method: 'DELETE',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ index: itemIdx }),
+    });
+    loadOrdenesPage();
+  } catch {}
+}
+
+async function addItemToOrden(ordenId) {
+  const skuInput = document.getElementById('oc-add-sku-' + ordenId);
+  const qtyInput = document.getElementById('oc-add-qty-' + ordenId);
+  const sku = skuInput.value.trim();
+  const qty = parseInt(qtyInput.value) || 100;
+  if (!sku) return;
+  try {
+    await fetch('/api/ordenes-compra/' + ordenId + '/item', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sku, qty }),
+    });
+    skuInput.value = '';
+    loadOrdenesPage();
+  } catch {}
 }
 
 function exportarOrdenExcelOS() {
@@ -9660,6 +9932,291 @@ function renderOdooStockTable(items) {
     </tr></thead>
     ${bodyHtml}
   </table></div>`;
+}
+
+// ── Mis órdenes de compra (página) ──
+async function loadOrdenesPage() {
+  const kpis = document.getElementById('oc-kpis');
+  const draftEl = document.getElementById('oc-draft');
+  const listEl = document.getElementById('oc-list');
+  kpis.innerHTML = '<div class="loading"><span class="spinner"></span>Cargando &oacute;rdenes...</div>';
+  draftEl.innerHTML = ''; listEl.innerHTML = '';
+
+  try {
+    const [ordenesRes, draftRes] = await Promise.all([
+      fetch('/api/ordenes-compra', { headers: authHeaders() }),
+      fetch('/api/orden-draft', { headers: authHeaders() }),
+    ]);
+    const ordenes = await ordenesRes.json();
+    const draft = await draftRes.json();
+
+    const pedidas = ordenes.filter(o => o.status === 'pedida');
+    const confirmadas = ordenes.filter(o => o.status !== 'pedida');
+    const totalUsd = ordenes.reduce((s,o) => s + (o.total_fob || 0), 0);
+    const totalCbm = ordenes.reduce((s,o) => s + (o.total_cbm || 0), 0);
+
+    kpis.innerHTML = `
+      <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px;">
+        <div class="kpi-card" style="--accent:#4361ee">
+          <div class="kpi-label">Total &oacute;rdenes</div>
+          <div class="kpi-value">${ordenes.length}</div>
+        </div>
+        <div class="kpi-card" style="--accent:#d97706">
+          <div class="kpi-label">Pedidas (en curso)</div>
+          <div class="kpi-value" style="color:#d97706">${pedidas.length}</div>
+        </div>
+        <div class="kpi-card" style="--accent:#059669">
+          <div class="kpi-label">Confirmadas</div>
+          <div class="kpi-value" style="color:#059669">${confirmadas.length}</div>
+        </div>
+        <div class="kpi-card" style="--accent:#7c3aed">
+          <div class="kpi-label">Inversi&oacute;n total</div>
+          <div class="kpi-value">$${Math.round(totalUsd).toLocaleString('es-UY')}</div>
+          <div class="kpi-sub">${Math.round(totalCbm)} CBM</div>
+        </div>
+      </div>`;
+
+    // Draft en progreso
+    if (draft.items?.length) {
+      const draftQty = draft.items.reduce((s,i) => s + (i.qty||0), 0);
+      draftEl.innerHTML = `
+        <div class="card" style="border:2px solid #f59e0b;border-radius:12px;padding:0;overflow:hidden;">
+          <div style="padding:12px 16px;background:#fffbeb;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <span style="font-size:15px;font-weight:700;color:#d97706;">✏️ ${draft.number || 'Borrador'}</span>
+              <span style="font-size:12px;color:#92400e;margin-left:8px;">${draft.items.length} productos · ${draftQty} uds · en progreso</span>
+            </div>
+            <button onclick="showPage('orden-sugerida')" style="padding:6px 14px;background:#d97706;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">Continuar editando →</button>
+          </div>
+          <div style="padding:8px 16px;max-height:200px;overflow-y:auto;">
+            ${draft.items.map(i => `<div style="padding:3px 0;font-size:11px;color:#6b7280;display:flex;justify-content:space-between;">
+              <span>${i.sku} · ${(i.name||'').substring(0,40)}</span><span style="font-weight:600;">${i.qty} uds</span>
+            </div>`).join('')}
+          </div>
+        </div>`;
+    }
+
+    // Lista de órdenes
+    if (!ordenes.length) {
+      listEl.innerHTML = '<div class="table-card" style="text-align:center;color:#9ca3af;padding:32px;">No hay &oacute;rdenes todav&iacute;a. Gener&aacute; una desde Orden sugerida.</div>';
+      return;
+    }
+
+    const rows = ordenes.sort((a,b) => (b.created_at||'').localeCompare(a.created_at||'')).map(o => {
+      const fecha = new Date(o.created_at).toLocaleDateString('es-UY');
+      const isPedida = o.status === 'pedida';
+      const statusBadge = isPedida
+        ? '<span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e;">⏳ Pedida</span>'
+        : '<span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:#d1fae5;color:#065f46;">✅ Confirmada</span>';
+
+      const detailId = 'oc-detail-' + (o.id||'').replace(/[^a-z0-9]/gi,'-');
+      const oid = (o.id||'').replace(/'/g,'');
+      const itemRows = (o.items||[]).map((item, idx) => {
+        const th = item.thumb || item.ml_thumbnail || '';
+        const img = th ? `<img src="${th}" style="width:32px;height:32px;object-fit:contain;border-radius:4px;">` : '<div style="width:32px;height:32px;background:#f3f4f6;border-radius:4px;"></div>';
+        return `<tr style="background:#f8fafc;">
+        <td style="padding:6px 8px;width:36px;">${img}</td>
+        <td style="font-size:12px;padding:6px 8px;font-family:monospace;">${item.sku}</td>
+        <td style="font-size:12px;padding:6px 8px;">${(item.name||'').substring(0,45)}</td>
+        <td style="padding:6px 8px;text-align:right;">
+          <input type="number" value="${item.qty}" min="0" style="width:70px;padding:4px 6px;border:1px solid #e5e7eb;border-radius:4px;font-size:13px;font-weight:600;text-align:center;"
+            onchange="updateOrdenItem('${oid}',${idx},parseInt(this.value)||0)">
+        </td>
+        <td style="font-size:11px;padding:6px 8px;text-align:right;color:#6b7280;">${item.cbm ? item.cbm + ' cbm' : '—'}</td>
+        <td style="font-size:11px;padding:6px 8px;text-align:right;color:#059669;font-weight:600;">${item.fob ? '$' + (item.fob * item.qty).toFixed(0) : '—'}</td>
+        <td style="padding:6px 8px;text-align:center;">
+          <button onclick="removeOrdenItem('${oid}',${idx})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;">✕</button>
+        </td>
+      </tr>`}).join('');
+
+      return `<tr onclick="const el=document.getElementById('${detailId}');el.style.display=el.style.display==='none'?'':'none';" style="cursor:pointer;">
+        <td style="font-weight:600;">${o.number || fecha}</td>
+        <td>${fecha}</td>
+        <td style="text-align:center;">${o.items?.length || 0}</td>
+        <td style="text-align:right;">${(o.total_qty||0).toLocaleString('es-UY')}</td>
+        <td style="text-align:right;">${o.total_cbm ? o.total_cbm + ' CBM' : '—'}</td>
+        <td style="text-align:right;font-weight:600;">$${(o.total_fob||0).toLocaleString('es-UY')}</td>
+        <td style="text-align:center;">${statusBadge}</td>
+        <td style="text-align:right;">
+          ${isPedida ? `<button onclick="event.stopPropagation();confirmarOrdenCompra('${oid}')" style="padding:3px 8px;background:#059669;color:white;border:none;border-radius:4px;font-size:10px;cursor:pointer;">Confirmar</button>` : (o.expected_date||'')}
+          <button onclick="event.stopPropagation();eliminarOrdenCompra('${oid}');setTimeout(loadOrdenesPage,300);" style="padding:3px 6px;background:none;border:none;color:#dc2626;cursor:pointer;font-size:12px;">✕</button>
+        </td>
+      </tr>
+      <tbody id="${detailId}" style="display:none;">
+        <tr><td colspan="8" style="padding:8px 16px 12px;">
+          <div style="display:flex;gap:6px;margin-bottom:8px;">
+            <input type="text" id="oc-add-sku-${oid}" placeholder="SKU..." style="flex:1;padding:5px 8px;border:1px solid #e5e7eb;border-radius:4px;font-size:12px;">
+            <input type="number" id="oc-add-qty-${oid}" value="100" min="1" style="width:60px;padding:5px 6px;border:1px solid #e5e7eb;border-radius:4px;font-size:12px;">
+            <button onclick="addItemToOrden('${oid}')" style="padding:5px 10px;background:#4361ee;color:white;border:none;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">+ Agregar</button>
+          </div>
+          <table style="width:100%;">
+            <thead><tr style="font-size:10px;color:#9ca3af;"><th></th><th style="text-align:left">SKU</th><th style="text-align:left">Producto</th><th style="text-align:right">Qty</th><th style="text-align:right">CBM</th><th style="text-align:right">FOB</th><th></th></tr></thead>
+            <tbody>${itemRows}</tbody>
+          </table>
+        </td></tr>
+      </tbody>`;
+    }).join('');
+
+    listEl.innerHTML = `
+      <div class="table-card">
+        <div class="table-header"><span class="table-title">${ordenes.length} &oacute;rdenes</span></div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr>
+              <th>Orden</th><th>Fecha</th><th style="text-align:center">Productos</th>
+              <th style="text-align:right">Uds</th><th style="text-align:right">CBM</th>
+              <th style="text-align:right">USD</th><th style="text-align:center">Estado</th><th></th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  } catch(e) {
+    kpis.innerHTML = `<div class="table-card" style="color:#dc2626;padding:16px;">Error: ${e.message}</div>`;
+  }
+}
+
+// ── CBM Local ──
+let _cbmChart = null;
+
+async function loadCbmLocal() {
+  const kpis = document.getElementById('cbm-kpis');
+  const chartDiv = document.getElementById('cbm-chart');
+  const tableMonthly = document.getElementById('cbm-table-monthly');
+  const tableProducts = document.getElementById('cbm-table-products');
+  kpis.innerHTML = '<div class="loading"><span class="spinner"></span>Calculando CBM...</div>';
+  chartDiv.innerHTML = ''; tableMonthly.innerHTML = ''; tableProducts.innerHTML = '';
+
+  try {
+    const r = await fetch('/api/cbm-local', { headers: authHeaders() });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    const s = d.summary;
+    const MNAMES = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+    // KPIs
+    kpis.innerHTML = `
+      <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:20px;">
+        <div class="kpi-card" style="--accent:#4361ee">
+          <span class="kpi-icon">📦</span>
+          <div class="kpi-label">CBM total</div>
+          <div class="kpi-value">${s.totalCbm}</div>
+          <div class="kpi-sub">${s.totalMonths} meses</div>
+        </div>
+        <div class="kpi-card" style="--accent:#7c3aed">
+          <span class="kpi-icon">📊</span>
+          <div class="kpi-label">Promedio mensual</div>
+          <div class="kpi-value">${s.avgCbmMonth} CBM</div>
+        </div>
+        <div class="kpi-card" style="--accent:#f59e0b">
+          <span class="kpi-icon">🚛</span>
+          <div class="kpi-label">Equiv. 20ft/mes</div>
+          <div class="kpi-value">${s.contenedores20ft}</div>
+          <div class="kpi-sub">contenedores de 28 CBM</div>
+        </div>
+        <div class="kpi-card" style="--accent:#059669">
+          <span class="kpi-icon">🚢</span>
+          <div class="kpi-label">Equiv. 40ft HQ/mes</div>
+          <div class="kpi-value">${s.contenedores40ft}</div>
+          <div class="kpi-sub">contenedores de 67 CBM</div>
+        </div>
+        <div class="kpi-card" style="--accent:#dc2626">
+          <span class="kpi-icon">⚠️</span>
+          <div class="kpi-label">Sin datos CBM</div>
+          <div class="kpi-value">${s.sinCbmData || 0}</div>
+          <div class="kpi-sub">productos sin CBM cargado</div>
+        </div>
+      </div>`;
+
+    // Chart
+    const labels = d.months.map(m => { const [y,mo] = m.split('-'); return MNAMES[+mo] + ' ' + y.slice(2); });
+    const cbms = d.months.map(m => d.byMonth[m].cbm);
+    const qtys = d.months.map(m => d.byMonth[m].qty);
+
+    chartDiv.innerHTML = '<div class="table-card" style="padding:16px;"><canvas id="cbm-chart-canvas" height="220"></canvas></div>';
+    if (_cbmChart) _cbmChart.destroy();
+    const ctx = document.getElementById('cbm-chart-canvas').getContext('2d');
+    _cbmChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'CBM', data: cbms, backgroundColor: 'rgba(67,97,238,0.7)', yAxisID: 'y' },
+          { label: 'Unidades', data: qtys, type: 'line', borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,0.1)', yAxisID: 'y1', tension: 0.3, fill: true },
+        ]
+      },
+      options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          annotation: {
+            annotations: {
+              line20: { type: 'line', yMin: 28, yMax: 28, borderColor: '#d97706', borderDash: [5,5], borderWidth: 1, label: { content: '20ft (28)', display: true, position: 'end', font: { size: 10 } } },
+              line40: { type: 'line', yMin: 67, yMax: 67, borderColor: '#059669', borderDash: [5,5], borderWidth: 1, label: { content: '40ft (67)', display: true, position: 'end', font: { size: 10 } } },
+            }
+          }
+        },
+        scales: {
+          y: { position: 'left', title: { display: true, text: 'CBM' } },
+          y1: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Unidades' } },
+        }
+      }
+    });
+
+    // Table monthly
+    const monthRows = d.months.map(m => {
+      const v = d.byMonth[m];
+      const [y,mo] = m.split('-');
+      return `<tr>
+        <td style="font-weight:600;">${MNAMES[+mo]} ${y}</td>
+        <td style="text-align:right;font-weight:700;color:#4361ee;">${v.cbm} CBM</td>
+        <td style="text-align:right;">${v.qty.toLocaleString('es-UY')} uds</td>
+        <td style="text-align:right;color:#6b7280;">${v.items} productos</td>
+        <td style="text-align:right;color:#6b7280;">${v.cbm > 0 ? (v.cbm / 28 * 100).toFixed(0) + '% de 20ft' : '—'}</td>
+      </tr>`;
+    }).join('');
+
+    tableMonthly.innerHTML = `
+      <div class="table-card">
+        <div class="table-header"><span class="table-title">Consumo mensual</span></div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr>
+              <th>Mes</th><th style="text-align:right">CBM</th><th style="text-align:right">Unidades</th>
+              <th style="text-align:right">Productos</th><th style="text-align:right">% contenedor</th>
+            </tr></thead>
+            <tbody>${monthRows}</tbody>
+          </table>
+        </div>
+      </div>`;
+
+    // Top products
+    if (d.topProducts.length) {
+      const prodRows = d.topProducts.map(p => `<tr>
+        <td style="font-family:monospace;font-size:11px;color:#6b7280;">${p.sku}</td>
+        <td style="max-width:220px;"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:220px;">${p.name}</span></td>
+        <td style="text-align:right;font-weight:700;color:#4361ee;">${p.totalCbm} CBM</td>
+        <td style="text-align:right;">${p.totalQty.toLocaleString('es-UY')} uds</td>
+        <td style="text-align:right;color:#6b7280;">${p.cbmUnit} CBM/u</td>
+      </tr>`).join('');
+
+      tableProducts.innerHTML = `
+        <div class="table-card">
+          <div class="table-header"><span class="table-title">Top productos por volumen</span></div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead><tr>
+                <th>SKU</th><th>Producto</th><th style="text-align:right">CBM total</th>
+                <th style="text-align:right">Unidades</th><th style="text-align:right">CBM/unidad</th>
+              </tr></thead>
+              <tbody>${prodRows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+  } catch(e) {
+    kpis.innerHTML = `<div class="table-card" style="color:#dc2626;padding:16px;">Error: ${e.message}</div>`;
+  }
 }
 
 // ── Dimensiones de envío ──

@@ -4,8 +4,8 @@
     "username": "admin",
     "name": "Administrador",
     "role": "admin",
-    "salt": "aa8316f4cda7838063a4cb8f8d7d8f7a",
-    "hash": "a4b528ff53ce98d56ebb50f9f5c23c3b42b2418cd7731eb3ba54503ded96bedb14701fff25a1c58b88aaccdc60dd4f15713af425fac473caa68e74fa5eb65f8c",
+    "salt": "3f2b4ba3e75fff4c320828395f8e859c",
+    "hash": "58f189718531f94e820c5f667831e4fc2fcc9ed84092e7d5d946442ce60be85adb5841a386427f443e507bf49796c53f83ac07eba60f557730feb27af32315af",
     "createdAt": "2026-03-28T11:48:24.604Z"
   },
   {
@@ -13,8 +13,8 @@
     "username": "mateo",
     "name": "Mateo",
     "role": "admin",
-    "salt": "d02c7885898344d5bb41b342025ce1bb",
-    "hash": "7895e362aac9946099d3cb33c84776d67dba20ee37e342ab2abcb8cb2d4d27dd8e0fda32de10dc98182128e98d68ec6f4b4ddbc7774d6c4abf30431c6ccbe0a7",
+    "salt": "a0b112cd585182dfc8bcf59b5d0b68a9",
+    "hash": "f833b96b21b8653807ef4cff8f658d9ce364b665f2da6e9f5d7dd8a295b08644a2aff020bcd64e7bcc35dad6d79788c3745e0866a37174a93858a2fc2b9f0b64",
     "createdAt": "2026-03-28T11:50:03.644Z"
   }
 ]

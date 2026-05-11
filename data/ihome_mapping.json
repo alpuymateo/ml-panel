@@ -1,4 +1,34 @@
 {
+  "1899": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "40x25x20"
+  },
+  "11002": {
+    "cbm_per_unit": 0.038,
+    "cbm_source": "ia",
+    "cbm_dims": "55x45x15"
+  },
+  "11004": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "18x12x8"
+  },
+  "11006": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "24x16x8"
+  },
+  "11102": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "60x50x14"
+  },
+  "11103": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x8"
+  },
   "11105": {
     "ihome": "MA198",
     "description": "TV Soporte  66.5cm*23cm*7.5cm",
@@ -9,6 +39,121 @@
     "qty_per_ctn": 4,
     "unit": "PC",
     "cbm_per_unit": 0.015
+  },
+  "11203": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "18x12x13"
+  },
+  "11204": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "18x12x50"
+  },
+  "11209": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "15x10x50"
+  },
+  "11210": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x5"
+  },
+  "12001": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x20x20"
+  },
+  "12002": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "25x22x22"
+  },
+  "12003": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "30x26x26"
+  },
+  "12004": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "35x28x28"
+  },
+  "12109": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x21"
+  },
+  "12112": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "20x20x30"
+  },
+  "12115": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x30"
+  },
+  "12118": {
+    "cbm_per_unit": 0.0045,
+    "cbm_source": "ia",
+    "cbm_dims": "15x15x20"
+  },
+  "12119": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x35"
+  },
+  "12130": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "25x25x18"
+  },
+  "12504": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "15x15x35"
+  },
+  "12511": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "15x15x35"
+  },
+  "12601": {
+    "cbm_per_unit": 0.004,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x12"
+  },
+  "12603": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x30"
+  },
+  "12607": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "12x12x20"
+  },
+  "12609": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "15x8x15"
+  },
+  "12613": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "15x10x10"
+  },
+  "12614": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "40x35x18"
+  },
+  "12623": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x5.3"
   },
   "12701": {
     "ihome": "MA137",
@@ -41,7 +186,29 @@
     "cbm_per_ctn": 0.048,
     "qty_per_ctn": 1000,
     "unit": "PC",
-    "cbm_per_unit": 0
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "12x12x20"
+  },
+  "12705": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "18x12x13"
+  },
+  "12706": {
+    "cbm_per_unit": 0.1,
+    "cbm_source": "ia",
+    "cbm_dims": "15x15x18"
+  },
+  "12708": {
+    "cbm_per_unit": 0.0004,
+    "cbm_source": "ia",
+    "cbm_dims": "6x6x6"
+  },
+  "12709": {
+    "cbm_per_unit": 0.0004,
+    "cbm_source": "ia",
+    "cbm_dims": "6x6x6"
   },
   "12711": {
     "ihome": "MA137-2",
@@ -54,6 +221,21 @@
     "unit": "PC",
     "cbm_per_unit": 0.0004
   },
+  "13202": {
+    "cbm_per_unit": 0.036,
+    "cbm_source": "ia",
+    "cbm_dims": "45x35x22"
+  },
+  "13306": {
+    "cbm_per_unit": 0.04,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x20"
+  },
+  "13307": {
+    "cbm_per_unit": 0.05,
+    "cbm_source": "ia",
+    "cbm_dims": "50x50x20"
+  },
   "13312": {
     "ihome": "MA173",
     "description": "Name: Portable Folding Chair Material: plastic + steel tube",
@@ -64,6 +246,11 @@
     "qty_per_ctn": 6,
     "unit": "PC",
     "cbm_per_unit": 0.0155
+  },
+  "13502": {
+    "cbm_per_unit": 0.038,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x22"
   },
   "13506": {
     "ihome": "MA319",
@@ -98,6 +285,11 @@
     "unit": "pc",
     "cbm_per_unit": 0.084
   },
+  "13601": {
+    "cbm_per_unit": 0.06,
+    "cbm_source": "ia",
+    "cbm_dims": "20x10x30"
+  },
   "13603": {
     "ihome": "MA352-1",
     "description": "Garden hose, 12mm diameter, PVC, 25m",
@@ -109,6 +301,11 @@
     "unit": "PC",
     "cbm_per_unit": 0.011
   },
+  "13604": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "25x25x13"
+  },
   "13700": {
     "ihome": "MA310",
     "description": "Oxford cloth outdoor sunshade sail, 3*3*3cm, available in off-white, gray, beige, khaki, and black Oxford cloth",
@@ -119,6 +316,11 @@
     "qty_per_ctn": 40,
     "unit": "PC",
     "cbm_per_unit": 0.0022
+  },
+  "13704": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "30x15x18"
   },
   "13705": {
     "ihome": "MA181",
@@ -208,6 +410,16 @@
     "unit": "PC",
     "cbm_per_unit": 0.0093
   },
+  "13715": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "300x300x5"
+  },
+  "13718": {
+    "cbm_per_unit": 0.24,
+    "cbm_source": "ia",
+    "cbm_dims": "800x400x75"
+  },
   "13800": {
     "ihome": "MA060",
     "description": "Simulation plants, Length 1M, width 30CM, Polyester+PP",
@@ -252,6 +464,126 @@
     "unit": "pc",
     "cbm_per_unit": 0.0002
   },
+  "13901": {
+    "cbm_per_unit": 0.85,
+    "cbm_source": "ia",
+    "cbm_dims": "180x90x52"
+  },
+  "13902": {
+    "cbm_per_unit": 0.68,
+    "cbm_source": "ia",
+    "cbm_dims": "160x90x52"
+  },
+  "14000": {
+    "cbm_per_unit": 0.84,
+    "cbm_source": "ia",
+    "cbm_dims": "140x80x75"
+  },
+  "14001": {
+    "cbm_per_unit": 0.84,
+    "cbm_source": "ia",
+    "cbm_dims": "140x80x75"
+  },
+  "14002": {
+    "cbm_per_unit": 0.84,
+    "cbm_source": "ia",
+    "cbm_dims": "140x80x75"
+  },
+  "14004": {
+    "cbm_per_unit": 0.192,
+    "cbm_source": "ia",
+    "cbm_dims": "120x60x27"
+  },
+  "14006": {
+    "cbm_per_unit": 0.45,
+    "cbm_source": "ia",
+    "cbm_dims": "80x60x10"
+  },
+  "14012": {
+    "cbm_per_unit": 1.008,
+    "cbm_source": "ia",
+    "cbm_dims": "160x90x75"
+  },
+  "14013": {
+    "cbm_per_unit": 0.192,
+    "cbm_source": "ia",
+    "cbm_dims": "120x60x27"
+  },
+  "14017": {
+    "cbm_per_unit": 0.144,
+    "cbm_source": "ia",
+    "cbm_dims": "50x45x6.4"
+  },
+  "14802": {
+    "cbm_per_unit": 0.216,
+    "cbm_source": "ia",
+    "cbm_dims": "120x90x20"
+  },
+  "15002": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "120x50x20"
+  },
+  "15200": {
+    "cbm_per_unit": 0.4,
+    "cbm_source": "ia",
+    "cbm_dims": "90x55x8"
+  },
+  "15701": {
+    "cbm_per_unit": 0.21,
+    "cbm_source": "ia",
+    "cbm_dims": "70x70x100"
+  },
+  "15800": {
+    "cbm_per_unit": 0.27,
+    "cbm_source": "ia",
+    "cbm_dims": "90x30x100"
+  },
+  "15908": {
+    "cbm_per_unit": 0.432,
+    "cbm_source": "ia",
+    "cbm_dims": "180x60x4"
+  },
+  "16220": {
+    "cbm_per_unit": 0.85,
+    "cbm_source": "ia",
+    "cbm_dims": "150x60x200"
+  },
+  "16221": {
+    "cbm_per_unit": 0.72,
+    "cbm_source": "ia",
+    "cbm_dims": "140x55x180"
+  },
+  "16222": {
+    "cbm_per_unit": 0.85,
+    "cbm_source": "ia",
+    "cbm_dims": "150x60x200"
+  },
+  "18104": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "60x50x15"
+  },
+  "18107": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "15x10x8"
+  },
+  "18108": {
+    "cbm_per_unit": 0.036,
+    "cbm_source": "ia",
+    "cbm_dims": "60x40x15"
+  },
+  "18110": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "14x8x9"
+  },
+  "18111": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "12x6x10"
+  },
   "18114": {
     "ihome": "MA234",
     "description": "Four-piece set without drilling: towel rack 40 x 8 x 4.5 cm, single hook 4.5 x 10 x 4 cm, toilet paper holder 16 x 8 x 4.5 cm, towel ring 20 x 4 x 13 ",
@@ -273,6 +605,16 @@
     "qty_per_ctn": 10,
     "unit": "PC",
     "cbm_per_unit": 0.0105
+  },
+  "18900": {
+    "cbm_per_unit": 0.096,
+    "cbm_source": "ia",
+    "cbm_dims": "60x40x40"
+  },
+  "18902": {
+    "cbm_per_unit": 0.1,
+    "cbm_source": "ia",
+    "cbm_dims": "30x25x15"
   },
   "18903": {
     "ihome": "MA232*",
@@ -296,6 +638,11 @@
     "unit": "PC",
     "cbm_per_unit": 0.0318
   },
+  "18906": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "35x20x17"
+  },
   "18907": {
     "ihome": "MA231*",
     "description": "Faucet size 29CM, single weight 650G",
@@ -306,6 +653,31 @@
     "qty_per_ctn": 48,
     "unit": "PC",
     "cbm_per_unit": 0.0027
+  },
+  "19018": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x27"
+  },
+  "19020": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "45x35x30"
+  },
+  "19027": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "50x30x23"
+  },
+  "19031": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x20"
+  },
+  "19102": {
+    "cbm_per_unit": 0.065,
+    "cbm_source": "ia",
+    "cbm_dims": "35x30x60"
   },
   "19203": {
     "ihome": "MA141*",
@@ -362,6 +734,11 @@
     "unit": "PC",
     "cbm_per_unit": 0.0023
   },
+  "19402": {
+    "cbm_per_unit": 0.42,
+    "cbm_source": "ia",
+    "cbm_dims": "75x55x10"
+  },
   "19406": {
     "ihome": "MA041",
     "description": "clothes rack 145*96*46",
@@ -372,6 +749,16 @@
     "qty_per_ctn": 12,
     "unit": "PC",
     "cbm_per_unit": 0.0127
+  },
+  "19409": {
+    "cbm_per_unit": 0.085,
+    "cbm_source": "ia",
+    "cbm_dims": "65x52x25"
+  },
+  "19411": {
+    "cbm_per_unit": 0.141,
+    "cbm_source": "ia",
+    "cbm_dims": "85x52x32"
   },
   "19413": {
     "ihome": "MA145",
@@ -395,6 +782,31 @@
     "unit": "PC",
     "cbm_per_unit": 0.024
   },
+  "19417": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "40x20x8"
+  },
+  "19418": {
+    "cbm_per_unit": 0.11,
+    "cbm_source": "ia",
+    "cbm_dims": "80x52x26"
+  },
+  "19419": {
+    "cbm_per_unit": 0.136,
+    "cbm_source": "ia",
+    "cbm_dims": "85x52x31"
+  },
+  "19421": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x30"
+  },
+  "19427": {
+    "cbm_per_unit": 0.072,
+    "cbm_source": "ia",
+    "cbm_dims": "60x50x24"
+  },
   "19431": {
     "ihome": "MA146",
     "description": "Home Screening Screens Size:180*180CM Material:Wood + Bamboo Strips + Paper Rope Color: Wooden color",
@@ -416,6 +828,26 @@
     "qty_per_ctn": 5,
     "unit": "PC",
     "cbm_per_unit": 0.062
+  },
+  "19434": {
+    "cbm_per_unit": 0.32,
+    "cbm_source": "ia",
+    "cbm_dims": "55x45x13"
+  },
+  "19436": {
+    "cbm_per_unit": 0.5,
+    "cbm_source": "ia",
+    "cbm_dims": "70x50x35"
+  },
+  "19438": {
+    "cbm_per_unit": 0.42,
+    "cbm_source": "ia",
+    "cbm_dims": "70x50x12"
+  },
+  "19441": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x23"
   },
   "19448": {
     "ihome": "MA228",
@@ -450,6 +882,11 @@
     "unit": "PC",
     "cbm_per_unit": 0.0094
   },
+  "19452": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x18"
+  },
   "19454": {
     "ihome": "MA022",
     "description": "51*170",
@@ -483,6 +920,41 @@
     "unit": "3PCS/Sets",
     "cbm_per_unit": 0.0023
   },
+  "19459": {
+    "cbm_per_unit": 0.065,
+    "cbm_source": "ia",
+    "cbm_dims": "65x50x20"
+  },
+  "19500": {
+    "cbm_per_unit": 0.21,
+    "cbm_source": "ia",
+    "cbm_dims": "90x190x17"
+  },
+  "19501": {
+    "cbm_per_unit": 0.32,
+    "cbm_source": "ia",
+    "cbm_dims": "140x190x17"
+  },
+  "19502": {
+    "cbm_per_unit": 0.18,
+    "cbm_source": "ia",
+    "cbm_dims": "90x190x14"
+  },
+  "19504": {
+    "cbm_per_unit": 0.18,
+    "cbm_source": "ia",
+    "cbm_dims": "120x90x17"
+  },
+  "19508": {
+    "cbm_per_unit": 0.32,
+    "cbm_source": "ia",
+    "cbm_dims": "140x190x24"
+  },
+  "19550": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "30x25x32"
+  },
   "19600": {
     "ihome": "MA251",
     "description": "Universal head, two-color ribbon remote control fan light, 25cm diameter",
@@ -504,6 +976,11 @@
     "qty_per_ctn": 2,
     "unit": "PC",
     "cbm_per_unit": 0.028
+  },
+  "19902": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "35x20x12"
   },
   "19903": {
     "ihome": "MA105",
@@ -604,6 +1081,36 @@
     "unit": "PC",
     "cbm_per_unit": 0.01
   },
+  "20006": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x30"
+  },
+  "20009": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x35"
+  },
+  "20013": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x40"
+  },
+  "20016": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "15x12x35"
+  },
+  "20017": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "15x12x35"
+  },
+  "20018": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "15x12x35"
+  },
   "20019": {
     "ihome": "MA091",
     "description": "Desktop Lamp, Rose Gold 9*22cm",
@@ -637,6 +1144,11 @@
     "unit": "PC",
     "cbm_per_unit": 0.0027
   },
+  "20022": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "18x15x30"
+  },
   "20023": {
     "ihome": "JG014",
     "description": "Astronaut Starlight Material: ABS/PC/PVCITPE Product Color: White Laser Wavelength:532nm LED Power: < 5W Control Mode: Remote control Remote Control R",
@@ -648,6 +1160,96 @@
     "unit": "PC",
     "cbm_per_unit": 0.01
   },
+  "20110": {
+    "cbm_per_unit": 0.036,
+    "cbm_source": "ia",
+    "cbm_dims": "40x40x160"
+  },
+  "20111": {
+    "cbm_per_unit": 0.036,
+    "cbm_source": "ia",
+    "cbm_dims": "40x40x160"
+  },
+  "21002": {
+    "cbm_per_unit": 0.048,
+    "cbm_source": "ia",
+    "cbm_dims": "45x30x35"
+  },
+  "21008": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "35x35x28"
+  },
+  "21010": {
+    "cbm_per_unit": 0.06,
+    "cbm_source": "ia",
+    "cbm_dims": "45x35x40"
+  },
+  "21011": {
+    "cbm_per_unit": 0.07,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x40"
+  },
+  "21012": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x40"
+  },
+  "21014": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x20"
+  },
+  "21022": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x32"
+  },
+  "21024": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "10x8x10"
+  },
+  "21030": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "12x10x8"
+  },
+  "21031": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "60x40x20"
+  },
+  "21032": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x35"
+  },
+  "21056": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "40x25x32"
+  },
+  "21057": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "40x25x32"
+  },
+  "21059": {
+    "cbm_per_unit": 0.054,
+    "cbm_source": "ia",
+    "cbm_dims": "45x35x35"
+  },
+  "21060": {
+    "cbm_per_unit": 0.075,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x38"
+  },
+  "21065": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "10x10x8"
+  },
   "22001": {
     "ihome": "MA418",
     "description": "Outdoor light, ip65, 220v, warm white, 3w",
@@ -658,6 +1260,16 @@
     "qty_per_ctn": 50,
     "unit": "PC",
     "cbm_per_unit": 0.0005
+  },
+  "22002": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "32x23x27"
+  },
+  "22005": {
+    "cbm_per_unit": 0.013,
+    "cbm_source": "ia",
+    "cbm_dims": "25x17x31"
   },
   "22006": {
     "ihome": "MA409",
@@ -692,6 +1304,16 @@
     "unit": "PC",
     "cbm_per_unit": 0.0013
   },
+  "22011": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "28x20x28"
+  },
+  "22014": {
+    "cbm_per_unit": 0.0015,
+    "cbm_source": "ia",
+    "cbm_dims": "6x6x12"
+  },
   "22019": {
     "ihome": "MA210",
     "description": "20-Light SMD Solar Wall Scon",
@@ -702,6 +1324,11 @@
     "qty_per_ctn": 100,
     "unit": "PC",
     "cbm_per_unit": 0.0009
+  },
+  "22021": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "12x10x15"
   },
   "22022": {
     "ihome": "MA215",
@@ -769,6 +1396,26 @@
     "unit": "PC",
     "cbm_per_unit": 0.0024
   },
+  "22104": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "28x20x32"
+  },
+  "22208": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "106x160x3"
+  },
+  "22209": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "132x213x3"
+  },
+  "22210": {
+    "cbm_per_unit": 0.04,
+    "cbm_source": "ia",
+    "cbm_dims": "132x245x3"
+  },
   "22213": {
     "ihome": "MA354",
     "description": "Liftable sunshade, semi-blackout, 1.5 x 2m",
@@ -791,6 +1438,41 @@
     "unit": "PC",
     "cbm_per_unit": 0.0041
   },
+  "22300": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "42x30x33"
+  },
+  "22301": {
+    "cbm_per_unit": 0.034,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x32"
+  },
+  "22302": {
+    "cbm_per_unit": 0.034,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x32"
+  },
+  "22305": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "42x30x33"
+  },
+  "22316": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "26x19x28"
+  },
+  "22317": {
+    "cbm_per_unit": 0.03,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x34"
+  },
+  "22318": {
+    "cbm_per_unit": 0.04,
+    "cbm_source": "ia",
+    "cbm_dims": "40x28x36"
+  },
   "22321": {
     "ihome": "MA405",
     "description": "wall lamp 6W,10*9*20CM",
@@ -802,6 +1484,41 @@
     "unit": "PC",
     "cbm_per_unit": 0.0016
   },
+  "22331": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "70x15x20"
+  },
+  "22332": {
+    "cbm_per_unit": 0.03,
+    "cbm_source": "ia",
+    "cbm_dims": "50x10x60"
+  },
+  "22333": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "40x10x60"
+  },
+  "22335": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "25x18x28"
+  },
+  "22336": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x30"
+  },
+  "22337": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "32x22x27"
+  },
+  "22338": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "29x20x29"
+  },
   "23000": {
     "ihome": "MA134",
     "description": "Tungsten lamp G40 Wirelength:7.6M Number of bulbs:25+2 Voltage:220V Wattage:5W*25 Bulb material: tungsten + glass Lamp cord material: aluminum + cOPPe",
@@ -812,6 +1529,21 @@
     "qty_per_ctn": 10,
     "unit": "PC",
     "cbm_per_unit": 0.006
+  },
+  "23001": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "150x8x3"
+  },
+  "23002": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "5x5x200"
+  },
+  "23004": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "75x10x2"
   },
   "23008": {
     "ihome": "MA408",
@@ -833,7 +1565,9 @@
     "cbm_per_ctn": 0.024,
     "qty_per_ctn": 1000,
     "unit": "PC",
-    "cbm_per_unit": 0
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "50x8x3"
   },
   "23010": {
     "ihome": "MA243",
@@ -845,6 +1579,21 @@
     "qty_per_ctn": 500,
     "unit": "PC",
     "cbm_per_unit": 0.0001
+  },
+  "23011": {
+    "cbm_per_unit": 0.036,
+    "cbm_source": "ia",
+    "cbm_dims": "60x60x10"
+  },
+  "23012": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "40x35x20"
+  },
+  "23015": {
+    "cbm_per_unit": 0.002,
+    "cbm_source": "ia",
+    "cbm_dims": "20x10x10"
   },
   "23016": {
     "ihome": "MA006",
@@ -967,6 +1716,16 @@
     "unit": "pc",
     "cbm_per_unit": 0.0018
   },
+  "23027": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "200x200x5"
+  },
+  "23028": {
+    "cbm_per_unit": 0.023,
+    "cbm_source": "ia",
+    "cbm_dims": "300x300x5"
+  },
   "23029": {
     "ihome": "MA095",
     "description": "1、Number of lamps: 10 lamps + 1 spare bulb 2, Bulb: S14 single strip LED plastic PET bulb 220V 1W E27 2700k resistance scheme   3, T-head: ultrasonic ",
@@ -1044,6 +1803,166 @@
     "unit": "PC",
     "cbm_per_unit": 0.0001
   },
+  "23037": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x10x8"
+  },
+  "23038": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "25x15x10"
+  },
+  "23039": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "35x20x10"
+  },
+  "23040": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "25x12x10"
+  },
+  "23041": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "30x18x10"
+  },
+  "23042": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "40x25x10"
+  },
+  "23043": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x15x10"
+  },
+  "23044": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "35x22x10"
+  },
+  "23045": {
+    "cbm_per_unit": 0.06,
+    "cbm_source": "ia",
+    "cbm_dims": "45x28x10"
+  },
+  "23046": {
+    "cbm_per_unit": 0.28,
+    "cbm_source": "ia",
+    "cbm_dims": "90x50x10"
+  },
+  "23103": {
+    "cbm_per_unit": 0.002,
+    "cbm_source": "ia",
+    "cbm_dims": "10x10x20"
+  },
+  "23108": {
+    "cbm_per_unit": 0.002,
+    "cbm_source": "ia",
+    "cbm_dims": "10x10x20"
+  },
+  "25012": {
+    "cbm_per_unit": 0.004,
+    "cbm_source": "ia",
+    "cbm_dims": "25x25x8"
+  },
+  "25019": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "40x40x8"
+  },
+  "30008": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x25"
+  },
+  "30011": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x25"
+  },
+  "30014": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "10x5x2"
+  },
+  "30015": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "10x5x2"
+  },
+  "30016": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "10x5x2"
+  },
+  "30017": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "10x5x2"
+  },
+  "30019": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "10x5x2"
+  },
+  "30020": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x10"
+  },
+  "30021": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x10"
+  },
+  "30024": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x10"
+  },
+  "30025": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x10"
+  },
+  "30027": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x10"
+  },
+  "30028": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x10"
+  },
+  "30029": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x10"
+  },
+  "30030": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x10"
+  },
+  "30031": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x10"
+  },
+  "30032": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x10"
+  },
+  "30033": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x10"
+  },
   "30100": {
     "ihome": "MA032",
     "description": "Humidifier 10*12CM,USB",
@@ -1065,6 +1984,21 @@
     "qty_per_ctn": 60,
     "unit": "PC",
     "cbm_per_unit": 0.0018
+  },
+  "30106": {
+    "cbm_per_unit": 0.18,
+    "cbm_source": "ia",
+    "cbm_dims": "100x60x30"
+  },
+  "30111": {
+    "cbm_per_unit": 0.315,
+    "cbm_source": "ia",
+    "cbm_dims": "60x35x148"
+  },
+  "30200": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "30x30x3"
   },
   "30206": {
     "ihome": "MA168",
@@ -1110,6 +2044,491 @@
     "unit": "PC",
     "cbm_per_unit": 0.0308
   },
+  "30302": {
+    "cbm_per_unit": 0.06,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x30"
+  },
+  "31001": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x30"
+  },
+  "31002": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x30"
+  },
+  "31003": {
+    "cbm_per_unit": 0.04,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x35"
+  },
+  "31004": {
+    "cbm_per_unit": 0.027,
+    "cbm_source": "ia",
+    "cbm_dims": "36x25x30"
+  },
+  "31005": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "32x20x30"
+  },
+  "31006": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "42x30x35"
+  },
+  "31007": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "35x20x30"
+  },
+  "31008": {
+    "cbm_per_unit": 0.03,
+    "cbm_source": "ia",
+    "cbm_dims": "38x25x30"
+  },
+  "31009": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "45x30x35"
+  },
+  "31011": {
+    "cbm_per_unit": 0.048,
+    "cbm_source": "ia",
+    "cbm_dims": "40x40x30"
+  },
+  "31012": {
+    "cbm_per_unit": 0.06,
+    "cbm_source": "ia",
+    "cbm_dims": "50x50x24"
+  },
+  "31017": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x25x25"
+  },
+  "31501": {
+    "cbm_per_unit": 0.35,
+    "cbm_source": "ia",
+    "cbm_dims": "70x50x10"
+  },
+  "32004": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "14x8x10"
+  },
+  "33501": {
+    "cbm_per_unit": 0.03,
+    "cbm_source": "ia",
+    "cbm_dims": "48x25x2.5"
+  },
+  "33516": {
+    "cbm_per_unit": 0.055,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x32"
+  },
+  "33701": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x5"
+  },
+  "33703": {
+    "cbm_per_unit": 0.002,
+    "cbm_source": "ia",
+    "cbm_dims": "10x8x3"
+  },
+  "35000": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x12"
+  },
+  "35001": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x9"
+  },
+  "35002": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "42x30x11"
+  },
+  "35003": {
+    "cbm_per_unit": 0.15,
+    "cbm_source": "ia",
+    "cbm_dims": "40x25x15"
+  },
+  "35004": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "80x60x25"
+  },
+  "35005": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x13"
+  },
+  "35007": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "35009": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "50x30x30"
+  },
+  "36000": {
+    "cbm_per_unit": 0.072,
+    "cbm_source": "ia",
+    "cbm_dims": "103x70x1"
+  },
+  "36001": {
+    "cbm_per_unit": 0.108,
+    "cbm_source": "ia",
+    "cbm_dims": "120x90x1"
+  },
+  "36002": {
+    "cbm_per_unit": 0.081,
+    "cbm_source": "ia",
+    "cbm_dims": "150x90x6"
+  },
+  "36003": {
+    "cbm_per_unit": 0.067,
+    "cbm_source": "ia",
+    "cbm_dims": "103x65x1"
+  },
+  "36004": {
+    "cbm_per_unit": 0.096,
+    "cbm_source": "ia",
+    "cbm_dims": "120x80x1"
+  },
+  "36006": {
+    "cbm_per_unit": 0.096,
+    "cbm_source": "ia",
+    "cbm_dims": "120x80x10"
+  },
+  "36007": {
+    "cbm_per_unit": 0.067,
+    "cbm_source": "ia",
+    "cbm_dims": "103x65x1"
+  },
+  "36008": {
+    "cbm_per_unit": 0.117,
+    "cbm_source": "ia",
+    "cbm_dims": "120x80x1.2"
+  },
+  "36009": {
+    "cbm_per_unit": 0.057,
+    "cbm_source": "ia",
+    "cbm_dims": "120x47x1"
+  },
+  "36010": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "33x33x15"
+  },
+  "36011": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "53x53x15"
+  },
+  "36013": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "73x73x15"
+  },
+  "36014": {
+    "cbm_per_unit": 0.049,
+    "cbm_source": "ia",
+    "cbm_dims": "103x47x1"
+  },
+  "36015": {
+    "cbm_per_unit": 0.033,
+    "cbm_source": "ia",
+    "cbm_dims": "53x42x15"
+  },
+  "36016": {
+    "cbm_per_unit": 0.078,
+    "cbm_source": "ia",
+    "cbm_dims": "103x76x10"
+  },
+  "36017": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "60x72x15"
+  },
+  "36018": {
+    "cbm_per_unit": 0.065,
+    "cbm_source": "ia",
+    "cbm_dims": "80x60x15"
+  },
+  "36019": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "53x53x15"
+  },
+  "36020": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "103x46x4"
+  },
+  "36021": {
+    "cbm_per_unit": 0.026,
+    "cbm_source": "ia",
+    "cbm_dims": "120x54x4"
+  },
+  "36022": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "53x53x15"
+  },
+  "36023": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "73x73x15"
+  },
+  "36024": {
+    "cbm_per_unit": 0.038,
+    "cbm_source": "ia",
+    "cbm_dims": "120x80x4"
+  },
+  "36025": {
+    "cbm_per_unit": 0.027,
+    "cbm_source": "ia",
+    "cbm_dims": "120x56x4"
+  },
+  "36026": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "53x53x15"
+  },
+  "36028": {
+    "cbm_per_unit": 0.054,
+    "cbm_source": "ia",
+    "cbm_dims": "120x45x10"
+  },
+  "36031": {
+    "cbm_per_unit": 0.065,
+    "cbm_source": "ia",
+    "cbm_dims": "85x60x1.3"
+  },
+  "36032": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "117x68x4"
+  },
+  "36033": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "102x60x4"
+  },
+  "36034": {
+    "cbm_per_unit": 0.029,
+    "cbm_source": "ia",
+    "cbm_dims": "103x70x4"
+  },
+  "36035": {
+    "cbm_per_unit": 0.043,
+    "cbm_source": "ia",
+    "cbm_dims": "120x90x4"
+  },
+  "36038": {
+    "cbm_per_unit": 0.072,
+    "cbm_source": "ia",
+    "cbm_dims": "103x70x10"
+  },
+  "36041": {
+    "cbm_per_unit": 0.033,
+    "cbm_source": "ia",
+    "cbm_dims": "103x32x10"
+  },
+  "36042": {
+    "cbm_per_unit": 0.046,
+    "cbm_source": "ia",
+    "cbm_dims": "120x38x10"
+  },
+  "36043": {
+    "cbm_per_unit": 0.072,
+    "cbm_source": "ia",
+    "cbm_dims": "103x70x10"
+  },
+  "36045": {
+    "cbm_per_unit": 0.033,
+    "cbm_source": "ia",
+    "cbm_dims": "103x32x10"
+  },
+  "36046": {
+    "cbm_per_unit": 0.046,
+    "cbm_source": "ia",
+    "cbm_dims": "120x38x10"
+  },
+  "36047": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "60x75x4"
+  },
+  "36048": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "53x53x15"
+  },
+  "36051": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x30x20"
+  },
+  "36052": {
+    "cbm_per_unit": 0.058,
+    "cbm_source": "ia",
+    "cbm_dims": "73x73x1.1"
+  },
+  "36054": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "110x90x12"
+  },
+  "37000": {
+    "cbm_per_unit": 0.013,
+    "cbm_source": "ia",
+    "cbm_dims": "40x32x10"
+  },
+  "37001": {
+    "cbm_per_unit": 0.038,
+    "cbm_source": "ia",
+    "cbm_dims": "50x50x15"
+  },
+  "37003": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "40x35x10"
+  },
+  "37004": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "42x35x11"
+  },
+  "37005": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x30"
+  },
+  "37006": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x10"
+  },
+  "37008": {
+    "cbm_per_unit": 0.009,
+    "cbm_source": "ia",
+    "cbm_dims": "35x30x9"
+  },
+  "37009": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x25"
+  },
+  "37010": {
+    "cbm_per_unit": 0.16,
+    "cbm_source": "ia",
+    "cbm_dims": "30x25x22"
+  },
+  "37011": {
+    "cbm_per_unit": 0.2,
+    "cbm_source": "ia",
+    "cbm_dims": "35x30x20"
+  },
+  "37012": {
+    "cbm_per_unit": 0.24,
+    "cbm_source": "ia",
+    "cbm_dims": "40x35x18"
+  },
+  "37013": {
+    "cbm_per_unit": 0.28,
+    "cbm_source": "ia",
+    "cbm_dims": "45x40x16"
+  },
+  "37014": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x40"
+  },
+  "37015": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "40x32x14"
+  },
+  "37016": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "40x35x11"
+  },
+  "37018": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "42x32x11"
+  },
+  "37020": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "35x28x9"
+  },
+  "37021": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x10"
+  },
+  "37022": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "60x30x25"
+  },
+  "37028": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "42x32x11"
+  },
+  "37031": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x10"
+  },
+  "37034": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "15x12x45"
+  },
+  "37035": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x15"
+  },
+  "37036": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x18"
+  },
+  "37037": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x20"
+  },
+  "37038": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "40x35x30"
+  },
+  "38005": {
+    "cbm_per_unit": 0.185,
+    "cbm_source": "ia",
+    "cbm_dims": "65x80x55"
+  },
+  "38006": {
+    "cbm_per_unit": 0.095,
+    "cbm_source": "ia",
+    "cbm_dims": "60x50x65"
+  },
   "38011": {
     "ihome": "MA318",
     "description": "Baby changing table",
@@ -1121,6 +2540,271 @@
     "unit": "PC",
     "cbm_per_unit": 0.05
   },
+  "38016": {
+    "cbm_per_unit": 0.065,
+    "cbm_source": "ia",
+    "cbm_dims": "75x75x75"
+  },
+  "38101": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x30"
+  },
+  "38102": {
+    "cbm_per_unit": 0.055,
+    "cbm_source": "ia",
+    "cbm_dims": "50x30x37"
+  },
+  "38103": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "44x30x24"
+  },
+  "38105": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "20x20x6"
+  },
+  "38106": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "38x26x22"
+  },
+  "38107": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "36x22x23"
+  },
+  "38111": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "42x28x24"
+  },
+  "38113": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x24"
+  },
+  "38114": {
+    "cbm_per_unit": 0.021,
+    "cbm_source": "ia",
+    "cbm_dims": "37x25x23"
+  },
+  "38116": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "25x8x5"
+  },
+  "38118": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "40x25x25"
+  },
+  "38119": {
+    "cbm_per_unit": 0.03,
+    "cbm_source": "ia",
+    "cbm_dims": "45x30x25"
+  },
+  "38121": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "38x26x22"
+  },
+  "38137": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x16"
+  },
+  "41001": {
+    "cbm_per_unit": 0.04,
+    "cbm_source": "ia",
+    "cbm_dims": "28x16x9"
+  },
+  "41004": {
+    "cbm_per_unit": 0.048,
+    "cbm_source": "ia",
+    "cbm_dims": "30x18x9"
+  },
+  "41008": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "22x12x8"
+  },
+  "41009": {
+    "cbm_per_unit": 0.021,
+    "cbm_source": "ia",
+    "cbm_dims": "23x12x8"
+  },
+  "41011": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "24x12x8"
+  },
+  "41012": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "22x14x8"
+  },
+  "41014": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "20x10x9"
+  },
+  "41015": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "20x12x10"
+  },
+  "41017": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x20"
+  },
+  "41019": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "40x25x22"
+  },
+  "41020": {
+    "cbm_per_unit": 0.04,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x13"
+  },
+  "41021": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "18x12x45"
+  },
+  "41022": {
+    "cbm_per_unit": 0.004,
+    "cbm_source": "ia",
+    "cbm_dims": "35x15x8"
+  },
+  "41024": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "45x30x25"
+  },
+  "41026": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "25x14x10"
+  },
+  "41030": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "90x30x15"
+  },
+  "41031": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "40x20x22"
+  },
+  "41032": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "15x10x10"
+  },
+  "41033": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "5x5x2"
+  },
+  "41041": {
+    "cbm_per_unit": 0.005,
+    "cbm_source": "ia",
+    "cbm_dims": "22x16x14"
+  },
+  "41042": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "25x18x14"
+  },
+  "41045": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "120x8x8"
+  },
+  "41047": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x10"
+  },
+  "41049": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "10x10x5"
+  },
+  "41050": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "16x10x9"
+  },
+  "41053": {
+    "cbm_per_unit": 0.004,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x13"
+  },
+  "41054": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x40"
+  },
+  "41055": {
+    "cbm_per_unit": 0.004,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x13"
+  },
+  "41058": {
+    "cbm_per_unit": 0.002,
+    "cbm_source": "ia",
+    "cbm_dims": "30x10x3"
+  },
+  "41059": {
+    "cbm_per_unit": 0.002,
+    "cbm_source": "ia",
+    "cbm_dims": "30x10x3"
+  },
+  "41061": {
+    "cbm_per_unit": 0.005,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x8"
+  },
+  "41063": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "25x18x14"
+  },
+  "41064": {
+    "cbm_per_unit": 0.005,
+    "cbm_source": "ia",
+    "cbm_dims": "22x16x14"
+  },
+  "41065": {
+    "cbm_per_unit": 0.002,
+    "cbm_source": "ia",
+    "cbm_dims": "15x10x12"
+  },
+  "41068": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "27x18x9"
+  },
+  "41071": {
+    "cbm_per_unit": 0.002,
+    "cbm_source": "ia",
+    "cbm_dims": "8x6x40"
+  },
+  "41073": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "8x6x12.5"
+  },
+  "42005": {
+    "cbm_per_unit": 0.002,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x25"
+  },
   "42007": {
     "ihome": "MA359",
     "description": "YM-863 Multi-Function 61-Key Electronic Piano, Dimensions: 96 x 37 x 14cm 61 Piano-Styled Keys/LED Display 300 Timbers/300 Rhythms/30 Demo Songs With ",
@@ -1131,6 +2815,21 @@
     "qty_per_ctn": 3,
     "unit": "PC",
     "cbm_per_unit": 0.082
+  },
+  "42013": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "30x25x8"
+  },
+  "42014": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "18x10x9"
+  },
+  "42015": {
+    "cbm_per_unit": 0.085,
+    "cbm_source": "ia",
+    "cbm_dims": "65x30x4"
   },
   "42016": {
     "ihome": "MA360",
@@ -1275,6 +2974,51 @@
     "unit": "PC",
     "cbm_per_unit": 0.0012
   },
+  "51003": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x45"
+  },
+  "51101": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x5"
+  },
+  "51200": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x30"
+  },
+  "52004": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x18"
+  },
+  "52005": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x20x17"
+  },
+  "52010": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "40x25x18"
+  },
+  "52013": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "12x8x12"
+  },
+  "52018": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "40x25x8"
+  },
+  "52019": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x25"
+  },
   "52022": {
     "ihome": "MA003",
     "description": "Material: High quality corrosion-resistant aluminum Headlight lumens: 400 LM, lighting distance 200m Lighting modes: high light, low light and flash W",
@@ -1318,6 +3062,31 @@
     "qty_per_ctn": 50,
     "unit": "PC",
     "cbm_per_unit": 0.0007
+  },
+  "53004": {
+    "cbm_per_unit": 0.072,
+    "cbm_source": "ia",
+    "cbm_dims": "60x200x6"
+  },
+  "53008": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x23"
+  },
+  "53009": {
+    "cbm_per_unit": 0.038,
+    "cbm_source": "ia",
+    "cbm_dims": "45x28x35"
+  },
+  "53010": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "40x25x32"
+  },
+  "53011": {
+    "cbm_per_unit": 0.0002,
+    "cbm_source": "ia",
+    "cbm_dims": "2x2x15"
   },
   "53012": {
     "ihome": "MA070",
@@ -1363,6 +3132,36 @@
     "unit": "PC",
     "cbm_per_unit": 0.0002
   },
+  "53016": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "30x25x10"
+  },
+  "53017": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x40"
+  },
+  "53019": {
+    "cbm_per_unit": 0.009,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x8"
+  },
+  "53106": {
+    "cbm_per_unit": 0.054,
+    "cbm_source": "ia",
+    "cbm_dims": "90x60x10"
+  },
+  "54005": {
+    "cbm_per_unit": 0.25,
+    "cbm_source": "ia",
+    "cbm_dims": "45x30x18"
+  },
+  "54007": {
+    "cbm_per_unit": 0.28,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x16"
+  },
   "54012": {
     "ihome": "MA265",
     "description": "8-piece travel storage Bag set: small clothing Bag 32*23*12CM, medium clothing Bag 34*28*12CM, large clothing Bag 42*32*12CM, underwear storage Bag 28",
@@ -1384,6 +3183,51 @@
     "qty_per_ctn": 60,
     "unit": "SET",
     "cbm_per_unit": 0.0016
+  },
+  "54015": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "32x18x12"
+  },
+  "54016": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "32x18x12"
+  },
+  "54017": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "33x19x13"
+  },
+  "54018": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "33x19x13"
+  },
+  "54019": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x16"
+  },
+  "54020": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x16"
+  },
+  "54021": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x16"
+  },
+  "54024": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x14"
+  },
+  "54100": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "45x35x22"
   },
   "54108": {
     "ihome": "MA384",
@@ -1429,6 +3273,11 @@
     "unit": "PC",
     "cbm_per_unit": 0.0023
   },
+  "54202": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x15"
+  },
   "54211": {
     "ihome": "JG009",
     "description": "24 compartments beads, pattern as shown, total weight 170G With auxiliary tools as shown in the picture",
@@ -1472,6 +3321,11 @@
     "qty_per_ctn": 1,
     "unit": "pc",
     "cbm_per_unit": 0.1127
+  },
+  "54219": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "160x30x15"
   },
   "54303": {
     "ihome": "MA250",
@@ -1605,6 +3459,16 @@
     "unit": "PC",
     "cbm_per_unit": 0.021
   },
+  "54524": {
+    "cbm_per_unit": 0.031,
+    "cbm_source": "ia",
+    "cbm_dims": "191x73x22"
+  },
+  "54526": {
+    "cbm_per_unit": 0.2,
+    "cbm_source": "ia",
+    "cbm_dims": "150x90x90"
+  },
   "54600": {
     "ihome": "MA180",
     "description": "Car Luggage Soft Rack 125*18*7cm 600D Oxford cloth+PVC+sponge",
@@ -1615,6 +3479,126 @@
     "qty_per_ctn": 10,
     "unit": "PC",
     "cbm_per_unit": 0.021
+  },
+  "54602": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "24x18x65"
+  },
+  "54603": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x70"
+  },
+  "54604": {
+    "cbm_per_unit": 0.04,
+    "cbm_source": "ia",
+    "cbm_dims": "27x22x80"
+  },
+  "54605": {
+    "cbm_per_unit": 0.048,
+    "cbm_source": "ia",
+    "cbm_dims": "28x24x90"
+  },
+  "54606": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "27x22x80"
+  },
+  "54609": {
+    "cbm_per_unit": 0.04,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x18"
+  },
+  "54611": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "12x10x6"
+  },
+  "54612": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "12x10x6"
+  },
+  "54613": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "12x10x6"
+  },
+  "54614": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x8"
+  },
+  "54615": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "30x25x20"
+  },
+  "54616": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "32x25x20"
+  },
+  "54617": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "28x25x20"
+  },
+  "54618": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "35x26x20"
+  },
+  "54619": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "34x25x20"
+  },
+  "54620": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "40x25x20"
+  },
+  "54621": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "40x25x20"
+  },
+  "54622": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "24x25x20"
+  },
+  "54623": {
+    "cbm_per_unit": 0.013,
+    "cbm_source": "ia",
+    "cbm_dims": "26x25x20"
+  },
+  "54624": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "28x25x20"
+  },
+  "54625": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x40"
+  },
+  "54626": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x40"
+  },
+  "54627": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x40"
+  },
+  "54629": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x40"
   },
   "54700": {
     "ihome": "MA005",
@@ -1748,6 +3732,21 @@
     "unit": "PC",
     "cbm_per_unit": 0.0483
   },
+  "55004": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x20"
+  },
+  "55005": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x20"
+  },
+  "55006": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "60x40x10"
+  },
   "55013": {
     "ihome": "MA157",
     "description": "Name: Children's toy storage box Material: PP Size: 31*96*21cm",
@@ -1780,6 +3779,16 @@
     "qty_per_ctn": 1,
     "unit": "PC",
     "cbm_per_unit": 0.1
+  },
+  "55020": {
+    "cbm_per_unit": 0.108,
+    "cbm_source": "ia",
+    "cbm_dims": "60x50x36"
+  },
+  "55021": {
+    "cbm_per_unit": 0.144,
+    "cbm_source": "ia",
+    "cbm_dims": "60x50x48"
   },
   "55022": {
     "ihome": "JG17",
@@ -1825,6 +3834,251 @@
     "unit": "SET",
     "cbm_per_unit": 0.038
   },
+  "55501": {
+    "cbm_per_unit": 0.095,
+    "cbm_source": "ia",
+    "cbm_dims": "40x40x60"
+  },
+  "55502": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "25x15x20"
+  },
+  "55503": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x20x17"
+  },
+  "55507": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x4"
+  },
+  "55508": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "25x15x20"
+  },
+  "55510": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "50x30x25"
+  },
+  "55513": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "18x12x7"
+  },
+  "55514": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "32x22x20"
+  },
+  "55515": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "16x10x7"
+  },
+  "55516": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "28x20x20"
+  },
+  "55517": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x20"
+  },
+  "55518": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "10x10x6"
+  },
+  "55519": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "15x10x5"
+  },
+  "55521": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "14x8x7"
+  },
+  "55523": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "12x8x5"
+  },
+  "55524": {
+    "cbm_per_unit": 0.009,
+    "cbm_source": "ia",
+    "cbm_dims": "13x10x7"
+  },
+  "55525": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "36x25x20"
+  },
+  "55526": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x20"
+  },
+  "55528": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "12x10x8"
+  },
+  "55529": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "18x14x6"
+  },
+  "55530": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x18"
+  },
+  "55531": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "15x10x5"
+  },
+  "55532": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x15"
+  },
+  "55533": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "32x18.5x10"
+  },
+  "61100": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "25x15x25"
+  },
+  "61102": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "18x12x13"
+  },
+  "61105": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "18x12x13"
+  },
+  "61106": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "18x12x13"
+  },
+  "61107": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "10x7x5"
+  },
+  "61108": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "10x7x5"
+  },
+  "61109": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "10x7x5"
+  },
+  "71004": {
+    "cbm_per_unit": 0.225,
+    "cbm_source": "ia",
+    "cbm_dims": "150x250x6"
+  },
+  "71005": {
+    "cbm_per_unit": 0.375,
+    "cbm_source": "ia",
+    "cbm_dims": "250x200x75"
+  },
+  "71008": {
+    "cbm_per_unit": 0.18,
+    "cbm_source": "ia",
+    "cbm_dims": "150x6x20"
+  },
+  "75000": {
+    "cbm_per_unit": 0.75,
+    "cbm_source": "ia",
+    "cbm_dims": "100x25x30"
+  },
+  "75001": {
+    "cbm_per_unit": 0.18,
+    "cbm_source": "ia",
+    "cbm_dims": "120x250x6"
+  },
+  "75002": {
+    "cbm_per_unit": 0.225,
+    "cbm_source": "ia",
+    "cbm_dims": "150x250x6"
+  },
+  "75003": {
+    "cbm_per_unit": 0.27,
+    "cbm_source": "ia",
+    "cbm_dims": "180x250x6"
+  },
+  "75004": {
+    "cbm_per_unit": 1.5,
+    "cbm_source": "ia",
+    "cbm_dims": "200x25x30"
+  },
+  "75007": {
+    "cbm_per_unit": 0.18,
+    "cbm_source": "ia",
+    "cbm_dims": "150x200x6"
+  },
+  "75008": {
+    "cbm_per_unit": 0.3,
+    "cbm_source": "ia",
+    "cbm_dims": "100x100x30"
+  },
+  "75009": {
+    "cbm_per_unit": 0.36,
+    "cbm_source": "ia",
+    "cbm_dims": "120x100x30"
+  },
+  "75014": {
+    "cbm_per_unit": 0.36,
+    "cbm_source": "ia",
+    "cbm_dims": "120x115x26"
+  },
+  "75017": {
+    "cbm_per_unit": 0.6,
+    "cbm_source": "ia",
+    "cbm_dims": "200x115x26"
+  },
+  "75025": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "150x160x5"
+  },
+  "75028": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "30x25x60"
+  },
+  "75029": {
+    "cbm_per_unit": 0.002,
+    "cbm_source": "ia",
+    "cbm_dims": "10x5x4"
+  },
+  "75030": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "10x8x10"
+  },
+  "75034": {
+    "cbm_per_unit": 0.192,
+    "cbm_source": "ia",
+    "cbm_dims": "120x120x13"
+  },
   "75101": {
     "ihome": "MA209",
     "description": "P70 Outdoor strong flashlight 1500 mHA*2",
@@ -1835,6 +4089,11 @@
     "qty_per_ctn": 30,
     "unit": "PC",
     "cbm_per_unit": 0.0024
+  },
+  "75105": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "10x8x35"
   },
   "75106": {
     "ihome": "MA179",
@@ -1869,6 +4128,16 @@
     "unit": "PC",
     "cbm_per_unit": 0.0333
   },
+  "75114": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "60x40x50"
+  },
+  "75115": {
+    "cbm_per_unit": 0.15,
+    "cbm_source": "ia",
+    "cbm_dims": "60x40x60"
+  },
   "75118": {
     "ihome": "MA044",
     "description": "Shelf 70*30*150CM",
@@ -1901,6 +4170,56 @@
     "qty_per_ctn": 150,
     "unit": "PC",
     "cbm_per_unit": 0.002
+  },
+  "75121": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x26"
+  },
+  "75122": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "10x8x15"
+  },
+  "75123": {
+    "cbm_per_unit": 0.005,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x10"
+  },
+  "75125": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "50x30x10"
+  },
+  "75126": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x24"
+  },
+  "75127": {
+    "cbm_per_unit": 0.06,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x35"
+  },
+  "75129": {
+    "cbm_per_unit": 0.1,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x55"
+  },
+  "75130": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x65"
+  },
+  "75132": {
+    "cbm_per_unit": 0.16,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x90"
+  },
+  "75134": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "80x60x25"
   },
   "75135": {
     "ihome": "MA205",
@@ -1935,6 +4254,26 @@
     "unit": "PC",
     "cbm_per_unit": 0.0544
   },
+  "75139": {
+    "cbm_per_unit": 0.026,
+    "cbm_source": "ia",
+    "cbm_dims": "46.5x13.5x4"
+  },
+  "75140": {
+    "cbm_per_unit": 0.031,
+    "cbm_source": "ia",
+    "cbm_dims": "55x14x4.5"
+  },
+  "75141": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "50x15x4.2"
+  },
+  "75143": {
+    "cbm_per_unit": 0.064,
+    "cbm_source": "ia",
+    "cbm_dims": "40x40x40"
+  },
   "75145": {
     "ihome": "MA363",
     "description": "187-piece auto repair kit Galvanized iron",
@@ -1945,6 +4284,11 @@
     "qty_per_ctn": 1,
     "unit": "PC",
     "cbm_per_unit": 0.042
+  },
+  "75146": {
+    "cbm_per_unit": 0.084,
+    "cbm_source": "ia",
+    "cbm_dims": "42x28x7.1"
   },
   "75148": {
     "ihome": "MA379",
@@ -1979,6 +4323,91 @@
     "unit": "PC",
     "cbm_per_unit": 0.035
   },
+  "75151": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x30"
+  },
+  "75156": {
+    "cbm_per_unit": 0.021,
+    "cbm_source": "ia",
+    "cbm_dims": "100x210x10"
+  },
+  "75157": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x22"
+  },
+  "75158": {
+    "cbm_per_unit": 0.004,
+    "cbm_source": "ia",
+    "cbm_dims": "50x20x4"
+  },
+  "75159": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "5x5x4"
+  },
+  "91181": {
+    "cbm_per_unit": 0.192,
+    "cbm_source": "ia",
+    "cbm_dims": "80x25x10"
+  },
+  "97000": {
+    "cbm_per_unit": 0.45,
+    "cbm_source": "ia",
+    "cbm_dims": "180x75x120"
+  },
+  "97002": {
+    "cbm_per_unit": 0.48,
+    "cbm_source": "ia",
+    "cbm_dims": "180x75x125"
+  },
+  "97004": {
+    "cbm_per_unit": 0.42,
+    "cbm_source": "ia",
+    "cbm_dims": "170x75x115"
+  },
+  "97005": {
+    "cbm_per_unit": 0.11,
+    "cbm_source": "ia",
+    "cbm_dims": "110x65x15"
+  },
+  "97100": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x30"
+  },
+  "97101": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "32x22x32"
+  },
+  "97104": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x30"
+  },
+  "97107": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x10"
+  },
+  "97108": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "25x15x8"
+  },
+  "97109": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "35x20x35"
+  },
+  "97115": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x28"
+  },
   "97117": {
     "ihome": "MA042",
     "description": "Round Dumbbell Set Total weight of dumbbells 20KG",
@@ -2000,6 +4429,821 @@
     "qty_per_ctn": 4,
     "unit": "set",
     "cbm_per_unit": 0.0175
+  },
+  "98001": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "42x32x18"
+  },
+  "98002": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "38x27x18"
+  },
+  "98003": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "45x35x12"
+  },
+  "98004": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "35x28x11"
+  },
+  "98005": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x12"
+  },
+  "98006": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "40x28x20"
+  },
+  "98007": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "50x45x20"
+  },
+  "98011": {
+    "cbm_per_unit": 0.004,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x8"
+  },
+  "98015": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "45x30x18"
+  },
+  "98016": {
+    "cbm_per_unit": 0.036,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x20"
+  },
+  "98017": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x18"
+  },
+  "98019": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "24x14x7.5"
+  },
+  "98020": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "26x12x7"
+  },
+  "98023": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "32x24x21"
+  },
+  "98024": {
+    "cbm_per_unit": 0.013,
+    "cbm_source": "ia",
+    "cbm_dims": "38x30x11"
+  },
+  "98025": {
+    "cbm_per_unit": 0.009,
+    "cbm_source": "ia",
+    "cbm_dims": "32x25x11"
+  },
+  "98026": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x18"
+  },
+  "98029": {
+    "cbm_per_unit": 0.45,
+    "cbm_source": "ia",
+    "cbm_dims": "40x35x30"
+  },
+  "98030": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "48x32x18"
+  },
+  "98032": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "25x15x16"
+  },
+  "98033": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "45x30x16"
+  },
+  "98038": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x18"
+  },
+  "98040": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x20"
+  },
+  "98041": {
+    "cbm_per_unit": 0.03,
+    "cbm_source": "ia",
+    "cbm_dims": "50x30x20"
+  },
+  "98042": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "40x25x18"
+  },
+  "98045": {
+    "cbm_per_unit": 0.026,
+    "cbm_source": "ia",
+    "cbm_dims": "42x32x19"
+  },
+  "98046": {
+    "cbm_per_unit": 0.026,
+    "cbm_source": "ia",
+    "cbm_dims": "42x32x19"
+  },
+  "98051": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "35x30x24"
+  },
+  "98052": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "45x30x16"
+  },
+  "98053": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "45x30x16"
+  },
+  "98054": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "42x30x20"
+  },
+  "98055": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "42x30x20"
+  },
+  "98057": {
+    "cbm_per_unit": 0.021,
+    "cbm_source": "ia",
+    "cbm_dims": "39x29x18"
+  },
+  "98058": {
+    "cbm_per_unit": 0.048,
+    "cbm_source": "ia",
+    "cbm_dims": "60x40x20"
+  },
+  "98059": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x20x10"
+  },
+  "98062": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x20"
+  },
+  "98063": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x22"
+  },
+  "98064": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x15"
+  },
+  "98065": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "45x32x16"
+  },
+  "98066": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x20"
+  },
+  "98067": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "42x30x19"
+  },
+  "98068": {
+    "cbm_per_unit": 0.023,
+    "cbm_source": "ia",
+    "cbm_dims": "41x30x18"
+  },
+  "98070": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x18"
+  },
+  "98071": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "40x28x20"
+  },
+  "98072": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "40x28x20"
+  },
+  "98073": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x10"
+  },
+  "98074": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "30x25x11"
+  },
+  "98075": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "15x15x15"
+  },
+  "98076": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "60x40x10"
+  },
+  "98087": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "45x32x20"
+  },
+  "98091": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "38x26x20"
+  },
+  "98092": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "45x32x22"
+  },
+  "98098": {
+    "cbm_per_unit": 0.17,
+    "cbm_source": "ia",
+    "cbm_dims": "106x160x10"
+  },
+  "98099": {
+    "cbm_per_unit": 0.23,
+    "cbm_source": "ia",
+    "cbm_dims": "132x213x8"
+  },
+  "98100": {
+    "cbm_per_unit": 0.28,
+    "cbm_source": "ia",
+    "cbm_dims": "132x245x8"
+  },
+  "98102": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "32x28x11"
+  },
+  "98103": {
+    "cbm_per_unit": 0.072,
+    "cbm_source": "ia",
+    "cbm_dims": "90x50x16"
+  },
+  "98110": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x7.5"
+  },
+  "98111": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x18"
+  },
+  "98118": {
+    "cbm_per_unit": 0.096,
+    "cbm_source": "ia",
+    "cbm_dims": "80x60x20"
+  },
+  "98119": {
+    "cbm_per_unit": 0.05,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x18"
+  },
+  "98120": {
+    "cbm_per_unit": 0.35,
+    "cbm_source": "ia",
+    "cbm_dims": "220x140x10"
+  },
+  "98122": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x18"
+  },
+  "98128": {
+    "cbm_per_unit": 0.033,
+    "cbm_source": "ia",
+    "cbm_dims": "48x38x18"
+  },
+  "98129": {
+    "cbm_per_unit": 0.033,
+    "cbm_source": "ia",
+    "cbm_dims": "48x38x18"
+  },
+  "98130": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "48x38x18"
+  },
+  "98132": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x18"
+  },
+  "98133": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x18"
+  },
+  "98137": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x24"
+  },
+  "98138": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "48x33x22"
+  },
+  "98144": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x11"
+  },
+  "98148": {
+    "cbm_per_unit": 0.06,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x20"
+  },
+  "98149": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "32x25x10"
+  },
+  "98151": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "32x25x10"
+  },
+  "98152": {
+    "cbm_per_unit": 0.004,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x7"
+  },
+  "98154": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "32x25x10"
+  },
+  "98155": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x12"
+  },
+  "98159": {
+    "cbm_per_unit": 1.2,
+    "cbm_source": "ia",
+    "cbm_dims": "120x70x75"
+  },
+  "98163": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x25"
+  },
+  "98169": {
+    "cbm_per_unit": 0.013,
+    "cbm_source": "ia",
+    "cbm_dims": "42x22x14"
+  },
+  "98176": {
+    "cbm_per_unit": 0.072,
+    "cbm_source": "ia",
+    "cbm_dims": "60x20x60"
+  },
+  "98177": {
+    "cbm_per_unit": 0.096,
+    "cbm_source": "ia",
+    "cbm_dims": "80x20x60"
+  },
+  "98178": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "15x10x8"
+  },
+  "98182": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "40x32x13"
+  },
+  "98183": {
+    "cbm_per_unit": 0.06,
+    "cbm_source": "ia",
+    "cbm_dims": "15x12x35"
+  },
+  "98184": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "28x22x23"
+  },
+  "98188": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "42x42x18"
+  },
+  "98189": {
+    "cbm_per_unit": 0.064,
+    "cbm_source": "ia",
+    "cbm_dims": "42x42x36"
+  },
+  "98190": {
+    "cbm_per_unit": 0.072,
+    "cbm_source": "ia",
+    "cbm_dims": "42x42x41"
+  },
+  "98193": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x17"
+  },
+  "98194": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "15x12x8"
+  },
+  "98195": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "15x12x8"
+  },
+  "98196": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "15x12x8"
+  },
+  "98197": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "15x12x8"
+  },
+  "98198": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "15x12x8"
+  },
+  "98200": {
+    "cbm_per_unit": 0.048,
+    "cbm_source": "ia",
+    "cbm_dims": "80x40x18"
+  },
+  "98205": {
+    "cbm_per_unit": 0.036,
+    "cbm_source": "ia",
+    "cbm_dims": "60x25x24"
+  },
+  "98212": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "50x70x8"
+  },
+  "98214": {
+    "cbm_per_unit": 0.09,
+    "cbm_source": "ia",
+    "cbm_dims": "200x90x17"
+  },
+  "98215": {
+    "cbm_per_unit": 0.18,
+    "cbm_source": "ia",
+    "cbm_dims": "200x140x17"
+  },
+  "98217": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "70x60x20"
+  },
+  "98218": {
+    "cbm_per_unit": 0.03,
+    "cbm_source": "ia",
+    "cbm_dims": "22x18x10"
+  },
+  "98219": {
+    "cbm_per_unit": 0.03,
+    "cbm_source": "ia",
+    "cbm_dims": "22x18x10"
+  },
+  "98220": {
+    "cbm_per_unit": 0.55,
+    "cbm_source": "ia",
+    "cbm_dims": "140x70x60"
+  },
+  "98221": {
+    "cbm_per_unit": 0.55,
+    "cbm_source": "ia",
+    "cbm_dims": "140x70x60"
+  },
+  "98222": {
+    "cbm_per_unit": 0.55,
+    "cbm_source": "ia",
+    "cbm_dims": "140x70x60"
+  },
+  "98223": {
+    "cbm_per_unit": 0.55,
+    "cbm_source": "ia",
+    "cbm_dims": "140x70x60"
+  },
+  "98224": {
+    "cbm_per_unit": 0.55,
+    "cbm_source": "ia",
+    "cbm_dims": "140x70x60"
+  },
+  "98225": {
+    "cbm_per_unit": 0.55,
+    "cbm_source": "ia",
+    "cbm_dims": "140x70x60"
+  },
+  "98226": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x30x20"
+  },
+  "98227": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "120x95x12"
+  },
+  "98228": {
+    "cbm_per_unit": 0.027,
+    "cbm_source": "ia",
+    "cbm_dims": "60x75x6"
+  },
+  "98229": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "110x75x10"
+  },
+  "98230": {
+    "cbm_per_unit": 0.065,
+    "cbm_source": "ia",
+    "cbm_dims": "120x90x6"
+  },
+  "98231": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "73x73x6"
+  },
+  "98232": {
+    "cbm_per_unit": 0.058,
+    "cbm_source": "ia",
+    "cbm_dims": "120x80x6"
+  },
+  "98233": {
+    "cbm_per_unit": 0.04,
+    "cbm_source": "ia",
+    "cbm_dims": "103x65x6"
+  },
+  "98234": {
+    "cbm_per_unit": 0.058,
+    "cbm_source": "ia",
+    "cbm_dims": "120x80x6"
+  },
+  "98235": {
+    "cbm_per_unit": 0.034,
+    "cbm_source": "ia",
+    "cbm_dims": "120x47x6"
+  },
+  "98236": {
+    "cbm_per_unit": 0.03,
+    "cbm_source": "ia",
+    "cbm_dims": "103x47x6"
+  },
+  "98237": {
+    "cbm_per_unit": 0.034,
+    "cbm_source": "ia",
+    "cbm_dims": "120x56x6"
+  },
+  "98238": {
+    "cbm_per_unit": 0.065,
+    "cbm_source": "ia",
+    "cbm_dims": "120x90x6"
+  },
+  "98239": {
+    "cbm_per_unit": 0.043,
+    "cbm_source": "ia",
+    "cbm_dims": "103x70x6"
+  },
+  "98241": {
+    "cbm_per_unit": 0.043,
+    "cbm_source": "ia",
+    "cbm_dims": "103x70x6"
+  },
+  "98244": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "103x46x6"
+  },
+  "98245": {
+    "cbm_per_unit": 0.039,
+    "cbm_source": "ia",
+    "cbm_dims": "120x54x6"
+  },
+  "98246": {
+    "cbm_per_unit": 0.043,
+    "cbm_source": "ia",
+    "cbm_dims": "103x70x6"
+  },
+  "98247": {
+    "cbm_per_unit": 0.048,
+    "cbm_source": "ia",
+    "cbm_dims": "117x68x6"
+  },
+  "98248": {
+    "cbm_per_unit": 0.04,
+    "cbm_source": "ia",
+    "cbm_dims": "103x65x6"
+  },
+  "98249": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "10x8x6"
+  },
+  "98250": {
+    "cbm_per_unit": 0.005,
+    "cbm_source": "ia",
+    "cbm_dims": "12x10x8"
+  },
+  "98251": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "15x12x10"
+  },
+  "98252": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "18x15x12"
+  },
+  "98254": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "15x15x15"
+  },
+  "98255": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x18"
+  },
+  "98256": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "22x20x20"
+  },
+  "98257": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "15x15x12"
+  },
+  "98258": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "15x12x8"
+  },
+  "98259": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x10x8"
+  },
+  "98260": {
+    "cbm_per_unit": 0.04,
+    "cbm_source": "ia",
+    "cbm_dims": "30x25x20"
+  },
+  "98261": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "32x25x20"
+  },
+  "98262": {
+    "cbm_per_unit": 0.05,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x20"
+  },
+  "98263": {
+    "cbm_per_unit": 0.055,
+    "cbm_source": "ia",
+    "cbm_dims": "35x28x22"
+  },
+  "98264": {
+    "cbm_per_unit": 0.06,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x22"
+  },
+  "98266": {
+    "cbm_per_unit": 0.048,
+    "cbm_source": "ia",
+    "cbm_dims": "32x26x20"
+  },
+  "98268": {
+    "cbm_per_unit": 0.055,
+    "cbm_source": "ia",
+    "cbm_dims": "35x28x22"
+  },
+  "98269": {
+    "cbm_per_unit": 0.062,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x24"
+  },
+  "98270": {
+    "cbm_per_unit": 0.07,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x24"
+  },
+  "98272": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "60x20x15"
+  },
+  "98273": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "60x20x15"
+  },
+  "98274": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "60x20x15"
+  },
+  "98275": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "80x20x20"
+  },
+  "98276": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "80x20x20"
+  },
+  "98277": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "80x20x20"
+  },
+  "98278": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "80x20x20"
+  },
+  "98765": {
+    "cbm_per_unit": 0.036,
+    "cbm_source": "ia",
+    "cbm_dims": "25x18x8"
+  },
+  "99005": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x12"
+  },
+  "99037": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "25x15x10"
+  },
+  "99050": {
+    "cbm_per_unit": 0.036,
+    "cbm_source": "ia",
+    "cbm_dims": "50x8x9"
+  },
+  "99060": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x13"
+  },
+  "99067": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "35x30x24"
+  },
+  "99098": {
+    "cbm_per_unit": 0.5,
+    "cbm_source": "ia",
+    "cbm_dims": "45x40x28"
+  },
+  "99120": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "45x32x16"
   },
   "18117-NEG": {
     "ihome": "MA002",
@@ -4573,5 +7817,3125 @@
     "cbm_per_unit": 0.008,
     "cbm_per_ctn": 0.24,
     "qty_per_ctn": 30
+  },
+  "PZCX1-FLO-MARRON": {
+    "cbm_per_unit": 0.036,
+    "cbm_source": "ia",
+    "cbm_dims": "45x30x27"
+  },
+  "PZCX1-VER-CASTBLA": {
+    "cbm_per_unit": 0.036,
+    "cbm_source": "ia",
+    "cbm_dims": "45x30x27"
+  },
+  "PZCX1-VER-MARRON": {
+    "cbm_per_unit": 0.036,
+    "cbm_source": "ia",
+    "cbm_dims": "45x30x27"
+  },
+  "PZCX2-FLO-MARRON": {
+    "cbm_per_unit": 0.054,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x31"
+  },
+  "PZCX2-VER-CASTBLA": {
+    "cbm_per_unit": 0.054,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x31"
+  },
+  "PZCX2-VER-MARRON": {
+    "cbm_per_unit": 0.054,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x31"
+  },
+  "54216-CEL": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x40"
+  },
+  "53022-AZI": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x36"
+  },
+  "55010-AZU": {
+    "cbm_per_unit": 0.072,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x36"
+  },
+  "55010-COMB": {
+    "cbm_per_unit": 0.072,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x36"
+  },
+  "897-3": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x32"
+  },
+  "22329-ROJ-VER": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x32"
+  },
+  "22329-BLA-ROS": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x32"
+  },
+  "22329-NEG": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x32"
+  },
+  "897-2": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "32x24x32"
+  },
+  "22320-BLA": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "38x26x32"
+  },
+  "22320-NEG": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "38x26x32"
+  },
+  "22003-NEG": {
+    "cbm_per_unit": 0.036,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x30"
+  },
+  "22003-BLA": {
+    "cbm_per_unit": 0.036,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x30"
+  },
+  "22304-NEG": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "28x20x27"
+  },
+  "22339-BLA": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "26x19x28"
+  },
+  "22339-NEG": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "26x19x28"
+  },
+  "22330-BLA": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "29x21x28"
+  },
+  "22330-NEG": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "29x21x28"
+  },
+  "22310-BLA": {
+    "cbm_per_unit": 0.013,
+    "cbm_source": "ia",
+    "cbm_dims": "25x18x29"
+  },
+  "22310-NEG": {
+    "cbm_per_unit": 0.013,
+    "cbm_source": "ia",
+    "cbm_dims": "25x18x29"
+  },
+  "22018-BLA": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "27x19x29"
+  },
+  "22018-NEG": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "27x19x29"
+  },
+  "22017-BLA": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "26x18x30"
+  },
+  "748-2": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "26x18x30"
+  },
+  "22326-NEG": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "28x19x30"
+  },
+  "22326-BLA": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "28x19x30"
+  },
+  "22314-BLA": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x21x29"
+  },
+  "22314-NEG": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x21x29"
+  },
+  "22324-BLA": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "27x20x28"
+  },
+  "22324-NEG": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "27x20x28"
+  },
+  "22303-BLA": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "28x20x28"
+  },
+  "22303-NEG": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "28x20x28"
+  },
+  "22311-BLA": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "26x19x27"
+  },
+  "22311-GRI": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "26x19x27"
+  },
+  "22311-NEG": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "26x19x27"
+  },
+  "22328-GRI": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "28x20x29"
+  },
+  "22328-AMA": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "28x20x29"
+  },
+  "22328-ROS": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "28x20x29"
+  },
+  "22328-NEG": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "28x20x29"
+  },
+  "22328-BLA": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "28x20x29"
+  },
+  "22327-NEG": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x21x28"
+  },
+  "22327-BLA": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x21x28"
+  },
+  "22322-BLA": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "27x20x28"
+  },
+  "22322-NEG": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "27x20x28"
+  },
+  "22322-AMA": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "27x20x28"
+  },
+  "665-4": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x20"
+  },
+  "22322-AZU": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x20"
+  },
+  "665-6": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x20"
+  },
+  "22306-BLA": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "35x20x22"
+  },
+  "22306-NEG": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "35x20x22"
+  },
+  "22323-AMA": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "40x20x22"
+  },
+  "22323-NEG": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "40x20x22"
+  },
+  "22323-GRI": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "40x20x22"
+  },
+  "20011-VIO": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x30"
+  },
+  "54800-NEG": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x23"
+  },
+  "54800-VER": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x23"
+  },
+  "54800-BLA": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x23"
+  },
+  "54800-ROS": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x23"
+  },
+  "38004-ROS": {
+    "cbm_per_unit": 0.048,
+    "cbm_source": "ia",
+    "cbm_dims": "60x40x20"
+  },
+  "38000-AZU": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "45x30x22"
+  },
+  "54402-BLA": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "65x25x75"
+  },
+  "54402-ROS": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "65x25x75"
+  },
+  "54402-AZU": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "65x25x75"
+  },
+  "54404-AZU": {
+    "cbm_per_unit": 0.072,
+    "cbm_source": "ia",
+    "cbm_dims": "80x60x15"
+  },
+  "54405-AMA": {
+    "cbm_per_unit": 0.096,
+    "cbm_source": "ia",
+    "cbm_dims": "100x60x16"
+  },
+  "48105-39": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x17"
+  },
+  "48105-42": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x17"
+  },
+  "48105-43": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x17"
+  },
+  "48105-44": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x17"
+  },
+  "13009-NEG": {
+    "cbm_per_unit": 0.105,
+    "cbm_source": "ia",
+    "cbm_dims": "70x70x21"
+  },
+  "622-2": {
+    "cbm_per_unit": 0.095,
+    "cbm_source": "ia",
+    "cbm_dims": "65x65x23"
+  },
+  "48600-GRI": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "40x35x18"
+  },
+  "48600-VER": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "40x35x18"
+  },
+  "41055-NEG": {
+    "cbm_per_unit": 0.004,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x13"
+  },
+  "41056-AZU": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "18x12x13"
+  },
+  "41056-NEG": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "18x12x13"
+  },
+  "41056-ROJ": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "18x12x13"
+  },
+  "41056-VIO": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "18x12x13"
+  },
+  "41056-VER": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "18x12x13"
+  },
+  "82-0": {
+    "cbm_per_unit": 0.004,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x13"
+  },
+  "48217-L": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x9"
+  },
+  "48217-S": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x9"
+  },
+  "48217-M": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x9"
+  },
+  "48108-NEG-40": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48108-BEI-40": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48000-VIO-36": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48000-VIO-37": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48000-VIO-38": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48000-VIO-39": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48000-VIO-40": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48000-NEG-36": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48000-NEG-37": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48000-NEG-38": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48000-NEG-39": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48000-NEG-40": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48000-GRI-36": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48000-GRI-37": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48000-GRI-38": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48000-ROS-36": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48000-ROS-37": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48001-36": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48001-37": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48001-39": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48001-40": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48001-41": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48101-39": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48101-40": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48101-41": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48101-42": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48101-43": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48101-44": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48100-39": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48100-40": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48214-S": {
+    "cbm_per_unit": 0.03,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x15"
+  },
+  "38012-ROS": {
+    "cbm_per_unit": 0.15,
+    "cbm_source": "ia",
+    "cbm_dims": "80x60x30"
+  },
+  "pz-espejo": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x5"
+  },
+  "LGL12WC": {
+    "cbm_per_unit": 0.0008,
+    "cbm_source": "ia",
+    "cbm_dims": "6x6x12"
+  },
+  "LGL15WC": {
+    "cbm_per_unit": 0.0008,
+    "cbm_source": "ia",
+    "cbm_dims": "6x6x12"
+  },
+  "LGL15WF": {
+    "cbm_per_unit": 0.0008,
+    "cbm_source": "ia",
+    "cbm_dims": "6x6x12"
+  },
+  "LGL7WC": {
+    "cbm_per_unit": 0.0008,
+    "cbm_source": "ia",
+    "cbm_dims": "6x6x12"
+  },
+  "LGL7WF": {
+    "cbm_per_unit": 0.0008,
+    "cbm_source": "ia",
+    "cbm_dims": "6x6x12"
+  },
+  "LGL9WC": {
+    "cbm_per_unit": 0.0008,
+    "cbm_source": "ia",
+    "cbm_dims": "6x6x12"
+  },
+  "LGL9WF": {
+    "cbm_per_unit": 0.0008,
+    "cbm_source": "ia",
+    "cbm_dims": "6x6x12"
+  },
+  "18202-BLA": {
+    "cbm_per_unit": 0.38,
+    "cbm_source": "ia",
+    "cbm_dims": "60x45x14"
+  },
+  "PEGL12WC": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "17x17x8"
+  },
+  "PEGL18WC": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "20x20x8"
+  },
+  "PEGL24WC": {
+    "cbm_per_unit": 0.004,
+    "cbm_source": "ia",
+    "cbm_dims": "24x24x8"
+  },
+  "PEGL12WF": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "17x17x8"
+  },
+  "PEGL18WF": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "20x20x8"
+  },
+  "PEGL24WF": {
+    "cbm_per_unit": 0.004,
+    "cbm_source": "ia",
+    "cbm_dims": "24x24x8"
+  },
+  "PAGL12WC": {
+    "cbm_per_unit": 0.004,
+    "cbm_source": "ia",
+    "cbm_dims": "20x20x10"
+  },
+  "PAGL12WF": {
+    "cbm_per_unit": 0.004,
+    "cbm_source": "ia",
+    "cbm_dims": "20x20x10"
+  },
+  "PAGL18WC": {
+    "cbm_per_unit": 0.005,
+    "cbm_source": "ia",
+    "cbm_dims": "22x22x10"
+  },
+  "PAGL24WC": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "25x25x10"
+  },
+  "PAGL24WF": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "25x25x10"
+  },
+  "PRGL200W": {
+    "cbm_per_unit": 0.075,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x38"
+  },
+  "PRGL30W": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "35x30x32"
+  },
+  "75110-VEIN": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "8x6x12"
+  },
+  "208-0": {
+    "cbm_per_unit": 0.027,
+    "cbm_source": "ia",
+    "cbm_dims": "103x65x4"
+  },
+  "TLGL18W": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "120x8x8"
+  },
+  "TLGL9W": {
+    "cbm_per_unit": 0.003,
+    "cbm_source": "ia",
+    "cbm_dims": "60x8x8"
+  },
+  "12111-ARB": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "10x10x15"
+  },
+  "884-12": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "10x10x15"
+  },
+  "12111-BUH": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "10x10x15"
+  },
+  "12111-BUD": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "10x10x15"
+  },
+  "12111-INF": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "10x10x15"
+  },
+  "48100-41": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x30"
+  },
+  "48100-42": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x30"
+  },
+  "48100-44": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x30"
+  },
+  "48206-XL": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48206-XXL": {
+    "cbm_per_unit": 0.013,
+    "cbm_source": "ia",
+    "cbm_dims": "36x26x14"
+  },
+  "48206-XXXL": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "37x27x14"
+  },
+  "48211-NEG-S": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x12"
+  },
+  "48211-NEG-M": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "42x32x12"
+  },
+  "48211-NEG-L": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "44x34x12"
+  },
+  "48211-NEG-XL": {
+    "cbm_per_unit": 0.021,
+    "cbm_source": "ia",
+    "cbm_dims": "46x36x12"
+  },
+  "48211-NEG-3XL": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x12"
+  },
+  "48211-VER-AZU-M": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "42x32x12"
+  },
+  "48211-VER-AZU-L": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "44x34x12"
+  },
+  "48211-VER-AZU-XL": {
+    "cbm_per_unit": 0.021,
+    "cbm_source": "ia",
+    "cbm_dims": "46x36x12"
+  },
+  "48211-VER-S": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x12"
+  },
+  "48211-VER-M": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "42x32x12"
+  },
+  "48211-VER-L": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "44x34x12"
+  },
+  "48211-VER-XL": {
+    "cbm_per_unit": 0.021,
+    "cbm_source": "ia",
+    "cbm_dims": "46x36x12"
+  },
+  "48211-VER-3XL": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x12"
+  },
+  "48211-GRI-S": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x12"
+  },
+  "48211-GRI-M": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "42x32x12"
+  },
+  "48211-GRI-L": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "44x34x12"
+  },
+  "48211-GRI-XL": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "45x35x20"
+  },
+  "48211-GRI-3XL": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "48x36x20"
+  },
+  "48211-GRI-4XL": {
+    "cbm_per_unit": 0.038,
+    "cbm_source": "ia",
+    "cbm_dims": "50x38x20"
+  },
+  "48218-S": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "40x32x18"
+  },
+  "48218-NEG-M": {
+    "cbm_per_unit": 0.03,
+    "cbm_source": "ia",
+    "cbm_dims": "42x33x18"
+  },
+  "48218-NEG-L": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "44x35x18"
+  },
+  "48218-NEG-XL": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "46x36x18"
+  },
+  "48218-NEG-XXL": {
+    "cbm_per_unit": 0.038,
+    "cbm_source": "ia",
+    "cbm_dims": "48x38x18"
+  },
+  "48218-NEG-3XL": {
+    "cbm_per_unit": 0.04,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x18"
+  },
+  "48218-AZU-S": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "40x32x18"
+  },
+  "48218-AZU-M": {
+    "cbm_per_unit": 0.03,
+    "cbm_source": "ia",
+    "cbm_dims": "42x33x18"
+  },
+  "48218-AZU-L": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "44x35x18"
+  },
+  "48218-AZU-XL": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "46x36x18"
+  },
+  "48218-AZU-XXL": {
+    "cbm_per_unit": 0.038,
+    "cbm_source": "ia",
+    "cbm_dims": "48x38x18"
+  },
+  "48218-AZU-3XL": {
+    "cbm_per_unit": 0.04,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x18"
+  },
+  "48218-AZU-4XL": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "52x42x18"
+  },
+  "48218-GRI-S": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "40x32x18"
+  },
+  "48218-GRI-L": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "44x35x18"
+  },
+  "48218-GRI-XL": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "46x36x18"
+  },
+  "48218-GRI-3XL": {
+    "cbm_per_unit": 0.04,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x18"
+  },
+  "48115-BLA-40": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x23"
+  },
+  "48115-BLA-41": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x23"
+  },
+  "48115-BLA-43": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x23"
+  },
+  "48115-BLA-44": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x23"
+  },
+  "48400-NEG-36": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "32x24x23"
+  },
+  "48400-NEG-37": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "32x24x23"
+  },
+  "48400-VER-44": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x23"
+  },
+  "48400-BLA-36": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "32x24x23"
+  },
+  "48400-BLA-38": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "32x24x23"
+  },
+  "48400-BLA-43": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x23"
+  },
+  "48400-BLA-44": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x23"
+  },
+  "48400-BLA-47": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x23"
+  },
+  "48107-39": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "32x24x23"
+  },
+  "48107-40": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "32x24x23"
+  },
+  "48110-GRI-39": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "33x25x23"
+  },
+  "48110-GRI-40": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "33x25x23"
+  },
+  "48110-GRI-41": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "33x25x23"
+  },
+  "48110-GRI-42": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x23"
+  },
+  "48110-GRI-43": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x23"
+  },
+  "48110-GRI-44": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x23"
+  },
+  "48110-BEI-39": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x24"
+  },
+  "48110-BEI-40": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x24"
+  },
+  "48110-BEI-41": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x24"
+  },
+  "48110-BEI-42": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x24"
+  },
+  "48110-BEI-43": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x24"
+  },
+  "48110-BEI-44": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x24"
+  },
+  "48109-CEL-40": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48109-CEL-41": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48109-CEL-42": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48109-CEL-43": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48109-CEL-44": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48109-NEG-40": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48109-NEG-41": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48109-NEG-42": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48109-NEG-43": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48109-NEG-44": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48109-VER-42": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48109-VER-43": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48109-VER-44": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48109-NAR-40": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48109-NAR-41": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48109-NAR-42": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48109-NAR-43": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48109-NAR-44": {
+    "cbm_per_unit": 0.011,
+    "cbm_source": "ia",
+    "cbm_dims": "24x20x23"
+  },
+  "48500-BLA-NAR-28": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x22"
+  },
+  "48500-BLA-NAR-29": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x22"
+  },
+  "48500-BLA-NAR-30": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x22"
+  },
+  "48500-BLA-NAR-31": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x22"
+  },
+  "48500-BLA-NAR-32": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x22"
+  },
+  "48500-BLA-NAR-33": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x22"
+  },
+  "48500-BLA-NAR-34": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x22"
+  },
+  "1565-11": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x22"
+  },
+  "1565-13": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x22"
+  },
+  "48500-COM-28": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x22"
+  },
+  "48500-COM-29": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x22"
+  },
+  "48500-COM-30": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x22"
+  },
+  "48500-COM-31": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x22"
+  },
+  "48500-COM-33": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x22"
+  },
+  "48500-COM-34": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x22"
+  },
+  "1565-21": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x18x22"
+  },
+  "1565-24": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x27"
+  },
+  "1565-25": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x27"
+  },
+  "48113-CEL-40": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48113-CEL-41": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48113-CEL-42": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48113-CEL-43": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48113-CEL-44": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48113-CEL-45": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48113-VER-40": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48113-VER-41": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48113-VER-42": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48113-VER-43": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48113-VER-44": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48113-GRI-44": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x14"
+  },
+  "48114-BYA-40": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x14"
+  },
+  "48114-BYA-41": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x14"
+  },
+  "48114-BYA-42": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x14"
+  },
+  "48114-BYA-43": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x14"
+  },
+  "48114-BYN-41": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x14"
+  },
+  "48114-BYN-42": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x14"
+  },
+  "48114-BYG-41": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x14"
+  },
+  "48300-VER-38-39": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "28x18x12"
+  },
+  "38007-GRI": {
+    "cbm_per_unit": 0.065,
+    "cbm_source": "ia",
+    "cbm_dims": "65x45x22"
+  },
+  "38007-NEG": {
+    "cbm_per_unit": 0.065,
+    "cbm_source": "ia",
+    "cbm_dims": "65x45x22"
+  },
+  "38013-NEG": {
+    "cbm_per_unit": 0.085,
+    "cbm_source": "ia",
+    "cbm_dims": "70x50x24"
+  },
+  "38013-AZU": {
+    "cbm_per_unit": 0.085,
+    "cbm_source": "ia",
+    "cbm_dims": "70x50x24"
+  },
+  "38015-GRI": {
+    "cbm_per_unit": 0.072,
+    "cbm_source": "ia",
+    "cbm_dims": "68x48x22"
+  },
+  "17100-BLA": {
+    "cbm_per_unit": 0.095,
+    "cbm_source": "ia",
+    "cbm_dims": "60x50x32"
+  },
+  "17100-NEG": {
+    "cbm_per_unit": 0.095,
+    "cbm_source": "ia",
+    "cbm_dims": "60x50x32"
+  },
+  "97110-ROS": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "100x70x5"
+  },
+  "21021-AMA": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x15"
+  },
+  "21021-NAR": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x15"
+  },
+  "21021-ROJ": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x15"
+  },
+  "21021-VER": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x15"
+  },
+  "21021-VIO": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x15"
+  },
+  "21021-GRI": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x15"
+  },
+  "16404-BLA": {
+    "cbm_per_unit": 0.125,
+    "cbm_source": "ia",
+    "cbm_dims": "75x45x37"
+  },
+  "16404-MAR": {
+    "cbm_per_unit": 0.125,
+    "cbm_source": "ia",
+    "cbm_dims": "75x45x37"
+  },
+  "13402-BLA": {
+    "cbm_per_unit": 0.108,
+    "cbm_source": "ia",
+    "cbm_dims": "72x42x35"
+  },
+  "13402-NEG": {
+    "cbm_per_unit": 0.108,
+    "cbm_source": "ia",
+    "cbm_dims": "72x42x35"
+  },
+  "97105-ROJ": {
+    "cbm_per_unit": 0.01,
+    "cbm_source": "ia",
+    "cbm_dims": "10x8x15"
+  },
+  "22206-GRI": {
+    "cbm_per_unit": 0.22,
+    "cbm_source": "ia",
+    "cbm_dims": "140x220x5"
+  },
+  "22206-ROS": {
+    "cbm_per_unit": 0.22,
+    "cbm_source": "ia",
+    "cbm_dims": "140x220x5"
+  },
+  "22211-MAR": {
+    "cbm_per_unit": 0.17,
+    "cbm_source": "ia",
+    "cbm_dims": "106x160x5"
+  },
+  "22211-VIO": {
+    "cbm_per_unit": 0.17,
+    "cbm_source": "ia",
+    "cbm_dims": "106x160x5"
+  },
+  "22211-VER": {
+    "cbm_per_unit": 0.17,
+    "cbm_source": "ia",
+    "cbm_dims": "106x160x5"
+  },
+  "22211-AMA": {
+    "cbm_per_unit": 0.17,
+    "cbm_source": "ia",
+    "cbm_dims": "106x160x5"
+  },
+  "22211-GRI": {
+    "cbm_per_unit": 0.17,
+    "cbm_source": "ia",
+    "cbm_dims": "106x160x5"
+  },
+  "22211-GRI-OSC": {
+    "cbm_per_unit": 0.17,
+    "cbm_source": "ia",
+    "cbm_dims": "106x160x5"
+  },
+  "22211-BLA": {
+    "cbm_per_unit": 0.17,
+    "cbm_source": "ia",
+    "cbm_dims": "106x160x5"
+  },
+  "22212-MAR": {
+    "cbm_per_unit": 0.22,
+    "cbm_source": "ia",
+    "cbm_dims": "140x220x5"
+  },
+  "22212-GRI": {
+    "cbm_per_unit": 0.22,
+    "cbm_source": "ia",
+    "cbm_dims": "140x220x5"
+  },
+  "22212-GOS": {
+    "cbm_per_unit": 0.22,
+    "cbm_source": "ia",
+    "cbm_dims": "140x220x5"
+  },
+  "22212-BLA": {
+    "cbm_per_unit": 0.22,
+    "cbm_source": "ia",
+    "cbm_dims": "140x220x5"
+  },
+  "33706-VER": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "30x25x30"
+  },
+  "33706-MAR": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "30x25x30"
+  },
+  "33708-NEG": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x30"
+  },
+  "33708-GRI": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x30"
+  },
+  "48200-S": {
+    "cbm_per_unit": 0.04,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x60"
+  },
+  "48200-M": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "32x22x62"
+  },
+  "48200-L": {
+    "cbm_per_unit": 0.05,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x65"
+  },
+  "48200-XL": {
+    "cbm_per_unit": 0.055,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x68"
+  },
+  "48200-XXL": {
+    "cbm_per_unit": 0.06,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x70"
+  },
+  "48200-XXXL": {
+    "cbm_per_unit": 0.065,
+    "cbm_source": "ia",
+    "cbm_dims": "42x32x72"
+  },
+  "48208-XXL": {
+    "cbm_per_unit": 0.065,
+    "cbm_source": "ia",
+    "cbm_dims": "42x32x72"
+  },
+  "15500-ROJ": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "60x40x50"
+  },
+  "15500-AZU": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "60x40x50"
+  },
+  "15500-NEG": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "60x40x50"
+  },
+  "30006-PAC": {
+    "cbm_per_unit": 0.0001,
+    "cbm_source": "ia",
+    "cbm_dims": "3x3x10"
+  },
+  "32001-BLA": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "40x20x20"
+  },
+  "32002-BLA": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "60x20x20"
+  },
+  "32002-ROB": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "60x20x20"
+  },
+  "32002-COC": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "60x20x20"
+  },
+  "16800-NEG": {
+    "cbm_per_unit": 0.081,
+    "cbm_source": "ia",
+    "cbm_dims": "30x30x90"
+  },
+  "22201-AMA": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x20"
+  },
+  "13702-AZU": {
+    "cbm_per_unit": 0.18,
+    "cbm_source": "ia",
+    "cbm_dims": "200x200x150"
+  },
+  "54301-ROJO": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "100x150x50"
+  },
+  "54302-BLA-AZUL": {
+    "cbm_per_unit": 0.05,
+    "cbm_source": "ia",
+    "cbm_dims": "80x80x80"
+  },
+  "54302-VER-AZU": {
+    "cbm_per_unit": 0.05,
+    "cbm_source": "ia",
+    "cbm_dims": "80x80x80"
+  },
+  "54302-BEI": {
+    "cbm_per_unit": 0.05,
+    "cbm_source": "ia",
+    "cbm_dims": "80x80x80"
+  },
+  "21026-NEG": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "26x26x30"
+  },
+  "23025-LOT": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "10x10x18"
+  },
+  "23025-ROS": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "10x10x18"
+  },
+  "23025-AST": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "10x10x18"
+  },
+  "23024-ROS": {
+    "cbm_per_unit": 0.005,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x16"
+  },
+  "23024-AST": {
+    "cbm_per_unit": 0.005,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x16"
+  },
+  "21042-NEG": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "27x27x28"
+  },
+  "21042-CEL": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "27x27x28"
+  },
+  "21042-AMA": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "27x27x28"
+  },
+  "21042-VER": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "27x27x28"
+  },
+  "21042-BLA": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "27x27x28"
+  },
+  "21005-NEG": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "25x25x28"
+  },
+  "21007-BLA": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "22x22x30"
+  },
+  "21007-NEG": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "22x22x30"
+  },
+  "21007-GRI": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "22x22x30"
+  },
+  "21040-NEG": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "24x24x29"
+  },
+  "21040-BLA": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "24x24x29"
+  },
+  "21040-AMA": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "24x24x29"
+  },
+  "21040-CEL": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "24x24x29"
+  },
+  "21040-VER": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "24x24x29"
+  },
+  "21040-GRI": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "24x24x29"
+  },
+  "21061-NEG": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "26x26x28"
+  },
+  "21061-GRI": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "26x26x28"
+  },
+  "21061-AMA": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "26x26x28"
+  },
+  "21061-VER": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "26x26x28"
+  },
+  "21061-BLA": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "26x26x28"
+  },
+  "21064-BLA": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "23x23x30"
+  },
+  "21064-NEG": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "23x23x30"
+  },
+  "21006-BLA": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "25x25x29"
+  },
+  "21006-NEG": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "25x25x29"
+  },
+  "21000-NEG": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "24x24x29"
+  },
+  "21000-BLA": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "24x24x29"
+  },
+  "21023-BLA": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "26x26x28"
+  },
+  "21023-NEG": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "26x26x28"
+  },
+  "21023-VER": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "26x26x28"
+  },
+  "21023-GRI": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "26x26x28"
+  },
+  "21023-AMA": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "26x26x28"
+  },
+  "21023-AZU": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "26x26x28"
+  },
+  "21038-NEG": {
+    "cbm_per_unit": 0.031,
+    "cbm_source": "ia",
+    "cbm_dims": "36x36x24"
+  },
+  "20001-VER": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "20x20x30"
+  },
+  "20107-BLA": {
+    "cbm_per_unit": 0.15,
+    "cbm_source": "ia",
+    "cbm_dims": "60x40x65"
+  },
+  "20103-BLA": {
+    "cbm_per_unit": 0.18,
+    "cbm_source": "ia",
+    "cbm_dims": "70x40x68"
+  },
+  "20103-NEG": {
+    "cbm_per_unit": 0.18,
+    "cbm_source": "ia",
+    "cbm_dims": "70x40x68"
+  },
+  "20014-NEG": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "50x30x55"
+  },
+  "21036-BLA": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "55x55x40"
+  },
+  "12111-MAN": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "12x12x10"
+  },
+  "12111-YIN": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "12x12x10"
+  },
+  "12111-YAN": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "12x12x10"
+  },
+  "12111-SOL": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "12x12x10"
+  },
+  "12111-FAT": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "12x12x10"
+  },
+  "12111-MED": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "12x12x10"
+  },
+  "12111-OJO": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "12x12x10"
+  },
+  "16103-BLA": {
+    "cbm_per_unit": 0.11,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x55"
+  },
+  "16106-BLA": {
+    "cbm_per_unit": 0.13,
+    "cbm_source": "ia",
+    "cbm_dims": "55x45x52"
+  },
+  "16106-NEG": {
+    "cbm_per_unit": 0.13,
+    "cbm_source": "ia",
+    "cbm_dims": "55x45x52"
+  },
+  "16300-BLA": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x60"
+  },
+  "16300-MAR": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x60"
+  },
+  "13401-BLA": {
+    "cbm_per_unit": 0.14,
+    "cbm_source": "ia",
+    "cbm_dims": "52x42x64"
+  },
+  "16405-MAR": {
+    "cbm_per_unit": 0.15,
+    "cbm_source": "ia",
+    "cbm_dims": "55x45x60"
+  },
+  "16405-CAS": {
+    "cbm_per_unit": 0.15,
+    "cbm_source": "ia",
+    "cbm_dims": "55x45x60"
+  },
+  "13002-BLA": {
+    "cbm_per_unit": 0.22,
+    "cbm_source": "ia",
+    "cbm_dims": "120x80x75"
+  },
+  "54006-GRI": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "35x20x50"
+  },
+  "54006-NEG": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "35x20x50"
+  },
+  "54006-ROJ": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "35x20x50"
+  },
+  "54003-GRI": {
+    "cbm_per_unit": 0.022,
+    "cbm_source": "ia",
+    "cbm_dims": "32x18x45"
+  },
+  "54001-COM": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x15x40"
+  },
+  "54001-ROJ": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "30x15x40"
+  },
+  "54002-ROJ": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "33x18x42"
+  },
+  "54002-AZU": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "33x18x42"
+  },
+  "54002-GRI": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "33x18x42"
+  },
+  "54002-NEG": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "33x18x42"
+  },
+  "54009-BEI": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "40x25x45"
+  },
+  "54009-GRI": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "40x25x45"
+  },
+  "54213-AZU": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "75x25x12"
+  },
+  "19203-MAR": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x40"
+  },
+  "18802-BLA": {
+    "cbm_per_unit": 0.16,
+    "cbm_source": "ia",
+    "cbm_dims": "60x45x58"
+  },
+  "13900-BLA": {
+    "cbm_per_unit": 0.28,
+    "cbm_source": "ia",
+    "cbm_dims": "100x60x50"
+  },
+  "19437-NEG": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "45x35x27"
+  },
+  "19026-MAR": {
+    "cbm_per_unit": 0.085,
+    "cbm_source": "ia",
+    "cbm_dims": "65x45x29"
+  },
+  "15900-BLA": {
+    "cbm_per_unit": 0.31,
+    "cbm_source": "ia",
+    "cbm_dims": "120x75x35"
+  },
+  "19025-LON": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x25"
+  },
+  "19025-PAR": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x25"
+  },
+  "19025-NEW": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x25"
+  },
+  "54803-CEL": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "15x12x10"
+  },
+  "54700-36": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x20"
+  },
+  "54700-37": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x20"
+  },
+  "54700-39": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x20"
+  },
+  "54700-40": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x20"
+  },
+  "54700-41": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x20"
+  },
+  "25204-NEG-CAL": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "45x45x15"
+  },
+  "555-2": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "45x45x15"
+  },
+  "555-4": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "45x45x15"
+  },
+  "25204-NEG-FRI": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "45x45x15"
+  },
+  "25206-BLA": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "35x35x15"
+  },
+  "25206-NEG": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "35x35x15"
+  },
+  "25204-BLA-CAL": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "45x45x15"
+  },
+  "25204-BLA-FRI": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "45x45x15"
+  },
+  "25205-NEG-CAL": {
+    "cbm_per_unit": 0.055,
+    "cbm_source": "ia",
+    "cbm_dims": "55x55x18"
+  },
+  "25018-BLA": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "40x40x18"
+  },
+  "25018-NEG": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "40x40x18"
+  },
+  "25103-NEG": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "30x30x18"
+  },
+  "571-2": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "28x28x15"
+  },
+  "571-3": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "28x28x15"
+  },
+  "25013-BLA": {
+    "cbm_per_unit": 0.027,
+    "cbm_source": "ia",
+    "cbm_dims": "40x40x17"
+  },
+  "25013-NEG": {
+    "cbm_per_unit": 0.027,
+    "cbm_source": "ia",
+    "cbm_dims": "40x40x17"
+  },
+  "22315-NEG": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x20"
+  },
+  "20002-BLA": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "28x22x23"
+  },
+  "20002-NEG": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "28x22x23"
+  },
+  "20004-BLA": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "32x25x22"
+  },
+  "20004-NEG": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "32x25x22"
+  },
+  "20008-BLA": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "30x24x22"
+  },
+  "20000-BLA": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "30x25x20"
+  },
+  "20000-NEG": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "30x25x20"
+  },
+  "20003-BLA": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "26x20x23"
+  },
+  "20003-NEG": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "26x20x23"
+  },
+  "15302-BLA": {
+    "cbm_per_unit": 0.095,
+    "cbm_source": "ia",
+    "cbm_dims": "50x45x42"
+  },
+  "15302-CAS": {
+    "cbm_per_unit": 0.095,
+    "cbm_source": "ia",
+    "cbm_dims": "50x45x42"
+  },
+  "41034-GRI": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x32"
+  },
+  "97106-M": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "25x15x10"
+  },
+  "97106-L": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "25x15x10"
+  },
+  "97106-XL": {
+    "cbm_per_unit": 0.009,
+    "cbm_source": "ia",
+    "cbm_dims": "26x16x10"
+  },
+  "16215-BLA": {
+    "cbm_per_unit": 1.2,
+    "cbm_source": "ia",
+    "cbm_dims": "150x60x80"
+  },
+  "16215-NOG": {
+    "cbm_per_unit": 1.2,
+    "cbm_source": "ia",
+    "cbm_dims": "150x60x80"
+  },
+  "16214-BLA": {
+    "cbm_per_unit": 1.3,
+    "cbm_source": "ia",
+    "cbm_dims": "150x60x85"
+  },
+  "16214-NOG": {
+    "cbm_per_unit": 1.3,
+    "cbm_source": "ia",
+    "cbm_dims": "150x60x85"
+  },
+  "1205-1": {
+    "cbm_per_unit": 0.8,
+    "cbm_source": "ia",
+    "cbm_dims": "105x170x45"
+  },
+  "1205-0": {
+    "cbm_per_unit": 0.8,
+    "cbm_source": "ia",
+    "cbm_dims": "105x170x45"
+  },
+  "1205-3": {
+    "cbm_per_unit": 0.8,
+    "cbm_source": "ia",
+    "cbm_dims": "105x170x45"
+  },
+  "16000-BLA": {
+    "cbm_per_unit": 0.95,
+    "cbm_source": "ia",
+    "cbm_dims": "120x50x80"
+  },
+  "16000-MAR": {
+    "cbm_per_unit": 0.95,
+    "cbm_source": "ia",
+    "cbm_dims": "120x50x80"
+  },
+  "16204-NOG": {
+    "cbm_per_unit": 1.5,
+    "cbm_source": "ia",
+    "cbm_dims": "180x60x85"
+  },
+  "16216-BLA": {
+    "cbm_per_unit": 0.85,
+    "cbm_source": "ia",
+    "cbm_dims": "110x50x80"
+  },
+  "16216-NOG": {
+    "cbm_per_unit": 0.85,
+    "cbm_source": "ia",
+    "cbm_dims": "110x50x80"
+  },
+  "16217-BLA": {
+    "cbm_per_unit": 0.95,
+    "cbm_source": "ia",
+    "cbm_dims": "120x50x80"
+  },
+  "16217-MAR": {
+    "cbm_per_unit": 0.95,
+    "cbm_source": "ia",
+    "cbm_dims": "120x50x80"
+  },
+  "16002-BLA": {
+    "cbm_per_unit": 1.25,
+    "cbm_source": "ia",
+    "cbm_dims": "150x55x85"
+  },
+  "16002-MAR": {
+    "cbm_per_unit": 1.25,
+    "cbm_source": "ia",
+    "cbm_dims": "150x55x85"
+  },
+  "30001-FUE": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x8"
+  },
+  "30001-AGU": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x8"
+  },
+  "30001-ETE": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x8"
+  },
+  "97103-ROS-VER": {
+    "cbm_per_unit": 0.025,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x12"
+  },
+  "15902-BLA": {
+    "cbm_per_unit": 0.35,
+    "cbm_source": "ia",
+    "cbm_dims": "80x60x40"
+  },
+  "15902-NEG": {
+    "cbm_per_unit": 0.35,
+    "cbm_source": "ia",
+    "cbm_dims": "80x60x40"
+  },
+  "19420-VER": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x12"
+  },
+  "19420-NEG": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x12"
+  },
+  "48216-M": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "30x25x8"
+  },
+  "48216-L": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "30x25x8"
+  },
+  "48216-XL": {
+    "cbm_per_unit": 0.013,
+    "cbm_source": "ia",
+    "cbm_dims": "32x26x8"
+  },
+  "48216-XXL": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "33x27x8"
+  },
+  "48216-3XL": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "35x28x8"
+  },
+  "48216-4XL": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "36x30x8"
+  },
+  "13305-ROJ": {
+    "cbm_per_unit": 0.45,
+    "cbm_source": "ia",
+    "cbm_dims": "60x55x75"
+  },
+  "15700-ROJ": {
+    "cbm_per_unit": 0.55,
+    "cbm_source": "ia",
+    "cbm_dims": "70x70x80"
+  },
+  "15700-NEG": {
+    "cbm_per_unit": 0.55,
+    "cbm_source": "ia",
+    "cbm_dims": "70x70x80"
+  },
+  "588-2": {
+    "cbm_per_unit": 0.25,
+    "cbm_source": "ia",
+    "cbm_dims": "50x50x60"
+  },
+  "13103-BEI": {
+    "cbm_per_unit": 0.42,
+    "cbm_source": "ia",
+    "cbm_dims": "65x65x75"
+  },
+  "13200-BLA": {
+    "cbm_per_unit": 0.18,
+    "cbm_source": "ia",
+    "cbm_dims": "50x50x85"
+  },
+  "13200-NEG": {
+    "cbm_per_unit": 0.18,
+    "cbm_source": "ia",
+    "cbm_dims": "50x50x85"
+  },
+  "48215-S": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x20"
+  },
+  "48215-M": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "30x20x20"
+  },
+  "48215-L": {
+    "cbm_per_unit": 0.013,
+    "cbm_source": "ia",
+    "cbm_dims": "32x20x20"
+  },
+  "48215-XL": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "34x20x20"
+  },
+  "48116-40": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x20"
+  },
+  "48116-42": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x20"
+  },
+  "48111-42": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "36x25x20"
+  },
+  "48111-43": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "36x25x20"
+  },
+  "48111-44": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "37x25x20"
+  },
+  "48112-40": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "36x25x20"
+  },
+  "48112-41": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "36x25x20"
+  },
+  "48112-42": {
+    "cbm_per_unit": 0.019,
+    "cbm_source": "ia",
+    "cbm_dims": "36x25x20"
+  },
+  "48112-43": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "37x25x20"
+  },
+  "48112-44": {
+    "cbm_per_unit": 0.02,
+    "cbm_source": "ia",
+    "cbm_dims": "37x25x20"
+  },
+  "61110-AZU": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x20"
+  },
+  "61110-ROJ": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x20"
+  },
+  "61101-NEG": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x20"
+  },
+  "61101-AZU": {
+    "cbm_per_unit": 0.006,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x20"
+  },
+  "13404-BLA": {
+    "cbm_per_unit": 0.096,
+    "cbm_source": "ia",
+    "cbm_dims": "80x60x20"
+  },
+  "13105-BLA": {
+    "cbm_per_unit": 0.48,
+    "cbm_source": "ia",
+    "cbm_dims": "140x80x90"
+  },
+  "13105-NEG": {
+    "cbm_per_unit": 0.48,
+    "cbm_source": "ia",
+    "cbm_dims": "140x80x90"
+  },
+  "577-0": {
+    "cbm_per_unit": 0.027,
+    "cbm_source": "ia",
+    "cbm_dims": "35x35x22"
+  },
+  "000-1": {
+    "cbm_per_unit": 0.001,
+    "cbm_source": "ia",
+    "cbm_dims": "5x5x4"
+  },
+  "54900-NEG": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x50"
+  },
+  "54900-GRI": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x50"
+  },
+  "54900-LIL": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x50"
+  },
+  "54900-AZU": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x50"
+  },
+  "54900-ROS": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "35x25x50"
+  },
+  "54901-NEG": {
+    "cbm_per_unit": 0.052,
+    "cbm_source": "ia",
+    "cbm_dims": "38x28x50"
+  },
+  "54902-NEG": {
+    "cbm_per_unit": 0.06,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x50"
+  },
+  "54902-AZU": {
+    "cbm_per_unit": 0.06,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x50"
+  },
+  "54902-GRI": {
+    "cbm_per_unit": 0.06,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x50"
+  },
+  "54903-NEG": {
+    "cbm_per_unit": 0.048,
+    "cbm_source": "ia",
+    "cbm_dims": "35x27x50"
+  },
+  "54904-NEG": {
+    "cbm_per_unit": 0.048,
+    "cbm_source": "ia",
+    "cbm_dims": "35x27x50"
+  },
+  "54904-GRI": {
+    "cbm_per_unit": 0.048,
+    "cbm_source": "ia",
+    "cbm_dims": "35x27x50"
+  },
+  "13405-BLA": {
+    "cbm_per_unit": 1.152,
+    "cbm_source": "ia",
+    "cbm_dims": "120x80x120"
+  },
+  "13405-NOG": {
+    "cbm_per_unit": 1.152,
+    "cbm_source": "ia",
+    "cbm_dims": "120x80x120"
+  },
+  "13405-NEG": {
+    "cbm_per_unit": 1.152,
+    "cbm_source": "ia",
+    "cbm_dims": "120x80x120"
+  },
+  "PZCX1-BAR-BLANCO": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x6"
+  },
+  "PZCX1-BAR-MARRON": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x6"
+  },
+  "PZCX2-BAR-MARRON": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "25x15x6.4"
+  },
+  "PZCX2-BAR-BLANCO": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "25x15x6.4"
+  },
+  "PZ-BERLIM-CX1-BLA": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x6"
+  },
+  "PZ-BERLIM-CX1-MAR": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x6"
+  },
+  "PZ-BERLIM-CX1-NEG": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x6"
+  },
+  "PZ-BERLIM-CX2-BLA": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "25x15x6.4"
+  },
+  "PZ-BERLIM-CX2-NOG": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "25x15x6.4"
+  },
+  "PZ-BERLIM-CX2-NEG": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "25x15x6.4"
+  },
+  "PZ-MEND-CX1-BLA": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x6"
+  },
+  "PZ-MEND-CX1-NOG": {
+    "cbm_per_unit": 0.018,
+    "cbm_source": "ia",
+    "cbm_dims": "20x15x6"
+  },
+  "PZ-MEND-CX2-BLA": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "25x15x6.4"
+  },
+  "PZ-MEND-CX2-NOG": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "25x15x6.4"
+  },
+  "54703-S-ROS": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x8.4"
+  },
+  "54703-S-AZU": {
+    "cbm_per_unit": 0.042,
+    "cbm_source": "ia",
+    "cbm_dims": "25x20x8.4"
+  },
+  "54703-M-ROS": {
+    "cbm_per_unit": 0.048,
+    "cbm_source": "ia",
+    "cbm_dims": "28x22x7.8"
+  },
+  "54703-M-AZ": {
+    "cbm_per_unit": 0.048,
+    "cbm_source": "ia",
+    "cbm_dims": "28x22x7.8"
+  },
+  "MA217": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "12x10x12.5"
+  },
+  "MA218": {
+    "cbm_per_unit": 0.016,
+    "cbm_source": "ia",
+    "cbm_dims": "13x10x12"
+  },
+  "MA148": {
+    "cbm_per_unit": 0.014,
+    "cbm_source": "ia",
+    "cbm_dims": "11x10x13"
+  },
+  "19026-AZU": {
+    "cbm_per_unit": 0.056,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x4.7"
+  },
+  "15904-NEG": {
+    "cbm_per_unit": 0.216,
+    "cbm_source": "ia",
+    "cbm_dims": "60x40x9"
+  },
+  "15100-NEG": {
+    "cbm_per_unit": 0.198,
+    "cbm_source": "ia",
+    "cbm_dims": "55x40x9"
+  },
+  "15001-BLA": {
+    "cbm_per_unit": 0.168,
+    "cbm_source": "ia",
+    "cbm_dims": "56x40x7.5"
+  },
+  "15001-GRI": {
+    "cbm_per_unit": 0.168,
+    "cbm_source": "ia",
+    "cbm_dims": "56x40x7.5"
+  },
+  "19458-BLA": {
+    "cbm_per_unit": 0.28,
+    "cbm_source": "ia",
+    "cbm_dims": "120x60x40"
+  },
+  "19458-NEG": {
+    "cbm_per_unit": 0.28,
+    "cbm_source": "ia",
+    "cbm_dims": "120x60x40"
+  },
+  "19429-AZU": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "105x45x17"
+  },
+  "31010-NEG": {
+    "cbm_per_unit": 0.027,
+    "cbm_source": "ia",
+    "cbm_dims": "30x30x30"
+  },
+  "PZ1-DENVER-BLA": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "45x30x33"
+  },
+  "PZ1-DENVER-MAR": {
+    "cbm_per_unit": 0.045,
+    "cbm_source": "ia",
+    "cbm_dims": "45x30x33"
+  },
+  "PZ2-DENVER-BLA": {
+    "cbm_per_unit": 0.055,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x31"
+  },
+  "PZ2-DENVER-MAR": {
+    "cbm_per_unit": 0.055,
+    "cbm_source": "ia",
+    "cbm_dims": "50x35x31"
+  },
+  "PZ-ESPEJO-DEN-MON": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "60x40x14"
+  },
+  "21066-BLA": {
+    "cbm_per_unit": 0.032,
+    "cbm_source": "ia",
+    "cbm_dims": "35x35x26"
+  },
+  "21066-NEG": {
+    "cbm_per_unit": 0.024,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x20"
+  },
+  "PZ-MESA-TAL": {
+    "cbm_per_unit": 0.35,
+    "cbm_source": "ia",
+    "cbm_dims": "120x80x75"
+  },
+  "PZ-SILLA-TAL": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "55x50x90"
+  },
+  "PZ-SILLA-LEXI": {
+    "cbm_per_unit": 0.1,
+    "cbm_source": "ia",
+    "cbm_dims": "50x48x85"
+  },
+  "PZ-ACOLCH": {
+    "cbm_per_unit": 0.05,
+    "cbm_source": "ia",
+    "cbm_dims": "50x50x10"
+  },
+  "PZ-VIDRIO": {
+    "cbm_per_unit": 0.03,
+    "cbm_source": "ia",
+    "cbm_dims": "120x80x5"
+  },
+  "PZ-MESA-ALINE": {
+    "cbm_per_unit": 0.32,
+    "cbm_source": "ia",
+    "cbm_dims": "120x80x75"
+  },
+  "PZ1-TOPACIO-BLA": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "45x40x45"
+  },
+  "PZ1-TOPACIO-NEG": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "45x40x45"
+  },
+  "PZ2-TOPACIO-BLA": {
+    "cbm_per_unit": 0.14,
+    "cbm_source": "ia",
+    "cbm_dims": "55x45x55"
+  },
+  "PZ2-TOPACIO-NEG": {
+    "cbm_per_unit": 0.14,
+    "cbm_source": "ia",
+    "cbm_dims": "55x45x55"
+  },
+  "PZ1-MONACO-BLA": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "45x40x45"
+  },
+  "PZ2-MON-BLA": {
+    "cbm_per_unit": 0.14,
+    "cbm_source": "ia",
+    "cbm_dims": "55x45x55"
+  },
+  "PZ2-MON-MAR": {
+    "cbm_per_unit": 0.14,
+    "cbm_source": "ia",
+    "cbm_dims": "55x45x55"
+  },
+  "PZ1-MON-MARR": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "45x40x45"
+  },
+  "PZ-ESP-TOPACIO": {
+    "cbm_per_unit": 0.035,
+    "cbm_source": "ia",
+    "cbm_dims": "60x40x5"
+  },
+  "PZ-SILLAS JAINE": {
+    "cbm_per_unit": 0.11,
+    "cbm_source": "ia",
+    "cbm_dims": "52x48x88"
+  },
+  "PZ-ACOLCHADOS-JAINE": {
+    "cbm_per_unit": 0.04,
+    "cbm_source": "ia",
+    "cbm_dims": "48x48x10"
+  },
+  "23006-FRI": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "200x200x10"
+  },
+  "23007-FRI": {
+    "cbm_per_unit": 0.18,
+    "cbm_source": "ia",
+    "cbm_dims": "300x300x15"
+  },
+  "54022-ROS": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "25x22x15"
+  },
+  "54022-MAR": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "25x22x15"
+  },
+  "54022-CEL": {
+    "cbm_per_unit": 0.015,
+    "cbm_source": "ia",
+    "cbm_dims": "25x22x15"
+  },
+  "54023-AZU": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x14"
+  },
+  "54023-GRI": {
+    "cbm_per_unit": 0.017,
+    "cbm_source": "ia",
+    "cbm_dims": "40x30x14"
+  },
+  "21061-AZU": {
+    "cbm_per_unit": 0.028,
+    "cbm_source": "ia",
+    "cbm_dims": "45x35x18"
+  },
+  "16000-RNE": {
+    "cbm_per_unit": 0.42,
+    "cbm_source": "ia",
+    "cbm_dims": "120x60x58"
+  },
+  "PZ1-DENVER-RNE": {
+    "cbm_per_unit": 0.18,
+    "cbm_source": "ia",
+    "cbm_dims": "100x50x36"
+  },
+  "PZ2-DENVER-RNE": {
+    "cbm_per_unit": 0.18,
+    "cbm_source": "ia",
+    "cbm_dims": "100x50x36"
+  },
+  "54527-AZC": {
+    "cbm_per_unit": 0.25,
+    "cbm_source": "ia",
+    "cbm_dims": "65x65x60"
+  },
+  "54527-CEL": {
+    "cbm_per_unit": 0.25,
+    "cbm_source": "ia",
+    "cbm_dims": "65x65x60"
+  },
+  "54527-VER": {
+    "cbm_per_unit": 0.25,
+    "cbm_source": "ia",
+    "cbm_dims": "65x65x60"
+  },
+  "54528-CEL": {
+    "cbm_per_unit": 0.35,
+    "cbm_source": "ia",
+    "cbm_dims": "75x75x70"
+  },
+  "54528-AMA": {
+    "cbm_per_unit": 0.35,
+    "cbm_source": "ia",
+    "cbm_dims": "75x75x70"
+  },
+  "54528-NAR": {
+    "cbm_per_unit": 0.35,
+    "cbm_source": "ia",
+    "cbm_dims": "75x75x70"
+  },
+  "54528-ROJ": {
+    "cbm_per_unit": 0.35,
+    "cbm_source": "ia",
+    "cbm_dims": "75x75x70"
+  },
+  "16219-BLA": {
+    "cbm_per_unit": 0.38,
+    "cbm_source": "ia",
+    "cbm_dims": "110x55x65"
+  },
+  "PZCX2-BAR-NEG": {
+    "cbm_per_unit": 0.22,
+    "cbm_source": "ia",
+    "cbm_dims": "105x50x42"
+  },
+  "PZCX1-BAR-NEG": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "85x50x30"
+  },
+  "PZCX1-MEND-NEG": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "85x50x30"
+  },
+  "PZCX2-MEND-NEG": {
+    "cbm_per_unit": 0.22,
+    "cbm_source": "ia",
+    "cbm_dims": "105x50x42"
+  },
+  "16215-NEG": {
+    "cbm_per_unit": 0.48,
+    "cbm_source": "ia",
+    "cbm_dims": "125x60x65"
+  },
+  "16214-NEG": {
+    "cbm_per_unit": 0.5,
+    "cbm_source": "ia",
+    "cbm_dims": "125x60x68"
+  },
+  "16216-NEG": {
+    "cbm_per_unit": 0.4,
+    "cbm_source": "ia",
+    "cbm_dims": "110x55x65"
+  },
+  "16217-NEG": {
+    "cbm_per_unit": 0.42,
+    "cbm_source": "ia",
+    "cbm_dims": "120x60x58"
+  },
+  "CONTE": {
+    "cbm_per_unit": 33.2,
+    "cbm_source": "ia",
+    "cbm_dims": "1200x1000x1150"
+  },
+  "MP-ALAMBRE": {
+    "cbm_per_unit": 0.15,
+    "cbm_source": "ia",
+    "cbm_dims": "50x40x75"
+  },
+  "MP-TEJIDO": {
+    "cbm_per_unit": 0.12,
+    "cbm_source": "ia",
+    "cbm_dims": "60x50x40"
+  },
+  "MP-ROLLO": {
+    "cbm_per_unit": 0.18,
+    "cbm_source": "ia",
+    "cbm_dims": "80x60x45"
+  },
+  "PR01": {
+    "cbm_per_unit": 0.005,
+    "cbm_source": "ia",
+    "cbm_dims": "10x10x5"
+  },
+  "75120-MAC": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "50x50x5"
+  },
+  "75120-MAO": {
+    "cbm_per_unit": 0.012,
+    "cbm_source": "ia",
+    "cbm_dims": "50x50x5"
+  },
+  "54527-VEN": {
+    "cbm_per_unit": 0.047,
+    "cbm_source": "ia",
+    "cbm_dims": "190x130x19"
+  },
+  "54527-NAR": {
+    "cbm_per_unit": 0.047,
+    "cbm_source": "ia",
+    "cbm_dims": "190x130x19"
+  },
+  "54528-AZO": {
+    "cbm_per_unit": 0.08,
+    "cbm_source": "ia",
+    "cbm_dims": "200x200x20"
+  },
+  "75110-AULT": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x20"
+  },
+  "75110-BMAT": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x20"
+  },
+  "75110-GEN": {
+    "cbm_per_unit": 0.008,
+    "cbm_source": "ia",
+    "cbm_dims": "8x8x20"
   }
 }
