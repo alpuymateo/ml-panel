@@ -1,22 +1,36 @@
 {
-  "id": "draft-1778452341489",
+  "id": "draft-1778523226155",
   "number": "OC-202605-001",
   "items": [
     {
-      "sku": "54113",
-      "name": "LIENZOS DE 30X40",
-      "qty": 104,
-      "origen": "",
-      "thumb": ""
+      "sku": "52024",
+      "name": "INFLADOR PARA BICICLETAS",
+      "qty": 86,
+      "origen": "China",
+      "thumb": "http://http2.mlstatic.com/D_934716-MLU83473345579_042025-I.jpg"
     },
     {
-      "sku": "19909",
-      "name": "SET 24 RECIPIENTES HERMETICOS",
-      "qty": 37,
+      "sku": "20105-NEG",
+      "name": "LAMPARA DE PIE MONTREAL 1.5M",
+      "qty": 68,
       "origen": "China",
-      "thumb": "http://http2.mlstatic.com/D_953933-MLA109737962511_032026-I.jpg"
+      "thumb": "http://http2.mlstatic.com/D_691866-MLA95706227308_102025-I.jpg"
+    },
+    {
+      "sku": "19431",
+      "name": "BIOMBO COLOR NATURAL PD002NA-180H",
+      "qty": 57,
+      "origen": "China",
+      "thumb": "http://http2.mlstatic.com/D_665630-MLU77037556367_062024-I.jpg"
+    },
+    {
+      "sku": "19203-MAR",
+      "name": "MOPA GIRATORIA REFORZADA",
+      "qty": 57,
+      "origen": "China",
+      "thumb": ""
     }
   ],
-  "created": "2026-05-10T22:32:21.490Z",
-  "updated": "2026-05-11T17:47:15.486Z"
+  "created": "2026-05-11T18:13:46.155Z",
+  "updated": "2026-05-11T18:20:13.502Z"
 }

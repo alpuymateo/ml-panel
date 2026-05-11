@@ -779,6 +779,11 @@
             <option value="disc_pausada">↳ Con stock y pausada a mano</option>
             <option value="cruce_nombre">🔍 Posibles matches por nombre</option>
           </select>
+          <select class="filter-select" id="stock-origen-filter" onchange="filterStock()">
+            <option value="">Todos los or&iacute;genes</option>
+            <option value="china">🇨🇳 China</option>
+            <option value="brasil">🇧🇷 Brasil</option>
+          </select>
           <button class="btn-refresh" id="btn-group-stock" onclick="toggleGroupStock()" style="background:#0ea5e9;">⊞ Agrupar por categoría</button>
           <button class="btn-refresh" id="btn-refresh-stock" onclick="loadStock()">Actualizar</button>
           <button class="btn-refresh" id="btn-refresh-pubs" onclick="loadStock(true)" style="background:#7048e8;">↺ Recargar publicaciones</button>
@@ -3084,9 +3089,16 @@ async function loadDiscrepancias(subtipo = null) {
   }
 }
 
+const BRASIL_KEYWORDS = ['mobiliario','mueble','ropero','placard','mesa de luz','rack para tv','escritorio madesa','escritorio appunto','comoda','rack tv'];
+function isBrasilClient(item) {
+  const n = ((item.title||'') + ' ' + (item.category_name||'')).toLowerCase();
+  return BRASIL_KEYWORDS.some(k => n.includes(k));
+}
+
 function filterStock() {
   const search  = (document.getElementById('stock-search')?.value || '').toLowerCase();
   const urgency = document.getElementById('stock-urgency-filter')?.value || '';
+  const origen  = document.getElementById('stock-origen-filter')?.value || '';
 
   if (urgency === 'discrepancias')  { loadDiscrepancias(null); return; }
   if (urgency === 'disc_con_pub')   { loadDiscrepancias('con_pub'); return; }
@@ -3095,9 +3107,10 @@ function filterStock() {
   if (urgency === 'cruce_nombre')   { loadCruceNombre(); return; }
 
   const filtered = allStock.filter(item => {
-    const matchSearch  = !search  || item.title.toLowerCase().includes(search);
+    const matchSearch  = !search  || item.title.toLowerCase().includes(search) || (item.sku||'').toLowerCase().includes(search);
     const matchUrgency = !urgency || stockUrgency(item) === urgency;
-    return matchSearch && matchUrgency;
+    const matchOrigen  = !origen  || (origen === 'brasil' ? isBrasilClient(item) : !isBrasilClient(item));
+    return matchSearch && matchUrgency && matchOrigen;
   });
   document.getElementById('stock-table-content').innerHTML = buildStockTable(filtered);
 }
@@ -3115,7 +3128,24 @@ async function loadStock(refreshPubs = false) {
     const res  = await fetch(url);
     if (res.status === 401) { showLogin(); return; }
     const data = await res.json();
-    allStock = data.items || [];
+    // Dedup: si hay publicaciones con mismo título y stock, mostrar solo la que tiene más ventas
+    const raw = data.items || [];
+    const seen = {};
+    allStock = [];
+    for (const item of raw) {
+      const key = item.title + '|' + item.stock;
+      if (seen[key]) {
+        // Keep the one with more sales
+        if (item.sold30d > seen[key].sold30d) {
+          allStock = allStock.filter(i => i !== seen[key]);
+          allStock.push(item);
+          seen[key] = item;
+        }
+      } else {
+        seen[key] = item;
+        allStock.push(item);
+      }
+    }
     if (data.lastUpdated) {
       const ageMin = Math.round((Date.now() - new Date(data.lastUpdated)) / 60000);
       document.getElementById('stock-subtitle').textContent =
@@ -8787,7 +8817,7 @@ async function loadOrdenSugerida() {
             <td style="padding:3px 4px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name}</td>
             <td style="padding:3px 4px;text-align:right;font-weight:700;color:#dc2626;">pedir ${i.gap}</td>
             <td style="padding:3px 4px;text-align:right;color:#6b7280;">stock: ${i.stock}</td>
-            <td><button onclick="agregarAOrden('${i.sku.replace(/'/g,"\\'")}',${i.gap},'${i.name.replace(/'/g,"\\'")}')" style="padding:2px 6px;background:#dc2626;color:white;border:none;border-radius:3px;font-size:10px;cursor:pointer;">+</button></td>
+            <td><button data-sku-btn="${i.sku.replace(/'/g,"\\'")}" onclick="agregarAOrden('${i.sku.replace(/'/g,"\\'")}',${i.gap},'${i.name.replace(/'/g,"\\'")}')" style="padding:2px 6px;background:#dc2626;color:white;border:none;border-radius:3px;font-size:10px;cursor:pointer;">+</button></td>
           </tr>`;
         }
         html += `</tbody></table>`;
@@ -8815,22 +8845,90 @@ async function loadOrdenSugerida() {
     // ── REPOSICIÓN URGENTE ──
     if (d.reposicion && d.reposicion.length > 0) {
       const repItems = d.reposicion;
-      const repQty = repItems.reduce((s,i) => s + Math.ceil(i.avg_month), 0);
+      // Group by category
+      const repByCat = {};
+      for (const i of repItems) {
+        const cat = getCategoryGroupClient(i.name, i.categ);
+        if (!repByCat[cat]) repByCat[cat] = [];
+        repByCat[cat].push(i);
+      }
+      const repCats = Object.entries(repByCat).sort((a,b) => b[1].length - a[1].length);
+
       html += `<div class="card" style="margin-bottom:20px;border-top:4px solid #dc2626;padding:0;overflow:hidden;">
         <div style="padding:12px 16px;background:#fef2f2;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="const el=document.getElementById('os-repo');const a=this.querySelector('.ga');if(el.style.display==='none'){el.style.display='';a.textContent='▼'}else{el.style.display='none';a.textContent='▶'}">
-          <span style="font-weight:700;color:#dc2626;"><span class="ga">▼</span> 🚨 Reposición urgente — ${repItems.length} productos sin stock con demanda</span>
+          <span style="font-weight:700;color:#dc2626;"><span class="ga">▶</span> 🚨 Reposición urgente — ${repItems.length} productos sin stock con demanda (${repCats.length} categorías)</span>
         </div>
-        <div id="os-repo"><table><thead><tr>
-          <th></th><th>Producto</th><th style="text-align:right">Stock</th><th style="text-align:right">Venta/mes</th><th style="text-align:right">Pedir (1 mes)</th><th style="text-align:center">ABC</th>
-        </tr></thead><tbody>`;
-      for (const i of repItems) {
-        const thumb = i.ml_thumbnail ? '<img src="'+i.ml_thumbnail+'" style="width:32px;height:32px;object-fit:contain;border-radius:4px;">' : '';
-        const abcColor = i.abc==='A'?'#dc2626':i.abc==='B'?'#d97706':'#9ca3af';
-        const sugQty = Math.ceil(i.avg_month);
-        html += '<tr style="background:#fef2f2;"><td>'+thumb+'</td><td style="font-size:12px;">'+i.name+'<br><span style="color:#9ca3af;font-size:10px;">'+i.sku+' · '+i.origen+'</span></td><td style="text-align:right;color:#dc2626;font-weight:700;">'+i.stock+'</td><td style="text-align:right;">'+i.avg_month+'/mes</td><td style="text-align:right;font-weight:700;">'+sugQty+'</td><td style="text-align:center;color:'+abcColor+';font-weight:700;">'+i.abc+'</td>';
-        html += '<td><button onclick="agregarAOrden(\''+i.sku.replace(/'/g,"\\'")+'\','+sugQty+',\''+i.name.replace(/'/g,"\\'")+'\')" style="padding:4px 8px;background:#dc2626;color:white;border:none;border-radius:4px;font-size:11px;cursor:pointer;">+ Pedir</button></td></tr>';
+        <div id="os-repo" style="display:none;">`;
+
+      for (const [cat, catItems] of repCats) {
+        const catLabel = cat.charAt(0).toUpperCase() + cat.slice(1);
+        const catId = 'repo-cat-' + cat.replace(/[^a-z0-9]/gi,'-');
+        html += `<div style="border-bottom:1px solid #fecaca;">
+          <div style="padding:8px 16px;background:#fff5f5;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="const el=document.getElementById('${catId}');el.style.display=el.style.display==='none'?'':'none';">
+            <span style="font-weight:600;font-size:13px;color:#991b1b;">${catLabel} (${catItems.length})</span>
+          </div>
+          <div id="${catId}" style="display:none;">`;
+
+        for (const i of catItems) {
+          const thumb = i.ml_thumbnail ? `<img src="${i.ml_thumbnail}" style="width:40px;height:40px;object-fit:contain;border-radius:6px;background:#f9fafb;">` : '<div style="width:40px;height:40px;background:#f3f4f6;border-radius:6px;"></div>';
+          const abcColor = i.abc==='A'?'#dc2626':i.abc==='B'?'#d97706':'#9ca3af';
+          const xyzColor = i.xyz==='X'?'#059669':i.xyz==='Y'?'#d97706':'#dc2626';
+          const sugQty = Math.ceil(i.avg_month);
+          const detId = 'repo-det-' + (i.sku||'').replace(/[^a-z0-9]/gi,'-');
+          const margin = i.price > 0 && i.cost > 0 ? Math.round((1 - i.cost / i.price) * 100) : null;
+          const stockValue = i.stock * (i.cost || 0);
+
+          // Sales by month
+          const salesMonths = d.all_months || [];
+          const last10 = salesMonths.slice(-10);
+          const monthHeaders = last10.map(m => { const [y,mo]=m.split('-'); return ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][+mo]+' '+y.slice(2); });
+          const monthValues = last10.map(m => i.sales_by_month?.[m] || 0);
+
+          // Reason text
+          let razon = '';
+          if (i.sold_comp_month > 0) razon = `Vendiste <b>${i.sold_comp_month}</b> en ${i.comp_label}. Con +${c.growth_pct}% → <b>${i.estimated}</b>.`;
+          else razon = `Promedio 3 meses: <b>${i.avg_last_3}/mes</b>. Con +${c.growth_pct}% → <b>${i.estimated}</b>.`;
+          razon += ` Stock: <b>${i.stock}</b>`;
+          if (i.incoming > 0) razon += ` + <b>${i.incoming}</b> en camino`;
+          if (i.pedido > 0) razon += ` + <b style="color:#4361ee;">${i.pedido}</b> pedido`;
+          razon += `. <b style="color:#dc2626;">Faltante: ${i.gap}</b>`;
+          if (i.seasonal_note) razon += ` <span style="color:#d97706;">(${i.seasonal_note})</span>`;
+          if (i.will_break) razon += ` <span style="color:#dc2626;">⚠️ Quiebre antes de llegada</span>`;
+
+          html += `<div style="padding:8px 16px;border-bottom:1px solid #fee2e2;">
+            <div style="display:flex;gap:10px;align-items:center;cursor:pointer;" onclick="const el=document.getElementById('${detId}');el.style.display=el.style.display==='none'?'':'none';">
+              ${thumb}
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name}</div>
+                <div style="font-size:10px;color:#9ca3af;">${i.sku} · <span style="color:${i.origen==='Brasil'?'#059669':'#d97706'}">${i.origen}</span> · <span style="padding:1px 4px;border-radius:3px;font-weight:700;font-size:9px;background:${xyzColor}15;color:${xyzColor};">${i.abc_xyz||''}</span> ${i.months_with_sales||0}/6 meses</div>
+              </div>
+              <div style="text-align:right;flex-shrink:0;">
+                <div style="color:#dc2626;font-weight:700;font-size:14px;">${i.stock}</div>
+                <div style="font-size:10px;color:#6b7280;">${i.avg_month}/mes</div>
+              </div>
+              <div style="text-align:right;flex-shrink:0;font-weight:800;font-size:16px;color:#4361ee;min-width:40px;">${sugQty}</div>
+              <button onclick="event.stopPropagation();agregarAOrden('${i.sku.replace(/'/g,"\\'")}',${sugQty},'${i.name.replace(/'/g,"\\'")}')" style="padding:6px 12px;background:#dc2626;color:white;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">+ Pedir</button>
+            </div>
+            <div id="${detId}" style="display:none;margin-top:8px;padding:10px;background:#fff;border-radius:8px;border:1px solid #fee2e2;">
+              <div style="font-size:11px;color:#475569;margin-bottom:8px;">${razon}</div>
+              <div style="display:flex;gap:16px;font-size:12px;margin-bottom:8px;">
+                <span>Costo: <b>$${(i.cost||0).toFixed(2)}</b></span>
+                <span>Precio: <b>$${i.price||0}</b></span>
+                ${margin !== null ? `<span>Margen: <b style="color:${margin>30?'#059669':'#dc2626'}">${margin}%</b></span>` : ''}
+                <span>Valor stock: <b>$${Math.round(stockValue)}</b></span>
+              </div>
+              <div style="overflow-x:auto;">
+                <table style="width:100%;font-size:11px;border-collapse:collapse;">
+                  <thead><tr style="color:#9ca3af;">${monthHeaders.map(h => `<th style="text-align:center;padding:2px 4px;font-weight:400;">${h}</th>`).join('')}<th style="text-align:right;padding:2px 4px;">TOTAL</th></tr></thead>
+                  <tbody><tr>${monthValues.map(v => `<td style="text-align:center;padding:2px 4px;${v>0?'font-weight:600;':' color:#d1d5db;'}">${v||'—'}</td>`).join('')}<td style="text-align:right;padding:2px 4px;font-weight:700;">${monthValues.reduce((s,v)=>s+v,0)}</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>`;
+        }
+        html += '</div></div>';
       }
-      html += '</tbody></table></div></div>';
+      html += '</div></div>';
     }
 
     // ── COMPRA ZAFRAL ──
@@ -8839,10 +8937,10 @@ async function loadOrdenSugerida() {
       const zTotal = zItems.reduce((s,i) => s + i.zafral_total, 0);
       html += `<div class="card" style="margin-bottom:20px;border-top:4px solid #7c3aed;padding:0;overflow:hidden;">
         <div style="padding:12px 16px;background:#f5f3ff;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="const el=document.getElementById('os-zafral');const a=this.querySelector('.ga');if(el.style.display==='none'){el.style.display='';a.textContent='▼'}else{el.style.display='none';a.textContent='▶'}">
-          <span style="font-weight:700;color:#7c3aed;"><span class="ga">▼</span> 🌊 Compra zafral — ${zItems.length} productos que se vendieron fuerte en ${c.comp_label || 'próx. 4 meses año pasado'} y hoy no tenés</span>
+          <span style="font-weight:700;color:#7c3aed;"><span class="ga">▶</span> 🌊 Compra zafral — ${zItems.length} productos que se vendieron fuerte en ${c.comp_label || 'próx. 4 meses año pasado'} y hoy no tenés</span>
           <span style="font-size:13px;color:#7c3aed;font-weight:600;">${fmt(zTotal)} facturados</span>
         </div>
-        <div id="os-zafral"><table><thead><tr>
+        <div id="os-zafral" style="display:none;"><table><thead><tr>
           <th></th><th>Producto</th><th style="text-align:right">Vendido (4 meses)</th><th style="text-align:right">Prom/mes</th><th style="text-align:right">Facturado</th><th style="text-align:right">Stock</th><th style="text-align:center">ABC</th><th></th>
         </tr></thead><tbody>`;
       for (const i of zItems) {
@@ -8883,9 +8981,9 @@ async function loadOrdenSugerida() {
 
       html += `<div class="card" style="margin-bottom:12px;border-left:4px solid ${g.color};padding:0;overflow:hidden;">
         <div style="padding:12px 16px;background:${g.bg};cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="const el=document.getElementById('${gid}');const a=this.querySelector('.ga');if(el.style.display==='none'){el.style.display='';a.textContent='▼'}else{el.style.display='none';a.textContent='▶'}">
-          <span style="font-weight:700;color:${g.color};"><span class="ga">▼</span> ${g.label} <span style="font-weight:400;color:#6b7280;">(${gItems.length} productos · ${gQty.toLocaleString('es-UY')} uds · $${gUsd.toLocaleString('es-UY')} USD)</span></span>
+          <span style="font-weight:700;color:${g.color};"><span class="ga">▶</span> ${g.label} <span style="font-weight:400;color:#6b7280;">(${gItems.length} productos · ${gQty.toLocaleString('es-UY')} uds · $${gUsd.toLocaleString('es-UY')} USD)</span></span>
         </div>
-        <div id="${gid}">`;
+        <div id="${gid}" style="display:none;">`;
 
       // Agrupar por SKU base (sin sufijo de color)
       const skuGroups = [];
@@ -8946,6 +9044,7 @@ async function loadOrdenSugerida() {
     }
 
     content.innerHTML = html;
+    setTimeout(markOrdenButtons, 100); // Mark items already in order
     loadOrdenesPreparadas();
     loadOrdenesCompra();
   } catch(e) {
@@ -8988,6 +9087,63 @@ async function saveOrdenDraft() {
   } catch {}
 }
 
+function getCategoryGroupClient(name, categ) {
+  const n = ((name||'') + ' ' + (categ||'')).toLowerCase();
+  const groups = {
+    'iluminacion': ['lampara','aplique','luz','led','guia de luces','foco','bombita','dimmer','cable'],
+    'decoracion': ['cuadro','espejo','reloj','vela','portarretrato','marco','triptico'],
+    'hogar': ['organizador','canasto','cesto','tender','cortina','alfombra','tapete','manta'],
+    'cocina': ['jarra','tarro','hermetico','recipiente','tabla','cuchillo'],
+    'exterior': ['carpa','reposera','silla plegable','hamaca','camping','sombrilla'],
+    'deporte': ['mancuerna','pesa','yoga','gym','fitness','inflador','bicicleta','monopatin','caminadora'],
+    'jardin': ['enredadera','planta artificial','maceta','jardin vertical'],
+    'bano': ['baño','jabonera','toallero','cortina baño','dispensador'],
+    'musica': ['guitarra','ukelele','soporte guitarra','atril','organo','afinador'],
+    'muebles': ['ropero','placard','rack','escritorio','mesa','silla','banco','comoda','respaldo'],
+    'lienzos': ['lienzo','canvas'],
+    'sal': ['sal del himalaya','lampara de sal','bombita lampara de sal'],
+  };
+  for (const [group, keywords] of Object.entries(groups)) {
+    if (keywords.some(k => n.includes(k))) return group;
+  }
+  return 'general';
+}
+
+function markOrdenButtons() {
+  const skusInOrder = new Set(_ordenItems.map(i => i.sku));
+
+  // Mark all clickable buttons (agregarAOrden and addToOrden patterns)
+  document.querySelectorAll('[onclick*="agregarAOrden"],[onclick*="addToOrden"]').forEach(btn => {
+    // Try to extract SKU from onclick text
+    const oc = btn.getAttribute('onclick') || '';
+    let sku = null;
+    const m1 = oc.match(/agregarAOrden\('([^']+)'/);
+    if (m1) sku = m1[1];
+    // For addToOrden via _osItems, check nearby text for SKU
+    if (!sku) {
+      const parent = btn.closest('div[style*="border-bottom"],div[style*="padding:10px"],div[style*="padding:8px"]');
+      if (parent) {
+        const text = parent.textContent || '';
+        for (const s of skusInOrder) {
+          if (text.includes(s)) { sku = s; break; }
+        }
+      }
+    }
+    if (sku && skusInOrder.has(sku)) {
+      btn.textContent = '✓ Agregado';
+      btn.style.background = '#059669';
+      btn.style.color = 'white';
+      btn.style.fontWeight = '700';
+      const row = btn.closest('div[style*="border-bottom"],div[style*="padding:10px 16px"],div[style*="padding:8px 16px"]');
+      if (row) {
+        row.style.background = '#bbf7d0';
+        row.style.borderLeft = '6px solid #059669';
+        row.style.opacity = '0.7';
+      }
+    }
+  });
+}
+
 function agregarAOrden(sku, qty, name) {
   const it = (window._osItems || []).find(x => x.sku === sku);
   addToOrden(sku, name, qty, it?.origen || '', it?.ml_thumbnail || '');
@@ -9002,6 +9158,8 @@ function addToOrden(sku, name, sugQty, origen, thumb) {
   }
   renderOrdenCart();
   saveOrdenDraft();
+  // Mark all buttons for this SKU as added
+  markOrdenButtons();
 }
 
 function removeFromOrden(sku) {

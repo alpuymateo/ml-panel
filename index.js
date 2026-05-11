@@ -1850,7 +1850,7 @@ app.get('/api/dashboard-stock', requireToken, async (req, res) => {
     }
 
     const leadTimeChina = parseInt(req.query.lead_time) || 50;
-    const skipNames = ['mercado envios', 'self_service', 'drop_off', 'default', 'cross_docking', 'fulfillment'];
+    const skipNames = ['mercado envios', 'self_service', 'drop_off', 'cross_docking', 'fulfillment', 'soydelivery', 'soy delivery', 'standard delivery', 'default fenicio', 'flete', 'costo de envio', 'retiro por local', 'envío', 'radio e instalacion'];
     const packBom = loadPackBom();
     const now = new Date();
 
@@ -1865,6 +1865,8 @@ app.get('/api/dashboard-stock', requireToken, async (req, res) => {
       if (p.type === 'service') continue;
       const sku = (p.default_code || '').trim();
       if (!sku) continue;
+      const skuLower = sku.toLowerCase();
+      if (['delivery_007','false','0001','001','002'].includes(skuLower) || skuLower.startsWith('soydelivery') || skuLower.startsWith('retiro')) continue;
       if (packBom[sku]) continue; // skip packs
 
       const stock = p.qty_available || 0;
@@ -2253,7 +2255,7 @@ app.get('/api/odoo/productos', async (req, res) => {
     // No cache yet — serve products from odooCache without sales (fast fallback)
     if (odooCache && odooCache.length > 0) {
       const mlMap = buildMlSkuMap();
-      const skipNames = ['mercado envios', 'self_service', 'drop_off', 'default', 'cross_docking', 'fulfillment'];
+      const skipNames = ['mercado envios', 'self_service', 'drop_off', 'cross_docking', 'fulfillment', 'soydelivery', 'soy delivery', 'standard delivery', 'default fenicio', 'flete', 'costo de envio', 'retiro por local', 'envío', 'radio e instalacion'];
       const byCategory = {};
       for (const p of odooCache) {
         const nameLower = (p.name || '').toLowerCase();
@@ -2383,7 +2385,7 @@ async function _buildCatalogoData(forceProducts, onLog) {
 
     // Agrupar por categoría
     const byCategory = {};
-    const skipNames = ['mercado envios', 'self_service', 'drop_off', 'default', 'cross_docking', 'fulfillment'];
+    const skipNames = ['mercado envios', 'self_service', 'drop_off', 'cross_docking', 'fulfillment', 'soydelivery', 'soy delivery', 'standard delivery', 'default fenicio', 'flete', 'costo de envio', 'retiro por local', 'envío', 'radio e instalacion'];
     for (const p of products) {
       const nameLower = (p.name || '').toLowerCase();
       if (skipNames.some(s => nameLower.includes(s))) continue;
@@ -6530,7 +6532,7 @@ app.get('/api/planificador', requireToken, async (req, res) => {
     // Productos de Odoo
     const products = await getOdooProducts(false);
     const mlMap = buildMlSkuMap();
-    const skipNames = ['mercado envios', 'self_service', 'drop_off', 'default', 'cross_docking', 'fulfillment'];
+    const skipNames = ['mercado envios', 'self_service', 'drop_off', 'cross_docking', 'fulfillment', 'soydelivery', 'soy delivery', 'standard delivery', 'default fenicio', 'flete', 'costo de envio', 'retiro por local', 'envío', 'radio e instalacion'];
 
     // Compras en camino
     const compras = loadCompras();
