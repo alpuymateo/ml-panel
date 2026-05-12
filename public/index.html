@@ -2023,7 +2023,8 @@
       <div id="os-filters" style="display:none;margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         <input type="text" class="search-input" id="os-search" placeholder="Buscar producto o SKU..." style="width:220px;" oninput="renderOsItems()">
         <select class="filter-select" id="os-f-tipo" onchange="renderOsItems()">
-          <option value="">Todos</option>
+          <option value="">Con faltante</option>
+          <option value="all">Todos los productos</option>
           <option value="reposicion">🚨 Sin stock</option>
           <option value="zafral">🌊 Zafral</option>
           <option value="quiebre">⚠️ Quiebre antes de llegada</option>
@@ -8773,7 +8774,9 @@ function renderOsItems() {
   const zafralSkus = new Set(_osZafral.map(z => z.sku));
 
   let items = _osAllItems.filter(i => {
-    if (i.gap <= 0 || i.avg_month <= 0 || i.seasonal_factor <= 0) return false;
+    if (fTipo !== 'all') {
+      if (i.gap <= 0 || i.avg_month <= 0 || i.seasonal_factor <= 0) return false;
+    }
     if (search && !i.name.toLowerCase().includes(search) && !(i.sku||'').toLowerCase().includes(search)) return false;
     if (fAbc && i.abc !== fAbc) return false;
     if (fXyz && i.xyz !== fXyz) return false;
