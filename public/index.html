@@ -8804,7 +8804,7 @@ function renderOsItems() {
   if (grouped) {
     const byCat = {};
     for (const i of renderItems) {
-      const cat = getCategoryGroupClient(i.name, i.categ);
+      const cat = i.categ || 'Sin categoría';
       if (!byCat[cat]) byCat[cat] = [];
       byCat[cat].push(i);
     }
@@ -8826,7 +8826,8 @@ function renderOsItems() {
 
   function renderOsItem(i) {
     let itemHtml = "";
-    const thumb = i.ml_thumbnail ? `<img src="${i.ml_thumbnail}" style="width:48px;height:48px;object-fit:contain;border-radius:6px;background:#f9fafb;">` : '<div style="width:48px;height:48px;background:#f3f4f6;border-radius:6px;"></div>';
+    const thumbUrl = i.ml_thumbnail || i.odoo_image || '';
+    const thumb = thumbUrl ? `<img src="${thumbUrl}" style="width:48px;height:48px;object-fit:contain;border-radius:6px;background:#f9fafb;" onerror="this.style.display='none'">` : '<div style="width:48px;height:48px;background:#f3f4f6;border-radius:6px;"></div>';
     const abcColor = i.abc==='A'?'#dc2626':i.abc==='B'?'#d97706':'#9ca3af';
     const xyzColor = i.xyz==='X'?'#059669':i.xyz==='Y'?'#d97706':'#dc2626';
     const detId = 'os-det-' + (i.sku||'').replace(/[^a-z0-9]/gi,'-');
@@ -8870,7 +8871,10 @@ function renderOsItems() {
         <div style="text-align:center;flex-shrink:0;min-width:60px;">
           <div style="font-size:20px;font-weight:800;color:#4361ee;">${i.gap}</div>
         </div>
-        <button onclick="event.stopPropagation();addToOrden('${(i.sku||'').replace(/'/g,'')}','${i.name.replace(/'/g,'').slice(0,40)}',${i.gap},'${i.origen}','${(i.ml_thumbnail||'').replace(/'/g,'')}')" style="padding:8px 14px;background:#dc2626;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">+ Pedir</button>
+        ${_ordenItems.some(o => o.sku === i.sku)
+          ? `<span style="padding:8px 14px;background:#dcfce7;color:#059669;border-radius:8px;font-size:12px;font-weight:700;flex-shrink:0;display:inline-block;">✓ Agregado</span>`
+          : `<button onclick="event.stopPropagation();addToOrden('${(i.sku||'').replace(/'/g,'')}','${i.name.replace(/'/g,'').slice(0,40)}',${i.gap},'${i.origen}','${(i.ml_thumbnail||i.odoo_image||'').replace(/'/g,'')}')" style="padding:8px 14px;background:#dc2626;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">+ Pedir</button>`
+        }
       </div>
       <div id="${detId}" style="display:none;margin-top:8px;padding:12px;background:#fafafa;border-radius:8px;border:1px solid #e5e7eb;">
         <div style="font-size:11px;color:#475569;margin-bottom:8px;">${razon}</div>
