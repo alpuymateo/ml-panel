@@ -9782,6 +9782,7 @@ async function loadOrdenesCompra() {
           </div>
           <div style="display:flex;gap:6px;align-items:center;">
             <span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;color:${statusColor};background:${statusColor}15;">${statusLabel}</span>
+            <button onclick="editarPedido('${o.id}')" style="padding:4px 10px;background:#d97706;color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">✏️ Editar</button>
             ${o.status === 'pedida' ? `<button onclick="confirmarOrdenCompra('${o.id}')" style="padding:4px 10px;background:#059669;color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">Confirmar llegada</button>` : (o.expected_date ? `<span style="font-size:10px;color:#6b7280;">→ ${o.expected_date}</span>` : '')}
             <button onclick="eliminarOrdenCompra('${o.id}')" style="padding:4px 8px;background:none;border:none;color:#dc2626;cursor:pointer;font-size:12px;">✕</button>
           </div>
