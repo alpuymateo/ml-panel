@@ -9463,12 +9463,17 @@ async function renderOrdenCart() {
   const totalQty = _ordenItems.reduce((s, i) => s + (i.qty || 0), 0);
 
   itemsEl.innerHTML = _ordenItems.map(i => {
-    const ihome = (map[i.sku] || {}).ihome || '';
+    const m = map[i.sku] || {};
+    const ihome = m.ihome || '';
+    const fob = m.fob || 0;
+    const cbm = m.cbm_per_unit ? Math.round(m.cbm_per_unit * i.qty * 100) / 100 : 0;
+    const fobTotal = fob ? Math.round(fob * i.qty) : 0;
     return `<div style="padding:8px 12px;border-bottom:1px solid #f3f4f6;display:flex;gap:8px;align-items:center;">
       ${i.thumb ? `<img src="${i.thumb}" style="width:28px;height:28px;object-fit:contain;border-radius:4px;">` : '<div style="width:28px;height:28px;background:#f3f4f6;border-radius:4px;"></div>'}
       <div style="flex:1;min-width:0;">
         <div style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name}</div>
-        <div style="font-size:10px;color:#9ca3af;">${ihome ? '<b>'+ihome+'</b> · ' : ''}${i.sku} · <span style="color:${i.origen==='Brasil'?'#059669':'#d97706'}">${i.origen}</span>${(map[i.sku]||{}).cbm_per_unit ? ' · '+Math.round((map[i.sku].cbm_per_unit*i.qty)*100)/100+' cbm' : ''}</div>
+        <div style="font-size:10px;color:#9ca3af;">${ihome ? '<b>'+ihome+'</b> · ' : ''}${i.sku} · <span style="color:${i.origen==='Brasil'?'#059669':'#d97706'}">${i.origen}</span>${cbm ? ' · '+cbm+' cbm' : ''}${fob ? ' · <span style="color:#059669;">$'+fob+'/ud</span>' : ''}</div>
+        ${fobTotal ? '<div style="font-size:9px;color:#059669;font-weight:600;">$'+fobTotal.toLocaleString('es-UY')+' USD</div>' : ''}
       </div>
       <input type="number" value="${i.qty}" min="1" style="width:55px;padding:4px 6px;border:1px solid #e5e7eb;border-radius:4px;font-size:12px;font-weight:600;text-align:center;" onchange="updateOrdenQty('${i.sku}',this.value)">
       <button onclick="removeFromOrden('${i.sku}')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;">✕</button>
@@ -9479,7 +9484,12 @@ async function renderOrdenCart() {
     const m = (_ihomeMap || {})[i.sku] || {};
     return s + (m.cbm_per_unit || 0) * (i.qty || 0);
   }, 0);
-  totalEl.innerHTML = `${totalQty.toLocaleString('es-UY')} unidades · <b>${Math.round(totalCbm * 100) / 100} CBM</b>`;
+  const totalFob = _ordenItems.reduce((s, i) => {
+    const m = (_ihomeMap || {})[i.sku] || {};
+    return s + (m.fob || 0) * (i.qty || 0);
+  }, 0);
+  const sinFob = _ordenItems.filter(i => !((_ihomeMap || {})[i.sku] || {}).fob).length;
+  totalEl.innerHTML = `${totalQty.toLocaleString('es-UY')} uds · <b>${Math.round(totalCbm * 100) / 100} CBM</b> · <b style="color:#059669;">$${Math.round(totalFob).toLocaleString('es-UY')} USD</b>${sinFob ? ' <span style="font-size:10px;color:#dc2626;">('+sinFob+' sin FOB)</span>' : ''}`;
 }
 
 async function exportarMiOrden() {
