@@ -8783,7 +8783,14 @@ function renderOsItems() {
       if (i.gap <= 0 || i.avg_month <= 0 || i.seasonal_factor <= 0) return false;
     }
     if (!inclPedidos && _ordenItems.some(o => o.sku === i.sku)) return false;
-    if (search && !i.name.toLowerCase().includes(search) && !(i.sku||'').toLowerCase().includes(search)) return false;
+    if (search) {
+      const isSkuSearch = /^\d/.test(search); // empieza con número = busca por SKU
+      if (isSkuSearch) {
+        if (!(i.sku||'').toLowerCase().startsWith(search)) return false;
+      } else {
+        if (!i.name.toLowerCase().includes(search) && !(i.sku||'').toLowerCase().includes(search)) return false;
+      }
+    }
     if (fAbc && i.abc !== fAbc) return false;
     if (fXyz && i.xyz !== fXyz) return false;
     if (fOrigen && i.origen !== fOrigen) return false;
