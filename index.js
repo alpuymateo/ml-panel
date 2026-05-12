@@ -6640,35 +6640,19 @@ app.get('/api/planificador', requireToken, async (req, res) => {
         seasonalNote = 'Temporada alta';
       }
 
-      // Estimación: usar el mayor entre (mes año pasado × crecimiento) y (promedio últimos 3 × crecimiento)
-      // Estimación: si tengo dato del mismo mes año pasado, priorizar ese.
-      // Solo usar promedio reciente si no hay dato del año pasado.
-      const estByCompMonth = Math.ceil(soldCompMonth * growthFactor);
-      const estByRecent = Math.ceil(avgLast3 * growthFactor);
-      let baseEstimated;
-      if (soldCompMonth > 0) {
-        // Tengo dato del año pasado: usarlo como base principal
-        // Si el promedio reciente es similar (±50%), promediar. Si no, confiar en el año pasado.
-        if (estByRecent > 0 && estByRecent < estByCompMonth * 1.5 && estByRecent > estByCompMonth * 0.5) {
-          baseEstimated = Math.ceil((estByCompMonth + estByRecent) / 2);
-        } else {
-          baseEstimated = estByCompMonth;
-        }
-      } else {
-        baseEstimated = estByRecent;
-      }
-      const estimated = Math.ceil(baseEstimated * seasonalFactor);
-
-      // Stock de seguridad: 20% de la estimación (capped, no basado en stddev que da números locos con estacionalidad)
-      const safetyStock = seasonalFactor > 0 ? Math.ceil(estimated * 0.2) : 0;
-
-      // Faltante
+      // ── Nueva lógica: cobertura post-llegada ──
+      // Pedir = (cobertura_objetivo × venta_diaria × crecimiento) - stock_al_llegar
+      // stock_al_llegar = max(stock + incoming + pedido - venta_diaria × lead_time, 0)
+      const coberturaObjetivo = 90; // días de cobertura post-llegada
+      const dailyRate = avgMonth / 30;
       const available = stock + incoming + pedido;
-      const needed = estimated + safetyStock;
-      const gap = Math.max(0, needed - available);
+      const stockAlLlegar = Math.max(0, available - dailyRate * leadDays);
+      const necesarioPostLlegada = Math.ceil(coberturaObjetivo * dailyRate * growthFactor * seasonalFactor);
+      const estimated = necesarioPostLlegada;
+      const gap = seasonalFactor > 0 ? Math.max(0, necesarioPostLlegada - Math.floor(stockAlLlegar)) : 0;
+      const safetyStock = 0; // ya incluido en el crecimiento 30%
 
       // Días de stock al ritmo actual
-      const dailyRate = avgMonth / 30;
       const daysOfStock = dailyRate > 0 ? Math.round(available / dailyRate) : null;
 
       // Quiebre: ¿se queda sin stock antes de que llegue el contenedor?
