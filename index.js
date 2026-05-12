@@ -7408,7 +7408,7 @@ app.get('/api/product-image/:filename', (req, res) => {
 // Export orden con imágenes (ExcelJS)
 const ExcelJS = require('exceljs');
 app.post('/api/orden/exportar', requireToken, async (req, res) => {
-  const { items } = req.body;
+  const { items, includePrice = true } = req.body;
   if (!items?.length) return res.status(400).json({ error: 'Sin items' });
 
   try {
@@ -7426,7 +7426,7 @@ app.post('/api/orden/exportar', requireToken, async (req, res) => {
     ws.getCell('B2').value = new Date().toLocaleDateString('es-UY');
 
     // Column headers
-    ws.getRow(4).values = ['NO.', 'FOTO', 'IHOME CODE', 'MA CODE', 'DESCRIPTION', 'QTY', 'FOB (ref)', 'LINK ML'];
+    ws.getRow(4).values = includePrice ? ['NO.', 'FOTO', 'IHOME CODE', 'MA CODE', 'DESCRIPTION', 'QTY', 'FOB (ref)', 'LINK ML'] : ['NO.', 'FOTO', 'IHOME CODE', 'MA CODE', 'DESCRIPTION', 'QTY', 'LINK ML'];
     ws.getRow(4).font = { bold: true };
     ws.getRow(4).eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } }; });
 
@@ -7488,12 +7488,20 @@ app.post('/api/orden/exportar', requireToken, async (req, res) => {
       row.getCell(4).value = item.sku;
       row.getCell(5).value = mapping.description || item.name;
       row.getCell(6).value = item.qty;
-      row.getCell(7).value = mapping.fob || '';
-      // Link ML
-      const mlItem = (cachedStock || []).find(i => i.sku === item.sku);
-      if (mlItem?.permalink) {
-        row.getCell(8).value = { text: mlItem.permalink, hyperlink: mlItem.permalink };
-        row.getCell(8).font = { color: { argb: 'FF2563EB' }, underline: true, size: 9 };
+      if (includePrice) {
+        row.getCell(7).value = mapping.fob || '';
+        // Link ML
+        const mlItem2 = (cachedStock || []).find(i => i.sku === item.sku);
+        if (mlItem2?.permalink) {
+          row.getCell(8).value = { text: mlItem2.permalink, hyperlink: mlItem2.permalink };
+          row.getCell(8).font = { color: { argb: 'FF2563EB' }, underline: true, size: 9 };
+        }
+      } else {
+        const mlItem2 = (cachedStock || []).find(i => i.sku === item.sku);
+        if (mlItem2?.permalink) {
+          row.getCell(7).value = { text: mlItem2.permalink, hyperlink: mlItem2.permalink };
+          row.getCell(7).font = { color: { argb: 'FF2563EB' }, underline: true, size: 9 };
+        }
       }
       totalQty += item.qty || 0;
     }

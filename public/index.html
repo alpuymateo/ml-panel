@@ -9712,7 +9712,8 @@ async function loadOrdenesPreparadas() {
             </div>
             <div style="display:flex;gap:6px;">
               <button onclick="editarPedido('${o.id}')" style="padding:6px 14px;background:#d97706;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">✏️ Editar</button>
-              <button onclick="enviarOrdenProveedor('${o.id}')" style="padding:6px 14px;background:#059669;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">📥 Excel</button>
+              <button onclick="enviarOrdenProveedor('${o.id}',true)" style="padding:6px 14px;background:#059669;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">📥 Excel</button>
+              <button onclick="enviarOrdenProveedor('${o.id}',false)" style="padding:6px 14px;background:#0ea5e9;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">📥 Sin precios</button>
               <button onclick="marcarOrdenPedida('${o.id}')" style="padding:6px 14px;background:#4361ee;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">✓ Pedida</button>
               <button onclick="eliminarOrdenCompra('${o.id}')" style="padding:6px 8px;background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;">✕</button>
             </div>
@@ -9726,7 +9727,7 @@ async function loadOrdenesPreparadas() {
   } catch {}
 }
 
-async function enviarOrdenProveedor(id) {
+async function enviarOrdenProveedor(id, includePrice = true) {
   try {
     const r = await fetch('/api/ordenes-compra', { headers: authHeaders() });
     const ordenes = await r.json();
@@ -9735,7 +9736,7 @@ async function enviarOrdenProveedor(id) {
     const r2 = await fetch('/api/orden/exportar', {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: orden.items }),
+      body: JSON.stringify({ items: orden.items, includePrice }),
     });
     const blob = await r2.blob();
     const url = URL.createObjectURL(blob);
