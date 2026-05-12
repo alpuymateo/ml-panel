@@ -2077,8 +2077,9 @@
             </div>
             <div id="os-cart-items" style="max-height:50vh;overflow-y:auto;"></div>
             <div id="os-cart-total" style="padding:10px 16px;border-top:1px solid #e5e7eb;font-size:13px;font-weight:700;"></div>
-            <div style="padding:10px 16px;display:flex;gap:8px;">
-              <button onclick="exportarMiOrden()" style="flex:1;padding:8px;background:#059669;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">📥 Excel</button>
+            <div style="padding:10px 16px;display:flex;gap:8px;flex-wrap:wrap;">
+              <button onclick="guardarPedido()" style="flex:1;padding:8px;background:#059669;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">✓ Guardar pedido</button>
+              <button onclick="exportarMiOrden()" style="flex:1;padding:8px;background:#0ea5e9;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">📥 Excel</button>
               <button onclick="armarContenedores()" style="flex:1;padding:8px;background:#4361ee;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">📦 Contenedores</button>
               <button onclick="limpiarOrden()" style="padding:8px 12px;background:#fee2e2;color:#dc2626;border:none;border-radius:6px;font-size:13px;cursor:pointer;">Limpiar</button>
             </div>
@@ -8842,6 +8843,8 @@ function renderOsItems() {
 
     // Tags
     const tags = [];
+    const ordenInfo = _skuToOrden[i.sku];
+    if (ordenInfo) tags.push('<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">📋 ' + ordenInfo.ordenNumber + '</span>');
     if (i.available <= 0) tags.push('<span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">SIN STOCK</span>');
     if (i.will_break) tags.push('<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">⚠️ QUIEBRE</span>');
     if (zafralSkus.has(i.sku)) tags.push('<span style="background:#ede9fe;color:#5b21b6;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">ZAFRAL</span>');
@@ -8936,6 +8939,9 @@ async function loadOrdenSugerida() {
     _osZafral = d.zafral || [];
     _osAllItems = d.items || [];
     window._osItems = _osAllItems;
+
+    // Cargar mapa de SKUs en órdenes
+    await loadSkuOrdenMap();
 
     // Poblar dropdown de categorías
     const categSet = new Set(_osAllItems.filter(i => i.categ).map(i => i.categ));
@@ -9596,6 +9602,74 @@ async function ejecutarOrden() {
   }
 }
 
+// Cache de SKUs en órdenes para mostrar en qué orden está cada producto
+let _skuToOrden = {}; // sku -> { ordenId, ordenNumber }
+
+async function loadSkuOrdenMap() {
+  try {
+    const r = await fetch('/api/ordenes-compra', { headers: authHeaders() });
+    const ordenes = await r.json();
+    _skuToOrden = {};
+    for (const o of ordenes) {
+      if (o.status === 'preparada' || o.status === 'pedida') {
+        for (const i of o.items) {
+          _skuToOrden[i.sku] = { ordenId: o.id, ordenNumber: o.number || o.notes || o.id.slice(-6), status: o.status };
+        }
+      }
+    }
+  } catch {}
+}
+
+async function guardarPedido() {
+  if (!_ordenItems.length) return;
+  const nota = prompt('Nombre del pedido (opcional):', 'Pedido ' + new Date().toLocaleDateString('es-UY'));
+  if (nota === null) return; // cancelled
+
+  try {
+    await fetch('/api/ordenes-compra', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: _ordenItems, notes: nota, status: 'preparada' }),
+    });
+    _ordenItems = [];
+    _editingOrdenId = null;
+    renderOrdenCart();
+    await loadSkuOrdenMap();
+    loadOrdenesPreparadas();
+    loadOrdenesCompra();
+    renderOsItems(); // re-render to show orden badges
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+let _editingOrdenId = null;
+
+async function editarPedido(ordenId) {
+  try {
+    const r = await fetch('/api/ordenes-compra', { headers: authHeaders() });
+    const ordenes = await r.json();
+    const orden = ordenes.find(o => o.id === ordenId);
+    if (!orden) return;
+
+    // Load items into cart
+    _ordenItems = orden.items.map(i => ({
+      sku: i.sku, name: i.name, qty: i.qty, origen: i.origen || 'China',
+      thumb: i.thumb || ''
+    }));
+    _editingOrdenId = ordenId;
+    renderOrdenCart();
+
+    // Delete the old order
+    await fetch('/api/ordenes-compra/' + ordenId, { method: 'DELETE', headers: authHeaders() });
+    await loadSkuOrdenMap();
+    loadOrdenesPreparadas();
+    loadOrdenesCompra();
+    renderOsItems();
+
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
 async function loadOrdenesPreparadas() {
   const el = document.getElementById('os-preparadas');
   if (!el) return;
@@ -9620,8 +9694,9 @@ async function loadOrdenesPreparadas() {
               <div style="font-size:11px;color:#9ca3af;">${o.notes || ''}</div>
             </div>
             <div style="display:flex;gap:6px;">
+              <button onclick="editarPedido('${o.id}')" style="padding:6px 14px;background:#d97706;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">✏️ Editar</button>
               <button onclick="enviarOrdenProveedor('${o.id}')" style="padding:6px 14px;background:#059669;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">📥 Excel</button>
-              <button onclick="marcarOrdenPedida('${o.id}')" style="padding:6px 14px;background:#4361ee;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">✓ Marcar pedida</button>
+              <button onclick="marcarOrdenPedida('${o.id}')" style="padding:6px 14px;background:#4361ee;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">✓ Pedida</button>
               <button onclick="eliminarOrdenCompra('${o.id}')" style="padding:6px 8px;background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;">✕</button>
             </div>
           </div>
