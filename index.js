@@ -6580,6 +6580,9 @@ app.get('/api/planificador', requireToken, async (req, res) => {
       const sku = p.default_code || '';
       // Filtrar packs: no sugerir pedir packs, solo unitarios
       if (packBom[sku.trim()]) continue;
+      // Filtrar MDF: producción local, no se importa
+      const categName = Array.isArray(p.categ_id) ? p.categ_id[1] : (p.categ_id || '');
+      if (categName.toLowerCase().includes('mdf')) continue;
 
       const ml = mlMap[sku.trim()] || null;
       const categ = Array.isArray(p.categ_id) ? p.categ_id[1] : (p.categ_id || '');
