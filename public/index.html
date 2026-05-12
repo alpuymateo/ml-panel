@@ -2056,6 +2056,9 @@
           <option value="abc">ABC prioridad</option>
           <option value="categ">Por categor&iacute;a</option>
         </select>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:#6b7280;cursor:pointer;white-space:nowrap;">
+          <input type="checkbox" id="os-f-pedidos" onchange="renderOsItems()" checked> Incluir pedidos
+        </label>
         <span id="os-count" style="font-size:12px;color:#6b7280;"></span>
       </div>
       <div id="os-kpis" style="margin-bottom:16px;"></div>
@@ -8770,6 +8773,7 @@ function renderOsItems() {
   const fOrigen = document.getElementById('os-f-origen')?.value || '';
   const fCateg = document.getElementById('os-f-categ')?.value || '';
   const fSort = document.getElementById('os-f-sort')?.value || 'gap';
+  const inclPedidos = document.getElementById('os-f-pedidos')?.checked !== false;
 
   const zafralSkus = new Set(_osZafral.map(z => z.sku));
 
@@ -8777,6 +8781,7 @@ function renderOsItems() {
     if (fTipo !== 'all') {
       if (i.gap <= 0 || i.avg_month <= 0 || i.seasonal_factor <= 0) return false;
     }
+    if (!inclPedidos && _ordenItems.some(o => o.sku === i.sku)) return false;
     if (search && !i.name.toLowerCase().includes(search) && !(i.sku||'').toLowerCase().includes(search)) return false;
     if (fAbc && i.abc !== fAbc) return false;
     if (fXyz && i.xyz !== fXyz) return false;
