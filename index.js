@@ -6674,7 +6674,7 @@ app.get('/api/planificador', requireToken, async (req, res) => {
         sold_comp_month: soldCompMonth,
         estimated,
         safety_stock: safetyStock,
-        needed,
+        needed: necesarioPostLlegada,
         gap,
         avg_month: Math.round(avgMonth * 10) / 10,
         days_of_stock: daysOfStock,
