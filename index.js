@@ -6695,6 +6695,20 @@ app.get('/api/planificador', requireToken, async (req, res) => {
       });
     }
 
+    // Buscar fotos faltantes: usar hermano con mismo SKU base
+    const thumbBySku = {};
+    for (const item of items) {
+      if (item.ml_thumbnail) thumbBySku[item.sku] = item.ml_thumbnail;
+    }
+    for (const item of items) {
+      if (item.ml_thumbnail || item.odoo_image) continue;
+      const base = (item.sku || '').replace(/-[A-Z]{2,}(-[A-Z]{2,})?$/, '').replace(/-\d+$/, '');
+      if (base !== item.sku) {
+        const sibling = items.find(i => i.sku !== item.sku && (i.ml_thumbnail || i.odoo_image) && (i.sku || '').startsWith(base));
+        if (sibling) item.ml_thumbnail = sibling.ml_thumbnail || sibling.odoo_image;
+      }
+    }
+
     // Calcular canal principal de cada item
     for (const item of items) {
       const ch = item.sales_by_channel;
