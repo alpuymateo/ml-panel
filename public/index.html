@@ -2045,6 +2045,9 @@
           <option value="China">🇨🇳 China</option>
           <option value="Brasil">🇧🇷 Brasil</option>
         </select>
+        <select class="filter-select" id="os-f-categ" onchange="renderOsItems()" style="max-width:200px;">
+          <option value="">Categor&iacute;a: Todas</option>
+        </select>
         <select class="filter-select" id="os-f-sort" onchange="renderOsItems()">
           <option value="gap">Mayor faltante</option>
           <option value="revenue">Mayor facturaci&oacute;n</option>
@@ -8764,6 +8767,7 @@ function renderOsItems() {
   const fAbc = document.getElementById('os-f-abc')?.value || '';
   const fXyz = document.getElementById('os-f-xyz')?.value || '';
   const fOrigen = document.getElementById('os-f-origen')?.value || '';
+  const fCateg = document.getElementById('os-f-categ')?.value || '';
   const fSort = document.getElementById('os-f-sort')?.value || 'gap';
 
   const zafralSkus = new Set(_osZafral.map(z => z.sku));
@@ -8774,6 +8778,7 @@ function renderOsItems() {
     if (fAbc && i.abc !== fAbc) return false;
     if (fXyz && i.xyz !== fXyz) return false;
     if (fOrigen && i.origen !== fOrigen) return false;
+    if (fCateg && (i.categ||'') !== fCateg) return false;
     if (fTipo === 'reposicion' && i.available > 0) return false;
     if (fTipo === 'zafral' && !zafralSkus.has(i.sku)) return false;
     if (fTipo === 'quiebre' && !i.will_break) return false;
@@ -8919,6 +8924,15 @@ async function loadOrdenSugerida() {
     _osZafral = d.zafral || [];
     _osAllItems = d.items || [];
     window._osItems = _osAllItems;
+
+    // Poblar dropdown de categorías
+    const categSet = new Set(_osAllItems.filter(i => i.categ).map(i => i.categ));
+    const categSelect = document.getElementById('os-f-categ');
+    if (categSelect) {
+      const current = categSelect.value;
+      categSelect.innerHTML = '<option value="">Categor\u00eda: Todas</option>' + [...categSet].sort().map(c => `<option value="${c}">${c}</option>`).join('');
+      if (current) categSelect.value = current;
+    }
 
     const c = d.config;
     const items = _osAllItems.filter(i => i.gap > 0 && i.avg_month > 0 && i.seasonal_factor > 0);
