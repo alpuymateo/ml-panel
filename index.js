@@ -7202,7 +7202,13 @@ function isPackSku(sku) {
 
 // ── IHOME Mapping + Product Images ──
 const IHOME_MAP_FILE = path.join(__dirname, 'data', 'ihome_mapping.json');
+const IHOME_MAP_FILE_REPO = path.join(__dirname, 'ihome_mapping_repo.json'); // fallback outside volume
 const PRODUCT_IMAGES_DIR = path.join(__dirname, 'data', 'product_images');
+
+// On Railway, copy ihome_mapping from repo to volume if missing
+if (process.env.RAILWAY_ENVIRONMENT && !fs.existsSync(IHOME_MAP_FILE) && fs.existsSync(IHOME_MAP_FILE_REPO)) {
+  try { fs.copyFileSync(IHOME_MAP_FILE_REPO, IHOME_MAP_FILE); console.log('[ihome] copiado desde repo al volumen'); } catch {}
+}
 
 // ── Armado de contenedores ──
 
@@ -7384,7 +7390,10 @@ app.post('/api/orden/contenedores', requireToken, (req, res) => {
 
 app.get('/api/ihome-mapping', requireToken, (req, res) => {
   try {
+    // Try data dir first, then fallback to repo dir (Railway volume may not have it)
     if (fs.existsSync(IHOME_MAP_FILE)) return res.json(JSON.parse(fs.readFileSync(IHOME_MAP_FILE, 'utf8')));
+    const repoPath = path.join(__dirname, 'data', 'ihome_mapping.json');
+    if (repoPath !== IHOME_MAP_FILE && fs.existsSync(repoPath)) return res.json(JSON.parse(fs.readFileSync(repoPath, 'utf8')));
     res.json({});
   } catch { res.json({}); }
 });
