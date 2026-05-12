@@ -6566,6 +6566,10 @@ app.get('/api/planificador', requireToken, async (req, res) => {
     // Productos ya pedidos (órdenes en estado "pedida")
     const pedidosBySku = getProductosPedidos();
 
+    // IHOME mapping para CBM y FOB
+    let ihomeMap = {};
+    try { if (fs.existsSync(IHOME_MAP_FILE)) ihomeMap = JSON.parse(fs.readFileSync(IHOME_MAP_FILE, 'utf8')); } catch {}
+
     // Calcular ABC: revenue últimos 6 meses
     const last6 = sortedMonths.slice(-6);
     const revenueByProd = {};
@@ -6694,6 +6698,9 @@ app.get('/api/planificador', requireToken, async (req, res) => {
         revenue_6m: Math.round(rev6m),
         sales_by_month: sales,
         sales_by_channel: salesByChannel[p.id] || { ml: {}, mayorista: {}, local: {} },
+        cbm_per_unit: (ihomeMap[sku.trim()] || {}).cbm_per_unit || null,
+        fob: (ihomeMap[sku.trim()] || {}).fob || null,
+        ihome: (ihomeMap[sku.trim()] || {}).ihome || null,
         abc: null, // se calcula abajo
       });
     }
