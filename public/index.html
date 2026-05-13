@@ -2030,6 +2030,7 @@
           <option value="reposicion">🚨 Sin stock</option>
           <option value="zafral">🌊 Zafral</option>
           <option value="quiebre">⚠️ Quiebre antes de llegada</option>
+          <option value="sin_ventas">💤 Sin ventas 3 meses</option>
         </select>
         <select class="filter-select" id="os-f-abc" onchange="renderOsItems()">
           <option value="">ABC: Todos</option>
@@ -8798,7 +8799,13 @@ function renderOsItems() {
   const zafralSkus = new Set(_osZafral.map(z => z.sku));
 
   let items = _osAllItems.filter(i => {
-    if (i.gap <= 0 || i.avg_month <= 0 || i.seasonal_factor <= 0) return false;
+    if (fTipo === 'sin_ventas') {
+      // Mostrar productos sin ventas en últimos 3 meses pero que vendían antes
+      if (i.seasonal_factor > 0) return false; // estos SÍ venden, no los queremos acá
+      if (i.avg_month <= 0 && i.sold_6m <= 0) return false; // nunca vendieron
+    } else {
+      if (i.gap <= 0 || i.avg_month <= 0 || i.seasonal_factor <= 0) return false;
+    }
     if (search && !i.name.toLowerCase().includes(search) && !(i.sku||'').toLowerCase().includes(search)) return false;
     if (fAbc && i.abc !== fAbc) return false;
     if (fXyz && i.xyz !== fXyz) return false;
