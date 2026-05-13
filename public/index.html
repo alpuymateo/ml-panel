@@ -8871,7 +8871,7 @@ function renderOsItems() {
 
     // Tags
     const tags = [];
-    if ((i.pedido || 0) > 0) tags.push(`<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">PEDIDO ${i.pedido}</span>`);
+    // PEDIDO badge goes next to button, not in tags
     if (i.available <= 0) tags.push('<span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">SIN STOCK</span>');
     if (i.will_break) tags.push('<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">⚠️ QUIEBRE</span>');
     if (zafralSkus.has(i.sku)) tags.push('<span style="background:#ede9fe;color:#5b21b6;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">ZAFRAL</span>');
@@ -8891,7 +8891,8 @@ function renderOsItems() {
     const monthValues = last10.map(m => i.sales_by_month?.[m] || 0);
     const margin = i.price > 0 && i.cost > 0 ? Math.round((1 - i.cost/i.price)*100) : null;
 
-    itemHtml += `<div style="padding:10px 16px;border-bottom:1px solid #f3f4f6;" data-sku="${i.sku}">
+    const isPedido = (i.pedido || 0) > 0;
+    itemHtml += `<div style="padding:10px 16px;border-bottom:1px solid ${isPedido ? '#bfdbfe' : '#f3f4f6'};${isPedido ? 'background:#eff6ff;border-left:5px solid #3b82f6;' : ''}" data-sku="${i.sku}">
       <div style="display:flex;gap:10px;align-items:center;cursor:pointer;" onclick="const el=document.getElementById('${detId}');el.style.display=el.style.display==='none'?'':'none';">
         ${thumb}
         <div style="flex:1;min-width:0;">
@@ -8909,7 +8910,10 @@ function renderOsItems() {
         <div style="text-align:center;flex-shrink:0;min-width:60px;">
           <div style="font-size:20px;font-weight:800;color:#4361ee;">${i.gap}</div>
         </div>
-        <button class="os-pedir-btn" data-sku="${(i.sku||'').replace(/"/g,'&quot;')}" data-name="${i.name.replace(/"/g,'&quot;').slice(0,40)}" data-gap="${i.gap}" data-origen="${i.origen}" data-thumb="${(i.ml_thumbnail||'').replace(/"/g,'')}" style="padding:8px 14px;background:#dc2626;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">+ Pedir</button>
+        <div style="flex-shrink:0;text-align:center;">
+          ${isPedido ? `<div style="background:#3b82f6;color:white;padding:4px 10px;border-radius:8px;font-size:11px;font-weight:700;margin-bottom:4px;">PEDIDO ${i.pedido}</div>` : ''}
+          <button class="os-pedir-btn" data-sku="${(i.sku||'').replace(/"/g,'&quot;')}" data-name="${i.name.replace(/"/g,'&quot;').slice(0,40)}" data-gap="${i.gap}" data-origen="${i.origen}" data-thumb="${(i.ml_thumbnail||'').replace(/"/g,'')}" style="padding:8px 14px;background:${isPedido ? '#6b7280' : '#dc2626'};color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">+ Pedir</button>
+        </div>
       </div>
       <div id="${detId}" style="display:none;margin-top:8px;padding:12px;background:#fafafa;border-radius:8px;border:1px solid #e5e7eb;">
         <div style="font-size:11px;color:#475569;margin-bottom:8px;">${razon}</div>
