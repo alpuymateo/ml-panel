@@ -2033,7 +2033,7 @@
           <option value="quiebre">⚠️ Quiebre antes de llegada</option>
         </select>
         <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:#6b7280;cursor:pointer;white-space:nowrap;">
-          <input type="checkbox" id="os-f-pedidos" onchange="renderOsItems()"> Ocultar ya pedidos
+          <input type="checkbox" id="os-f-pedidos" onchange="renderOsItems()"> Solo sin pedir
         </label>
         <select class="filter-select" id="os-f-abc" onchange="renderOsItems()">
           <option value="">ABC: Todos</option>
@@ -8871,6 +8871,7 @@ function renderOsItems() {
 
     // Tags
     const tags = [];
+    if ((i.pedido || 0) > 0) tags.push(`<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">PEDIDO ${i.pedido}</span>`);
     if (i.available <= 0) tags.push('<span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">SIN STOCK</span>');
     if (i.will_break) tags.push('<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">⚠️ QUIEBRE</span>');
     if (zafralSkus.has(i.sku)) tags.push('<span style="background:#ede9fe;color:#5b21b6;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">ZAFRAL</span>');
