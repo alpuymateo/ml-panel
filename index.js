@@ -589,6 +589,7 @@ app.get('/api/debug/order-claims', requireToken, async (req, res) => {
 });
 
 let cachedStock     = [];   // resultado final procesado
+let cachedVariationSkuMap = {};  // SKU variante → publicación
 let stockFetching   = false;
 let stockLastUpdate = null;
 const STOCK_RESULT_FILE = path.join(__dirname, 'data', 'stock_result.json');
@@ -670,7 +671,7 @@ async function refreshStockCache(forceRefresh = false) {
       items = [];
       for (let i = 0; i < allIds.length; i += 20) {
         const batch = allIds.slice(i, i + 20);
-        const r = await axios.get(`${ML_API_URL}/items`, { headers, params: { ids: batch.join(',') } });
+        const r = await axios.get(`${ML_API_URL}/items`, { headers, params: { ids: batch.join(','), include_attributes: 'all' } });
         const details = (r.data || []).map(e => e.body).filter(Boolean);
         items.push(...details);
         await sleep(100);
@@ -783,6 +784,16 @@ async function refreshStockCache(forceRefresh = false) {
 
     cachedStock     = result;
     stockLastUpdate = new Date().toISOString();
+
+    // Build variation SKU → publication index
+    cachedVariationSkuMap = {};
+    for (const item of result) {
+      for (const v of (item.variations || [])) {
+        if (v.sku) cachedVariationSkuMap[v.sku] = item;
+      }
+    }
+    console.log(`[stock] variation SKU map: ${Object.keys(cachedVariationSkuMap).length} SKUs`);
+
     fs.writeFileSync(STOCK_RESULT_FILE, JSON.stringify({ items: result, savedAt: stockLastUpdate }), 'utf8');
     console.log(`[stock] refresh completo — ${result.length} items`);
   } catch(err) {
@@ -6128,7 +6139,7 @@ app.post('/api/orden/export-excel', requireToken, async (req, res) => {
       const sku = (item.sku || '').trim();
       const ih = ihomeMap[sku] || {};
       // Search ML by exact SKU, then by base SKU (without -COLOR suffix)
-      let ml = cachedStock.find(s => s.sku === sku);
+      let ml = cachedStock.find(s => s.sku === sku) || cachedVariationSkuMap[sku];
       if (!ml) {
         const base = sku.replace(/-[A-Z]{2,}$/, '');
         ml = cachedStock.find(s => s.sku === base || (s.sku || '').startsWith(sku));
@@ -7551,7 +7562,7 @@ app.post('/api/orden/exportar', requireToken, async (req, res) => {
       if (!imgBuffer) {
         const sku = (item.sku || '').trim();
         const base = sku.replace(/-[A-Z]{2,}$/, '');
-        const mlItem = (cachedStock || []).find(i => i.sku === sku || i.sku === base || (i.sku || '').startsWith(sku));
+        const mlItem = (cachedStock || []).find(i => i.sku === sku || i.sku === base || (i.sku || '').startsWith(sku)) || cachedVariationSkuMap[sku] || cachedVariationSkuMap[base];
         if (mlItem?.thumbnail) {
           try {
             const imgUrl = mlItem.thumbnail.replace('http://', 'https://');
@@ -7575,7 +7586,7 @@ app.post('/api/orden/exportar', requireToken, async (req, res) => {
       // Link ML
       const skuForLink = (item.sku || '').trim();
       const baseForLink = skuForLink.replace(/-[A-Z]{2,}$/, '');
-      const mlForLink = (cachedStock || []).find(i => i.sku === skuForLink || i.sku === baseForLink || (i.sku || '').startsWith(skuForLink));
+      const mlForLink = (cachedStock || []).find(i => i.sku === skuForLink || i.sku === baseForLink || (i.sku || '').startsWith(skuForLink)) || cachedVariationSkuMap[skuForLink] || cachedVariationSkuMap[baseForLink];
       const mlLink = mlForLink?.permalink || (mlForLink?.id ? `https://articulo.mercadolibre.com.uy/${mlForLink.id.replace('MLU','MLU-')}` : '');
       if (mlLink) {
         row.getCell(8).value = { text: mlLink, hyperlink: mlLink };
