@@ -2026,13 +2026,14 @@
       <div id="os-filters" style="display:none;margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         <input type="text" class="search-input" id="os-search" placeholder="Buscar producto o SKU..." style="width:220px;" oninput="renderOsItems()">
         <select class="filter-select" id="os-f-tipo" onchange="renderOsItems()">
-          <option value="">Todos</option>
+          <option value="">Con faltante</option>
+          <option value="todos">Todos (sin filtro)</option>
           <option value="reposicion">🚨 Sin stock</option>
           <option value="zafral">🌊 Zafral</option>
           <option value="quiebre">⚠️ Quiebre antes de llegada</option>
         </select>
         <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:#6b7280;cursor:pointer;white-space:nowrap;">
-          <input type="checkbox" id="os-f-inactivos" onchange="renderOsItems()"> Incluir sin ventas 3m
+          <input type="checkbox" id="os-f-pedidos" onchange="renderOsItems()"> Ocultar ya pedidos
         </label>
         <select class="filter-select" id="os-f-abc" onchange="renderOsItems()">
           <option value="">ABC: Todos</option>
@@ -8800,15 +8801,18 @@ function renderOsItems() {
 
   const zafralSkus = new Set(_osZafral.map(z => z.sku));
 
-  const incluirInactivos = document.getElementById('os-f-inactivos')?.checked || false;
+  const ocultarPedidos = document.getElementById('os-f-pedidos')?.checked || false;
+  const skusEnOrden = new Set(_ordenItems.map(i => i.sku));
 
   let items = _osAllItems.filter(i => {
-    if (incluirInactivos) {
-      // Incluir todos los que tienen alguna venta histórica
+    if (fTipo === 'todos') {
+      // Sin filtro: mostrar todo lo que tenga alguna venta
       if (i.avg_month <= 0 && (i.sold_6m || 0) <= 0) return false;
     } else {
       if (i.gap <= 0 || i.avg_month <= 0 || i.seasonal_factor <= 0) return false;
     }
+    // Ocultar ya pedidos
+    if (ocultarPedidos && skusEnOrden.has(i.sku)) return false;
     if (search && !i.name.toLowerCase().includes(search) && !(i.sku||'').toLowerCase().includes(search)) return false;
     if (fAbc && i.abc !== fAbc) return false;
     if (fXyz && i.xyz !== fXyz) return false;
