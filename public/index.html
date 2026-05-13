@@ -8811,8 +8811,8 @@ function renderOsItems() {
     } else {
       if (i.gap <= 0 || i.avg_month <= 0 || i.seasonal_factor <= 0) return false;
     }
-    // Ocultar ya pedidos
-    if (ocultarPedidos && skusEnOrden.has(i.sku)) return false;
+    // Ocultar ya pedidos (del carrito actual O de órdenes anteriores)
+    if (ocultarPedidos && (skusEnOrden.has(i.sku) || (i.pedido || 0) > 0)) return false;
     if (search && !i.name.toLowerCase().includes(search) && !(i.sku||'').toLowerCase().includes(search)) return false;
     if (fAbc && i.abc !== fAbc) return false;
     if (fXyz && i.xyz !== fXyz) return false;
