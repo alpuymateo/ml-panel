@@ -6090,6 +6090,99 @@ app.get('/api/cbm-local', requireToken, async (req, res) => {
   }
 });
 
+// ── Export orden a Excel con fotos ──────────────────────────────
+app.post('/api/orden/export-excel', requireToken, async (req, res) => {
+  try {
+    const ExcelJS = require('exceljs');
+    const { items } = req.body;
+    if (!items?.length) return res.status(400).json({ error: 'Sin items' });
+
+    let ihomeMap = {};
+    try { if (fs.existsSync(path.join(__dirname, 'data', 'ihome_mapping.json'))) ihomeMap = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'ihome_mapping.json'), 'utf8')); } catch {}
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Orden de Compra');
+
+    // Header
+    ws.columns = [
+      { header: 'Foto', key: 'foto', width: 12 },
+      { header: 'SKU', key: 'sku', width: 15 },
+      { header: 'IHOME', key: 'ihome', width: 12 },
+      { header: 'Producto', key: 'name', width: 40 },
+      { header: 'Qty', key: 'qty', width: 8 },
+      { header: 'CBM/u', key: 'cbm_unit', width: 10 },
+      { header: 'CBM Total', key: 'cbm_total', width: 10 },
+      { header: 'FOB/u', key: 'fob', width: 10 },
+      { header: 'FOB Total', key: 'fob_total', width: 12 },
+      { header: 'Origen', key: 'origen', width: 10 },
+      { header: 'Link ML', key: 'ml_link', width: 50 },
+    ];
+
+    // Style header
+    ws.getRow(1).font = { bold: true, size: 11 };
+    ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4361EE' } };
+    ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+
+    for (let idx = 0; idx < items.length; idx++) {
+      const item = items[idx];
+      const ih = ihomeMap[item.sku] || {};
+      const ml = cachedStock.find(s => s.sku === item.sku);
+      const cbmUnit = ih.cbm_per_unit || 0;
+      const fob = ih.fob || 0;
+      const mlLink = ml?.permalink || (ml?.id ? `https://articulo.mercadolibre.com.uy/${ml.id.replace('MLU','MLU-')}` : '');
+
+      const row = ws.addRow({
+        foto: '',
+        sku: item.sku,
+        ihome: ih.ihome || '',
+        name: item.name,
+        qty: item.qty,
+        cbm_unit: cbmUnit,
+        cbm_total: Math.round(cbmUnit * item.qty * 1000) / 1000,
+        fob: fob,
+        fob_total: Math.round(fob * item.qty * 100) / 100,
+        origen: item.origen || '',
+        ml_link: mlLink,
+      });
+
+      row.height = 45;
+
+      // ML link as hyperlink
+      if (mlLink) {
+        row.getCell('ml_link').value = { text: mlLink, hyperlink: mlLink };
+        row.getCell('ml_link').font = { color: { argb: 'FF3B82F6' }, underline: true };
+      }
+
+      // Try to add image
+      const thumbUrl = item.thumb || ml?.thumbnail;
+      if (thumbUrl) {
+        try {
+          const imgRes = await axios.get(thumbUrl, { responseType: 'arraybuffer', timeout: 5000 });
+          const imgId = wb.addImage({ buffer: imgRes.data, extension: 'jpeg' });
+          ws.addImage(imgId, {
+            tl: { col: 0, row: idx + 1 },
+            ext: { width: 50, height: 50 },
+          });
+        } catch {}
+      }
+    }
+
+    // Totals row
+    const totalQty = items.reduce((s, i) => s + (i.qty || 0), 0);
+    const totalCbm = items.reduce((s, i) => s + (ihomeMap[i.sku]?.cbm_per_unit || 0) * (i.qty || 0), 0);
+    const totalFob = items.reduce((s, i) => s + (ihomeMap[i.sku]?.fob || 0) * (i.qty || 0), 0);
+    const totRow = ws.addRow({ name: 'TOTAL', qty: totalQty, cbm_total: Math.round(totalCbm * 100) / 100, fob_total: Math.round(totalFob * 100) / 100 });
+    totRow.font = { bold: true, size: 12 };
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=orden-compra.xlsx');
+    await wb.xlsx.write(res);
+  } catch (e) {
+    console.error('[export-excel]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Comparador año a año ─────────────────────────────────────────
 app.get('/api/comparador', requireToken, async (req, res) => {
   const headers = { Authorization: `Bearer ${tokenData.access_token}` };

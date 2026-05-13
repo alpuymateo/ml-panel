@@ -2071,7 +2071,7 @@
             <div id="os-cart-items" style="max-height:50vh;overflow-y:auto;"></div>
             <div id="os-cart-total" style="padding:10px 16px;border-top:1px solid #e5e7eb;font-size:13px;font-weight:700;"></div>
             <div style="padding:10px 16px;display:flex;gap:8px;">
-              <button onclick="exportarMiOrden()" style="flex:1;padding:8px;background:#059669;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">📥 Excel</button>
+              <button onclick="exportarExcelConFotos()" style="flex:1;padding:8px;background:#059669;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">📥 Excel</button>
               <button onclick="armarContenedores()" style="flex:1;padding:8px;background:#4361ee;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">📦 Contenedores</button>
               <button onclick="limpiarOrden()" style="padding:8px 12px;background:#fee2e2;color:#dc2626;border:none;border-radius:6px;font-size:13px;cursor:pointer;">Limpiar</button>
             </div>
@@ -9448,6 +9448,25 @@ async function renderOrdenCart() {
     return s + (m.cbm_per_unit || 0) * (i.qty || 0);
   }, 0);
   totalEl.innerHTML = `${totalQty.toLocaleString('es-UY')} unidades · <b>${Math.round(totalCbm * 100) / 100} CBM</b>`;
+}
+
+async function exportarExcelConFotos() {
+  if (!_ordenItems.length) return;
+  const btn = event?.target;
+  if (btn) { btn.textContent = '⏳ Generando...'; btn.disabled = true; }
+  try {
+    const r = await fetch('/api/orden/export-excel', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: _ordenItems }),
+    });
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'orden-compra.xlsx'; a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) { alert('Error: ' + e.message); }
+  if (btn) { btn.textContent = '📥 Excel'; btn.disabled = false; }
 }
 
 async function exportarMiOrden() {
