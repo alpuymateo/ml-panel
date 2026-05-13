@@ -6125,8 +6125,14 @@ app.post('/api/orden/export-excel', requireToken, async (req, res) => {
 
     for (let idx = 0; idx < items.length; idx++) {
       const item = items[idx];
-      const ih = ihomeMap[item.sku] || {};
-      const ml = cachedStock.find(s => s.sku === item.sku);
+      const sku = (item.sku || '').trim();
+      const ih = ihomeMap[sku] || {};
+      // Search ML by exact SKU, then by base SKU (without -COLOR suffix)
+      let ml = cachedStock.find(s => s.sku === sku);
+      if (!ml) {
+        const base = sku.replace(/-[A-Z]{2,}$/, '');
+        ml = cachedStock.find(s => s.sku === base || (s.sku || '').startsWith(sku));
+      }
       const cbmUnit = ih.cbm_per_unit || 0;
       const fob = ih.fob || 0;
       const mlLink = ml?.permalink || (ml?.id ? `https://articulo.mercadolibre.com.uy/${ml.id.replace('MLU','MLU-')}` : '');
@@ -6153,8 +6159,8 @@ app.post('/api/orden/export-excel', requireToken, async (req, res) => {
         row.getCell('ml_link').font = { color: { argb: 'FF3B82F6' }, underline: true };
       }
 
-      // Try to add image
-      const thumbUrl = item.thumb || ml?.thumbnail;
+      // Try to add image — ML thumbnail, or Odoo image, or IHOME image
+      const thumbUrl = item.thumb || ml?.thumbnail || (ih.image ? `http://localhost:${PORT}${ih.image}` : null);
       if (thumbUrl) {
         try {
           const imgRes = await axios.get(thumbUrl, { responseType: 'arraybuffer', timeout: 5000 });
