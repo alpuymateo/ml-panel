@@ -2023,8 +2023,7 @@
       <div id="os-filters" style="display:none;margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         <input type="text" class="search-input" id="os-search" placeholder="Buscar producto o SKU..." style="width:220px;" oninput="renderOsItems()">
         <select class="filter-select" id="os-f-tipo" onchange="renderOsItems()">
-          <option value="">Con faltante</option>
-          <option value="all">Todos los productos</option>
+          <option value="">Todos</option>
           <option value="reposicion">🚨 Sin stock</option>
           <option value="zafral">🌊 Zafral</option>
           <option value="quiebre">⚠️ Quiebre antes de llegada</option>
@@ -2046,9 +2045,6 @@
           <option value="China">🇨🇳 China</option>
           <option value="Brasil">🇧🇷 Brasil</option>
         </select>
-        <select class="filter-select" id="os-f-categ" onchange="renderOsItems()" style="max-width:200px;">
-          <option value="">Categor&iacute;a: Todas</option>
-        </select>
         <select class="filter-select" id="os-f-sort" onchange="renderOsItems()">
           <option value="gap">Mayor faltante</option>
           <option value="revenue">Mayor facturaci&oacute;n</option>
@@ -2056,9 +2052,6 @@
           <option value="abc">ABC prioridad</option>
           <option value="categ">Por categor&iacute;a</option>
         </select>
-        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:#6b7280;cursor:pointer;white-space:nowrap;">
-          <input type="checkbox" id="os-f-pedidos" onchange="renderOsItems()" checked> Incluir pedidos
-        </label>
         <span id="os-count" style="font-size:12px;color:#6b7280;"></span>
       </div>
       <div id="os-kpis" style="margin-bottom:16px;"></div>
@@ -2077,9 +2070,8 @@
             </div>
             <div id="os-cart-items" style="max-height:50vh;overflow-y:auto;"></div>
             <div id="os-cart-total" style="padding:10px 16px;border-top:1px solid #e5e7eb;font-size:13px;font-weight:700;"></div>
-            <div style="padding:10px 16px;display:flex;gap:8px;flex-wrap:wrap;">
-              <button onclick="guardarPedido()" style="flex:1;padding:8px;background:#059669;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">✓ Guardar pedido</button>
-              <button onclick="exportarMiOrden()" style="flex:1;padding:8px;background:#0ea5e9;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">📥 Excel</button>
+            <div style="padding:10px 16px;display:flex;gap:8px;">
+              <button onclick="exportarExcelConFotos()" style="flex:1;padding:8px;background:#059669;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">📥 Excel</button>
               <button onclick="armarContenedores()" style="flex:1;padding:8px;background:#4361ee;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">📦 Contenedores</button>
               <button onclick="limpiarOrden()" style="padding:8px 12px;background:#fee2e2;color:#dc2626;border:none;border-radius:6px;font-size:13px;cursor:pointer;">Limpiar</button>
             </div>
@@ -8772,29 +8764,16 @@ function renderOsItems() {
   const fAbc = document.getElementById('os-f-abc')?.value || '';
   const fXyz = document.getElementById('os-f-xyz')?.value || '';
   const fOrigen = document.getElementById('os-f-origen')?.value || '';
-  const fCateg = document.getElementById('os-f-categ')?.value || '';
   const fSort = document.getElementById('os-f-sort')?.value || 'gap';
-  const inclPedidos = document.getElementById('os-f-pedidos')?.checked !== false;
 
   const zafralSkus = new Set(_osZafral.map(z => z.sku));
 
   let items = _osAllItems.filter(i => {
-    if (fTipo !== 'all') {
-      if (i.gap <= 0 || i.avg_month <= 0 || i.seasonal_factor <= 0) return false;
-    }
-    if (!inclPedidos && _ordenItems.some(o => o.sku === i.sku)) return false;
-    if (search) {
-      const isSkuSearch = /^\d/.test(search); // empieza con número = busca por SKU
-      if (isSkuSearch) {
-        if (!(i.sku||'').toLowerCase().startsWith(search)) return false;
-      } else {
-        if (!i.name.toLowerCase().includes(search) && !(i.sku||'').toLowerCase().includes(search)) return false;
-      }
-    }
+    if (i.gap <= 0 || i.avg_month <= 0 || i.seasonal_factor <= 0) return false;
+    if (search && !i.name.toLowerCase().includes(search) && !(i.sku||'').toLowerCase().includes(search)) return false;
     if (fAbc && i.abc !== fAbc) return false;
     if (fXyz && i.xyz !== fXyz) return false;
     if (fOrigen && i.origen !== fOrigen) return false;
-    if (fCateg && (i.categ||'') !== fCateg) return false;
     if (fTipo === 'reposicion' && i.available > 0) return false;
     if (fTipo === 'zafral' && !zafralSkus.has(i.sku)) return false;
     if (fTipo === 'quiebre' && !i.will_break) return false;
@@ -8820,7 +8799,7 @@ function renderOsItems() {
   if (grouped) {
     const byCat = {};
     for (const i of renderItems) {
-      const cat = i.categ || 'Sin categoría';
+      const cat = getCategoryGroupClient(i.name, i.categ);
       if (!byCat[cat]) byCat[cat] = [];
       byCat[cat].push(i);
     }
@@ -8842,16 +8821,13 @@ function renderOsItems() {
 
   function renderOsItem(i) {
     let itemHtml = "";
-    const thumbUrl = i.ml_thumbnail || i.odoo_image || '';
-    const thumb = thumbUrl ? `<img src="${thumbUrl}" style="width:48px;height:48px;object-fit:contain;border-radius:6px;background:#f9fafb;" onerror="this.style.display='none'">` : '<div style="width:48px;height:48px;background:#f3f4f6;border-radius:6px;"></div>';
+    const thumb = i.ml_thumbnail ? `<img src="${i.ml_thumbnail}" style="width:48px;height:48px;object-fit:contain;border-radius:6px;background:#f9fafb;">` : '<div style="width:48px;height:48px;background:#f3f4f6;border-radius:6px;"></div>';
     const abcColor = i.abc==='A'?'#dc2626':i.abc==='B'?'#d97706':'#9ca3af';
     const xyzColor = i.xyz==='X'?'#059669':i.xyz==='Y'?'#d97706':'#dc2626';
     const detId = 'os-det-' + (i.sku||'').replace(/[^a-z0-9]/gi,'-');
 
     // Tags
     const tags = [];
-    const ordenInfo = _skuToOrden[i.sku];
-    if (ordenInfo) tags.push('<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">📋 ' + ordenInfo.ordenNumber + '</span>');
     if (i.available <= 0) tags.push('<span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">SIN STOCK</span>');
     if (i.will_break) tags.push('<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">⚠️ QUIEBRE</span>');
     if (zafralSkus.has(i.sku)) tags.push('<span style="background:#ede9fe;color:#5b21b6;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;">ZAFRAL</span>');
@@ -8876,7 +8852,7 @@ function renderOsItems() {
         ${thumb}
         <div style="flex:1;min-width:0;">
           <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name}</div>
-          <div style="font-size:10px;color:#9ca3af;">${i.sku} · ${i.categ || ''} · <span style="padding:1px 5px;border-radius:4px;font-size:9px;font-weight:600;background:${i.origen==='Brasil'?'#dcfce7':'#fef3c7'};color:${i.origen==='Brasil'?'#166534':'#92400e'};">${i.origen} ${i.lead_days}d</span> → ${i.target_label} · <span style="padding:1px 4px;border-radius:3px;font-weight:700;font-size:9px;background:${abcColor}15;color:${abcColor};">${i.abc}</span><span style="padding:1px 4px;border-radius:3px;font-weight:700;font-size:9px;background:${xyzColor}15;color:${xyzColor};margin-left:2px;">${i.xyz||''}</span> ${i.months_with_sales||0}/6m · máx ${i.max_month||0}${i.cbm_per_unit ? ' · <span style="color:#7c3aed;">'+Math.round(i.cbm_per_unit*i.gap*100)/100+' cbm</span>' : ' · <span style="color:#dc2626;font-size:8px;">SIN CBM</span>'} ${tags.join(' ')}</div>
+          <div style="font-size:10px;color:#9ca3af;">${i.sku} · ${i.categ || ''} · <span style="padding:1px 5px;border-radius:4px;font-size:9px;font-weight:600;background:${i.origen==='Brasil'?'#dcfce7':'#fef3c7'};color:${i.origen==='Brasil'?'#166534':'#92400e'};">${i.origen} ${i.lead_days}d</span> → ${i.target_label} · <span style="padding:1px 4px;border-radius:3px;font-weight:700;font-size:9px;background:${abcColor}15;color:${abcColor};">${i.abc}</span><span style="padding:1px 4px;border-radius:3px;font-weight:700;font-size:9px;background:${xyzColor}15;color:${xyzColor};margin-left:2px;">${i.xyz||''}</span> ${i.months_with_sales||0}/6m · máx ${i.max_month||0} ${tags.join(' ')}</div>
         </div>
         <div style="text-align:right;flex-shrink:0;">
           <div style="font-size:10px;color:#6b7280;">stock</div>
@@ -8889,10 +8865,7 @@ function renderOsItems() {
         <div style="text-align:center;flex-shrink:0;min-width:60px;">
           <div style="font-size:20px;font-weight:800;color:#4361ee;">${i.gap}</div>
         </div>
-        ${_ordenItems.some(o => o.sku === i.sku)
-          ? `<span style="padding:8px 14px;background:#dcfce7;color:#059669;border-radius:8px;font-size:12px;font-weight:700;flex-shrink:0;display:inline-block;">✓ Agregado</span>`
-          : `<button onclick="event.stopPropagation();addToOrden('${(i.sku||'').replace(/'/g,'')}','${i.name.replace(/'/g,'').slice(0,40)}',${i.gap},'${i.origen}','${(i.ml_thumbnail||i.odoo_image||'').replace(/'/g,'')}')" style="padding:8px 14px;background:#dc2626;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">+ Pedir</button>`
-        }
+        <button onclick="event.stopPropagation();addToOrden('${(i.sku||'').replace(/'/g,'')}','${i.name.replace(/'/g,'').slice(0,40)}',${i.gap},'${i.origen}','${(i.ml_thumbnail||'').replace(/'/g,'')}')" style="padding:8px 14px;background:#dc2626;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">+ Pedir</button>
       </div>
       <div id="${detId}" style="display:none;margin-top:8px;padding:12px;background:#fafafa;border-radius:8px;border:1px solid #e5e7eb;">
         <div style="font-size:11px;color:#475569;margin-bottom:8px;">${razon}</div>
@@ -8946,18 +8919,6 @@ async function loadOrdenSugerida() {
     _osZafral = d.zafral || [];
     _osAllItems = d.items || [];
     window._osItems = _osAllItems;
-
-    // Cargar mapa de SKUs en órdenes
-    await loadSkuOrdenMap();
-
-    // Poblar dropdown de categorías
-    const categSet = new Set(_osAllItems.filter(i => i.categ).map(i => i.categ));
-    const categSelect = document.getElementById('os-f-categ');
-    if (categSelect) {
-      const current = categSelect.value;
-      categSelect.innerHTML = '<option value="">Categor\u00eda: Todas</option>' + [...categSet].sort().map(c => `<option value="${c}">${c}</option>`).join('');
-      if (current) categSelect.value = current;
-    }
 
     const c = d.config;
     const items = _osAllItems.filter(i => i.gap > 0 && i.avg_month > 0 && i.seasonal_factor > 0);
@@ -9470,17 +9431,12 @@ async function renderOrdenCart() {
   const totalQty = _ordenItems.reduce((s, i) => s + (i.qty || 0), 0);
 
   itemsEl.innerHTML = _ordenItems.map(i => {
-    const m = map[i.sku] || {};
-    const ihome = m.ihome || '';
-    const fob = m.fob || 0;
-    const cbm = m.cbm_per_unit ? Math.round(m.cbm_per_unit * i.qty * 100) / 100 : 0;
-    const fobTotal = fob ? Math.round(fob * i.qty) : 0;
+    const ihome = (map[i.sku] || {}).ihome || '';
     return `<div style="padding:8px 12px;border-bottom:1px solid #f3f4f6;display:flex;gap:8px;align-items:center;">
       ${i.thumb ? `<img src="${i.thumb}" style="width:28px;height:28px;object-fit:contain;border-radius:4px;">` : '<div style="width:28px;height:28px;background:#f3f4f6;border-radius:4px;"></div>'}
       <div style="flex:1;min-width:0;">
         <div style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name}</div>
-        <div style="font-size:10px;color:#9ca3af;">${ihome ? '<b>'+ihome+'</b> · ' : ''}${i.sku} · <span style="color:${i.origen==='Brasil'?'#059669':'#d97706'}">${i.origen}</span>${cbm ? ' · '+cbm+' cbm' : ''}${fob ? ' · <span style="color:#059669;">$'+fob+'/ud</span>' : ''}</div>
-        ${fobTotal ? '<div style="font-size:9px;color:#059669;font-weight:600;">$'+fobTotal.toLocaleString('es-UY')+' USD</div>' : ''}
+        <div style="font-size:10px;color:#9ca3af;">${ihome ? '<b>'+ihome+'</b> · ' : ''}${i.sku} · <span style="color:${i.origen==='Brasil'?'#059669':'#d97706'}">${i.origen}</span>${(map[i.sku]||{}).cbm_per_unit ? ' · '+Math.round((map[i.sku].cbm_per_unit*i.qty)*100)/100+' cbm' : ''}</div>
       </div>
       <input type="number" value="${i.qty}" min="1" style="width:55px;padding:4px 6px;border:1px solid #e5e7eb;border-radius:4px;font-size:12px;font-weight:600;text-align:center;" onchange="updateOrdenQty('${i.sku}',this.value)">
       <button onclick="removeFromOrden('${i.sku}')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;">✕</button>
@@ -9491,12 +9447,26 @@ async function renderOrdenCart() {
     const m = (_ihomeMap || {})[i.sku] || {};
     return s + (m.cbm_per_unit || 0) * (i.qty || 0);
   }, 0);
-  const totalFob = _ordenItems.reduce((s, i) => {
-    const m = (_ihomeMap || {})[i.sku] || {};
-    return s + (m.fob || 0) * (i.qty || 0);
-  }, 0);
-  const sinFob = _ordenItems.filter(i => !((_ihomeMap || {})[i.sku] || {}).fob).length;
-  totalEl.innerHTML = `${totalQty.toLocaleString('es-UY')} uds · <b>${Math.round(totalCbm * 100) / 100} CBM</b> · <b style="color:#059669;">$${Math.round(totalFob).toLocaleString('es-UY')} USD</b>${sinFob ? ' <span style="font-size:10px;color:#dc2626;">('+sinFob+' sin FOB)</span>' : ''}`;
+  totalEl.innerHTML = `${totalQty.toLocaleString('es-UY')} unidades · <b>${Math.round(totalCbm * 100) / 100} CBM</b>`;
+}
+
+async function exportarExcelConFotos() {
+  if (!_ordenItems.length) return;
+  const btn = event?.target;
+  if (btn) { btn.textContent = '⏳ Generando...'; btn.disabled = true; }
+  try {
+    const r = await fetch('/api/orden/export-excel', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: _ordenItems }),
+    });
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'orden-compra.xlsx'; a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) { alert('Error: ' + e.message); }
+  if (btn) { btn.textContent = '📥 Excel'; btn.disabled = false; }
 }
 
 async function exportarMiOrden() {
@@ -9619,74 +9589,6 @@ async function ejecutarOrden() {
   }
 }
 
-// Cache de SKUs en órdenes para mostrar en qué orden está cada producto
-let _skuToOrden = {}; // sku -> { ordenId, ordenNumber }
-
-async function loadSkuOrdenMap() {
-  try {
-    const r = await fetch('/api/ordenes-compra', { headers: authHeaders() });
-    const ordenes = await r.json();
-    _skuToOrden = {};
-    for (const o of ordenes) {
-      if (o.status === 'preparada' || o.status === 'pedida') {
-        for (const i of o.items) {
-          _skuToOrden[i.sku] = { ordenId: o.id, ordenNumber: o.number || o.notes || o.id.slice(-6), status: o.status };
-        }
-      }
-    }
-  } catch {}
-}
-
-async function guardarPedido() {
-  if (!_ordenItems.length) return;
-  const nota = prompt('Nombre del pedido (opcional):', 'Pedido ' + new Date().toLocaleDateString('es-UY'));
-  if (nota === null) return; // cancelled
-
-  try {
-    await fetch('/api/ordenes-compra', {
-      method: 'POST',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: _ordenItems, notes: nota, status: 'preparada' }),
-    });
-    _ordenItems = [];
-    _editingOrdenId = null;
-    renderOrdenCart();
-    await loadSkuOrdenMap();
-    loadOrdenesPreparadas();
-    loadOrdenesCompra();
-    renderOsItems(); // re-render to show orden badges
-  } catch(e) { alert('Error: ' + e.message); }
-}
-
-let _editingOrdenId = null;
-
-async function editarPedido(ordenId) {
-  try {
-    const r = await fetch('/api/ordenes-compra', { headers: authHeaders() });
-    const ordenes = await r.json();
-    const orden = ordenes.find(o => o.id === ordenId);
-    if (!orden) return;
-
-    // Load items into cart
-    _ordenItems = orden.items.map(i => ({
-      sku: i.sku, name: i.name, qty: i.qty, origen: i.origen || 'China',
-      thumb: i.thumb || ''
-    }));
-    _editingOrdenId = ordenId;
-    renderOrdenCart();
-
-    // Delete the old order
-    await fetch('/api/ordenes-compra/' + ordenId, { method: 'DELETE', headers: authHeaders() });
-    await loadSkuOrdenMap();
-    loadOrdenesPreparadas();
-    loadOrdenesCompra();
-    renderOsItems();
-
-    // Scroll to top
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  } catch(e) { alert('Error: ' + e.message); }
-}
-
 async function loadOrdenesPreparadas() {
   const el = document.getElementById('os-preparadas');
   if (!el) return;
@@ -9711,10 +9613,8 @@ async function loadOrdenesPreparadas() {
               <div style="font-size:11px;color:#9ca3af;">${o.notes || ''}</div>
             </div>
             <div style="display:flex;gap:6px;">
-              <button onclick="editarPedido('${o.id}')" style="padding:6px 14px;background:#d97706;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">✏️ Editar</button>
-              <button onclick="enviarOrdenProveedor('${o.id}',true)" style="padding:6px 14px;background:#059669;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">📥 Excel</button>
-              <button onclick="enviarOrdenProveedor('${o.id}',false)" style="padding:6px 14px;background:#0ea5e9;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">📥 Sin precios</button>
-              <button onclick="marcarOrdenPedida('${o.id}')" style="padding:6px 14px;background:#4361ee;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">✓ Pedida</button>
+              <button onclick="enviarOrdenProveedor('${o.id}')" style="padding:6px 14px;background:#059669;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">📥 Excel</button>
+              <button onclick="marcarOrdenPedida('${o.id}')" style="padding:6px 14px;background:#4361ee;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">✓ Marcar pedida</button>
               <button onclick="eliminarOrdenCompra('${o.id}')" style="padding:6px 8px;background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;">✕</button>
             </div>
           </div>
@@ -9727,7 +9627,7 @@ async function loadOrdenesPreparadas() {
   } catch {}
 }
 
-async function enviarOrdenProveedor(id, includePrice = true) {
+async function enviarOrdenProveedor(id) {
   try {
     const r = await fetch('/api/ordenes-compra', { headers: authHeaders() });
     const ordenes = await r.json();
@@ -9736,7 +9636,7 @@ async function enviarOrdenProveedor(id, includePrice = true) {
     const r2 = await fetch('/api/orden/exportar', {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: orden.items, includePrice }),
+      body: JSON.stringify({ items: orden.items }),
     });
     const blob = await r2.blob();
     const url = URL.createObjectURL(blob);
@@ -9783,7 +9683,6 @@ async function loadOrdenesCompra() {
           </div>
           <div style="display:flex;gap:6px;align-items:center;">
             <span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;color:${statusColor};background:${statusColor}15;">${statusLabel}</span>
-            <button onclick="editarPedido('${o.id}')" style="padding:4px 10px;background:#d97706;color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">✏️ Editar</button>
             ${o.status === 'pedida' ? `<button onclick="confirmarOrdenCompra('${o.id}')" style="padding:4px 10px;background:#059669;color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">Confirmar llegada</button>` : (o.expected_date ? `<span style="font-size:10px;color:#6b7280;">→ ${o.expected_date}</span>` : '')}
             <button onclick="eliminarOrdenCompra('${o.id}')" style="padding:4px 8px;background:none;border:none;color:#dc2626;cursor:pointer;font-size:12px;">✕</button>
           </div>

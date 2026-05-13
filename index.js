@@ -6090,6 +6090,99 @@ app.get('/api/cbm-local', requireToken, async (req, res) => {
   }
 });
 
+// ── Export orden a Excel con fotos ──────────────────────────────
+app.post('/api/orden/export-excel', requireToken, async (req, res) => {
+  try {
+    const ExcelJS = require('exceljs');
+    const { items } = req.body;
+    if (!items?.length) return res.status(400).json({ error: 'Sin items' });
+
+    let ihomeMap = {};
+    try { if (fs.existsSync(path.join(__dirname, 'data', 'ihome_mapping.json'))) ihomeMap = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'ihome_mapping.json'), 'utf8')); } catch {}
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Orden de Compra');
+
+    // Header
+    ws.columns = [
+      { header: 'Foto', key: 'foto', width: 12 },
+      { header: 'SKU', key: 'sku', width: 15 },
+      { header: 'IHOME', key: 'ihome', width: 12 },
+      { header: 'Producto', key: 'name', width: 40 },
+      { header: 'Qty', key: 'qty', width: 8 },
+      { header: 'CBM/u', key: 'cbm_unit', width: 10 },
+      { header: 'CBM Total', key: 'cbm_total', width: 10 },
+      { header: 'FOB/u', key: 'fob', width: 10 },
+      { header: 'FOB Total', key: 'fob_total', width: 12 },
+      { header: 'Origen', key: 'origen', width: 10 },
+      { header: 'Link ML', key: 'ml_link', width: 50 },
+    ];
+
+    // Style header
+    ws.getRow(1).font = { bold: true, size: 11 };
+    ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4361EE' } };
+    ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+
+    for (let idx = 0; idx < items.length; idx++) {
+      const item = items[idx];
+      const ih = ihomeMap[item.sku] || {};
+      const ml = cachedStock.find(s => s.sku === item.sku);
+      const cbmUnit = ih.cbm_per_unit || 0;
+      const fob = ih.fob || 0;
+      const mlLink = ml?.permalink || (ml?.id ? `https://articulo.mercadolibre.com.uy/${ml.id.replace('MLU','MLU-')}` : '');
+
+      const row = ws.addRow({
+        foto: '',
+        sku: item.sku,
+        ihome: ih.ihome || '',
+        name: item.name,
+        qty: item.qty,
+        cbm_unit: cbmUnit,
+        cbm_total: Math.round(cbmUnit * item.qty * 1000) / 1000,
+        fob: fob,
+        fob_total: Math.round(fob * item.qty * 100) / 100,
+        origen: item.origen || '',
+        ml_link: mlLink,
+      });
+
+      row.height = 45;
+
+      // ML link as hyperlink
+      if (mlLink) {
+        row.getCell('ml_link').value = { text: mlLink, hyperlink: mlLink };
+        row.getCell('ml_link').font = { color: { argb: 'FF3B82F6' }, underline: true };
+      }
+
+      // Try to add image
+      const thumbUrl = item.thumb || ml?.thumbnail;
+      if (thumbUrl) {
+        try {
+          const imgRes = await axios.get(thumbUrl, { responseType: 'arraybuffer', timeout: 5000 });
+          const imgId = wb.addImage({ buffer: imgRes.data, extension: 'jpeg' });
+          ws.addImage(imgId, {
+            tl: { col: 0, row: idx + 1 },
+            ext: { width: 50, height: 50 },
+          });
+        } catch {}
+      }
+    }
+
+    // Totals row
+    const totalQty = items.reduce((s, i) => s + (i.qty || 0), 0);
+    const totalCbm = items.reduce((s, i) => s + (ihomeMap[i.sku]?.cbm_per_unit || 0) * (i.qty || 0), 0);
+    const totalFob = items.reduce((s, i) => s + (ihomeMap[i.sku]?.fob || 0) * (i.qty || 0), 0);
+    const totRow = ws.addRow({ name: 'TOTAL', qty: totalQty, cbm_total: Math.round(totalCbm * 100) / 100, fob_total: Math.round(totalFob * 100) / 100 });
+    totRow.font = { bold: true, size: 12 };
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=orden-compra.xlsx');
+    await wb.xlsx.write(res);
+  } catch (e) {
+    console.error('[export-excel]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Comparador año a año ─────────────────────────────────────────
 app.get('/api/comparador', requireToken, async (req, res) => {
   const headers = { Authorization: `Bearer ${tokenData.access_token}` };
@@ -6566,10 +6659,6 @@ app.get('/api/planificador', requireToken, async (req, res) => {
     // Productos ya pedidos (órdenes en estado "pedida")
     const pedidosBySku = getProductosPedidos();
 
-    // IHOME mapping para CBM y FOB
-    let ihomeMap = {};
-    try { if (fs.existsSync(IHOME_MAP_FILE)) ihomeMap = JSON.parse(fs.readFileSync(IHOME_MAP_FILE, 'utf8')); } catch {}
-
     // Calcular ABC: revenue últimos 6 meses
     const last6 = sortedMonths.slice(-6);
     const revenueByProd = {};
@@ -6584,10 +6673,6 @@ app.get('/api/planificador', requireToken, async (req, res) => {
       const sku = p.default_code || '';
       // Filtrar packs: no sugerir pedir packs, solo unitarios
       if (packBom[sku.trim()]) continue;
-      // Filtrar MDF y estantes: producción local, no se importa
-      const categName = Array.isArray(p.categ_id) ? p.categ_id[1] : (p.categ_id || '');
-      if (categName.toLowerCase().includes('mdf')) continue;
-      if (categName.toLowerCase().includes('estante')) continue;
 
       const ml = mlMap[sku.trim()] || null;
       const categ = Array.isArray(p.categ_id) ? p.categ_id[1] : (p.categ_id || '');
@@ -6648,19 +6733,35 @@ app.get('/api/planificador', requireToken, async (req, res) => {
         seasonalNote = 'Temporada alta';
       }
 
-      // ── Nueva lógica: cobertura post-llegada ──
-      // Pedir = (cobertura_objetivo × venta_diaria × crecimiento) - stock_al_llegar
-      // stock_al_llegar = max(stock + incoming + pedido - venta_diaria × lead_time, 0)
-      const coberturaObjetivo = 90; // días de cobertura post-llegada
-      const dailyRate = avgMonth / 30;
+      // Estimación: usar el mayor entre (mes año pasado × crecimiento) y (promedio últimos 3 × crecimiento)
+      // Estimación: si tengo dato del mismo mes año pasado, priorizar ese.
+      // Solo usar promedio reciente si no hay dato del año pasado.
+      const estByCompMonth = Math.ceil(soldCompMonth * growthFactor);
+      const estByRecent = Math.ceil(avgLast3 * growthFactor);
+      let baseEstimated;
+      if (soldCompMonth > 0) {
+        // Tengo dato del año pasado: usarlo como base principal
+        // Si el promedio reciente es similar (±50%), promediar. Si no, confiar en el año pasado.
+        if (estByRecent > 0 && estByRecent < estByCompMonth * 1.5 && estByRecent > estByCompMonth * 0.5) {
+          baseEstimated = Math.ceil((estByCompMonth + estByRecent) / 2);
+        } else {
+          baseEstimated = estByCompMonth;
+        }
+      } else {
+        baseEstimated = estByRecent;
+      }
+      const estimated = Math.ceil(baseEstimated * seasonalFactor);
+
+      // Stock de seguridad: 20% de la estimación (capped, no basado en stddev que da números locos con estacionalidad)
+      const safetyStock = seasonalFactor > 0 ? Math.ceil(estimated * 0.2) : 0;
+
+      // Faltante
       const available = stock + incoming + pedido;
-      const stockAlLlegar = Math.max(0, available - dailyRate * leadDays);
-      const necesarioPostLlegada = Math.ceil(coberturaObjetivo * dailyRate * growthFactor * seasonalFactor);
-      const estimated = necesarioPostLlegada;
-      const gap = seasonalFactor > 0 ? Math.max(0, necesarioPostLlegada - Math.floor(stockAlLlegar)) : 0;
-      const safetyStock = 0; // ya incluido en el crecimiento 30%
+      const needed = estimated + safetyStock;
+      const gap = Math.max(0, needed - available);
 
       // Días de stock al ritmo actual
+      const dailyRate = avgMonth / 30;
       const daysOfStock = dailyRate > 0 ? Math.round(available / dailyRate) : null;
 
       // Quiebre: ¿se queda sin stock antes de que llegue el contenedor?
@@ -6682,7 +6783,7 @@ app.get('/api/planificador', requireToken, async (req, res) => {
         sold_comp_month: soldCompMonth,
         estimated,
         safety_stock: safetyStock,
-        needed: necesarioPostLlegada,
+        needed,
         gap,
         avg_month: Math.round(avgMonth * 10) / 10,
         days_of_stock: daysOfStock,
@@ -6699,25 +6800,8 @@ app.get('/api/planificador', requireToken, async (req, res) => {
         revenue_6m: Math.round(rev6m),
         sales_by_month: sales,
         sales_by_channel: salesByChannel[p.id] || { ml: {}, mayorista: {}, local: {} },
-        cbm_per_unit: (ihomeMap[sku.trim()] || {}).cbm_per_unit || null,
-        fob: (ihomeMap[sku.trim()] || {}).fob || null,
-        ihome: (ihomeMap[sku.trim()] || {}).ihome || null,
         abc: null, // se calcula abajo
       });
-    }
-
-    // Buscar fotos faltantes: usar hermano con mismo SKU base
-    const thumbBySku = {};
-    for (const item of items) {
-      if (item.ml_thumbnail) thumbBySku[item.sku] = item.ml_thumbnail;
-    }
-    for (const item of items) {
-      if (item.ml_thumbnail || item.odoo_image) continue;
-      const base = (item.sku || '').replace(/-[A-Z]{2,}(-[A-Z]{2,})?$/, '').replace(/-\d+$/, '');
-      if (base !== item.sku) {
-        const sibling = items.find(i => i.sku !== item.sku && (i.ml_thumbnail || i.odoo_image) && (i.sku || '').startsWith(base));
-        if (sibling) item.ml_thumbnail = sibling.ml_thumbnail || sibling.odoo_image;
-      }
     }
 
     // Calcular canal principal de cada item
@@ -7203,13 +7287,7 @@ function isPackSku(sku) {
 
 // ── IHOME Mapping + Product Images ──
 const IHOME_MAP_FILE = path.join(__dirname, 'data', 'ihome_mapping.json');
-const IHOME_MAP_FILE_REPO = path.join(__dirname, 'ihome_mapping_repo.json'); // fallback outside volume
 const PRODUCT_IMAGES_DIR = path.join(__dirname, 'data', 'product_images');
-
-// On Railway, copy ihome_mapping from repo to volume if missing
-if (process.env.RAILWAY_ENVIRONMENT && !fs.existsSync(IHOME_MAP_FILE) && fs.existsSync(IHOME_MAP_FILE_REPO)) {
-  try { fs.copyFileSync(IHOME_MAP_FILE_REPO, IHOME_MAP_FILE); console.log('[ihome] copiado desde repo al volumen'); } catch {}
-}
 
 // ── Armado de contenedores ──
 
@@ -7391,10 +7469,7 @@ app.post('/api/orden/contenedores', requireToken, (req, res) => {
 
 app.get('/api/ihome-mapping', requireToken, (req, res) => {
   try {
-    // Try data dir first, then fallback to repo dir (Railway volume may not have it)
     if (fs.existsSync(IHOME_MAP_FILE)) return res.json(JSON.parse(fs.readFileSync(IHOME_MAP_FILE, 'utf8')));
-    const repoPath = path.join(__dirname, 'data', 'ihome_mapping.json');
-    if (repoPath !== IHOME_MAP_FILE && fs.existsSync(repoPath)) return res.json(JSON.parse(fs.readFileSync(repoPath, 'utf8')));
     res.json({});
   } catch { res.json({}); }
 });
@@ -7408,7 +7483,7 @@ app.get('/api/product-image/:filename', (req, res) => {
 // Export orden con imágenes (ExcelJS)
 const ExcelJS = require('exceljs');
 app.post('/api/orden/exportar', requireToken, async (req, res) => {
-  const { items, includePrice = true } = req.body;
+  const { items } = req.body;
   if (!items?.length) return res.status(400).json({ error: 'Sin items' });
 
   try {
@@ -7426,7 +7501,7 @@ app.post('/api/orden/exportar', requireToken, async (req, res) => {
     ws.getCell('B2').value = new Date().toLocaleDateString('es-UY');
 
     // Column headers
-    ws.getRow(4).values = includePrice ? ['NO.', 'FOTO', 'IHOME CODE', 'MA CODE', 'DESCRIPTION', 'QTY', 'FOB (ref)', 'LINK ML'] : ['NO.', 'FOTO', 'IHOME CODE', 'MA CODE', 'DESCRIPTION', 'QTY', 'LINK ML'];
+    ws.getRow(4).values = ['NO.', 'FOTO', 'IHOME CODE', 'MA CODE', 'DESCRIPTION', 'QTY', 'FOB (ref)', 'LINK ML'];
     ws.getRow(4).font = { bold: true };
     ws.getRow(4).eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } }; });
 
@@ -7488,20 +7563,12 @@ app.post('/api/orden/exportar', requireToken, async (req, res) => {
       row.getCell(4).value = item.sku;
       row.getCell(5).value = mapping.description || item.name;
       row.getCell(6).value = item.qty;
-      if (includePrice) {
-        row.getCell(7).value = mapping.fob || '';
-        // Link ML
-        const mlItem2 = (cachedStock || []).find(i => i.sku === item.sku);
-        if (mlItem2?.permalink) {
-          row.getCell(8).value = { text: mlItem2.permalink, hyperlink: mlItem2.permalink };
-          row.getCell(8).font = { color: { argb: 'FF2563EB' }, underline: true, size: 9 };
-        }
-      } else {
-        const mlItem2 = (cachedStock || []).find(i => i.sku === item.sku);
-        if (mlItem2?.permalink) {
-          row.getCell(7).value = { text: mlItem2.permalink, hyperlink: mlItem2.permalink };
-          row.getCell(7).font = { color: { argb: 'FF2563EB' }, underline: true, size: 9 };
-        }
+      row.getCell(7).value = mapping.fob || '';
+      // Link ML
+      const mlItem = (cachedStock || []).find(i => i.sku === item.sku);
+      if (mlItem?.permalink) {
+        row.getCell(8).value = { text: mlItem.permalink, hyperlink: mlItem.permalink };
+        row.getCell(8).font = { color: { argb: 'FF2563EB' }, underline: true, size: 9 };
       }
       totalQty += item.qty || 0;
     }
