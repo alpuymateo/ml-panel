@@ -6101,6 +6101,75 @@ app.get('/api/cbm-local', requireToken, async (req, res) => {
   }
 });
 
+// ── Catálogo de productos con CBM y costos ─────────────────────
+app.get('/api/catalogo-productos', requireToken, async (req, res) => {
+  try {
+    const products = await getOdooProducts(false);
+    let ihomeMap = {};
+    try { if (fs.existsSync(path.join(__dirname, 'data', 'ihome_mapping.json'))) ihomeMap = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'ihome_mapping.json'), 'utf8')); } catch {}
+
+    const q = (req.query.q || '').toLowerCase();
+    const sinCbm = req.query.sin_cbm === 'true';
+    const sort = req.query.sort || 'name';
+
+    const skipNames = ['mercado envios', 'self_service', 'drop_off', 'cross_docking', 'fulfillment', 'soydelivery', 'soy delivery', 'standard delivery', 'default fenicio', 'flete', 'costo de envio', 'retiro por local', 'envío', 'radio e instalacion'];
+
+    let items = products.map(p => {
+      const sku = (p.default_code || '').trim();
+      if (!sku) return null;
+      const nameLower = (p.name || '').toLowerCase();
+      if (skipNames.some(s => nameLower.includes(s))) return null;
+      if (p.type === 'service') return null;
+
+      const ih = ihomeMap[sku] || {};
+      const ml = cachedStock.find(s => s.sku === sku) || cachedVariationSkuMap[sku];
+      const categ = Array.isArray(p.categ_id) ? p.categ_id[1] : '';
+
+      return {
+        id: p.id,
+        sku,
+        name: p.name,
+        categ,
+        stock: p.qty_available || 0,
+        cost: p.standard_price || 0,
+        price: p.list_price || 0,
+        fob: ih.fob || 0,
+        ihome: ih.ihome || '',
+        cbm_per_unit: ih.cbm_per_unit || 0,
+        cbm_source: ih.cbm_source || (ih.cbm_per_unit ? 'ihome' : ''),
+        cbm_per_ctn: ih.cbm_per_ctn || 0,
+        qty_per_ctn: ih.qty_per_ctn || 0,
+        description_china: ih.description || '',
+        ml_id: ml?.id || null,
+        ml_thumbnail: ml?.thumbnail || null,
+        ml_permalink: ml?.permalink || null,
+      };
+    }).filter(Boolean);
+
+    if (q) items = items.filter(i => i.name.toLowerCase().includes(q) || i.sku.toLowerCase().includes(q) || i.ihome.toLowerCase().includes(q));
+    if (sinCbm) items = items.filter(i => !i.cbm_per_unit);
+
+    if (sort === 'name') items.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sort === 'sku') items.sort((a, b) => a.sku.localeCompare(b.sku));
+    else if (sort === 'stock') items.sort((a, b) => b.stock - a.stock);
+    else if (sort === 'cost') items.sort((a, b) => b.cost - a.cost);
+    else if (sort === 'fob') items.sort((a, b) => b.fob - a.fob);
+    else if (sort === 'cbm') items.sort((a, b) => b.cbm_per_unit - a.cbm_per_unit);
+
+    const totalItems = items.length;
+    const conCbm = items.filter(i => i.cbm_per_unit > 0).length;
+    const conFob = items.filter(i => i.fob > 0).length;
+
+    res.json({
+      items: items.slice(0, parseInt(req.query.limit) || 500),
+      total: totalItems,
+      conCbm, conFob,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Export orden a Excel con fotos ──────────────────────────────
 app.post('/api/orden/export-excel', requireToken, async (req, res) => {
   try {
