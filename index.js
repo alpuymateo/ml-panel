@@ -16,6 +16,10 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
 const app = express();
+const SERVER_START = new Date().toISOString();
+const DEPLOY_COMMIT = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0,7) || 'local';
+
+app.get('/api/version', (req, res) => res.json({ started: SERVER_START, commit: DEPLOY_COMMIT, uptime: Math.round(process.uptime()) + 's' }));
 
 // Security headers
 app.use(helmet({
