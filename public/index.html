@@ -8911,7 +8911,7 @@ function renderOsItems() {
           <div style="font-size:20px;font-weight:800;color:#4361ee;">${i.gap}</div>
         </div>
         <div style="flex-shrink:0;text-align:center;">
-          ${isPedido ? `<div style="background:#3b82f6;color:white;padding:4px 10px;border-radius:8px;font-size:11px;font-weight:700;margin-bottom:4px;">PEDIDO ${i.pedido}</div>` : ''}
+          ${isPedido ? `<div style="background:#3b82f6;color:white;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:700;margin-bottom:4px;text-align:center;line-height:1.3;">PEDIDO ${i.pedido} uds<br><span style="font-weight:400;font-size:9px;opacity:0.85;">${(i.pedido_orden||[]).join(' · ')}</span></div>` : ''}
           <button class="os-pedir-btn" data-sku="${(i.sku||'').replace(/"/g,'&quot;')}" data-name="${i.name.replace(/"/g,'&quot;').slice(0,40)}" data-gap="${i.gap}" data-origen="${i.origen}" data-thumb="${(i.ml_thumbnail||'').replace(/"/g,'')}" style="padding:8px 14px;background:${isPedido ? '#6b7280' : '#dc2626'};color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">+ Pedir</button>
         </div>
       </div>

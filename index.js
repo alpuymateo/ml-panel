@@ -6747,7 +6747,7 @@ app.get('/api/planificador', requireToken, async (req, res) => {
     }
 
     // Productos ya pedidos (órdenes en estado "pedida")
-    const pedidosBySku = getProductosPedidos();
+    const { pedidos: pedidosBySku, pedidoInfo: pedidoInfoBySku } = getProductosPedidos();
 
     // Calcular ABC: revenue últimos 6 meses
     const last6 = sortedMonths.slice(-6);
@@ -6770,6 +6770,7 @@ app.get('/api/planificador', requireToken, async (req, res) => {
       const stock = p.qty_available || 0;
       const incoming = incomingBySku[sku.trim()] || 0;
       const pedido = pedidosBySku[sku.trim()] || 0;
+      const pedidoOrden = pedidoInfoBySku[sku.trim()]?.ordenes || [];
       const cost = p.standard_price || 0;
       const price = p.list_price || 0;
 
@@ -6867,6 +6868,7 @@ app.get('/api/planificador', requireToken, async (req, res) => {
         stock,
         incoming,
         pedido,
+        pedido_orden: pedidoOrden,
         available,
         ml_thumbnail: ml ? ml.thumbnail : null,
         ml_status: ml ? ml.status : null,
@@ -7242,13 +7244,18 @@ app.delete('/api/orden-draft', requireToken, (req, res) => {
 // Productos ya pedidos (para descontar del planificador)
 function getProductosPedidos() {
   const ordenes = loadOrdenes().filter(o => ['pedida', 'preparada', 'confirmada'].includes(o.status));
-  const pedidos = {};
+  const pedidos = {};     // sku -> qty
+  const pedidoInfo = {};  // sku -> { qty, ordenes: ['nombre1', 'nombre2'] }
   for (const o of ordenes) {
+    const orderName = o.number || o.notes?.slice(0, 30) || o.id?.toString().slice(0, 10);
     for (const i of o.items) {
       pedidos[i.sku] = (pedidos[i.sku] || 0) + (i.qty || 0);
+      if (!pedidoInfo[i.sku]) pedidoInfo[i.sku] = { qty: 0, ordenes: [] };
+      pedidoInfo[i.sku].qty += (i.qty || 0);
+      if (!pedidoInfo[i.sku].ordenes.includes(orderName)) pedidoInfo[i.sku].ordenes.push(orderName);
     }
   }
-  return pedidos;
+  return { pedidos, pedidoInfo };
 }
 
 // ── Objetivos mensuales ──
