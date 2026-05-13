@@ -18,21 +18,12 @@
     "createdAt": "2026-03-28T11:50:03.644Z"
   },
   {
-    "id": "3193dcf3-1892-4780-be22-66e11f20ffd3",
+    "id": "b8295653-5f72-4075-a86b-8bad47dd929a",
     "username": "fio",
     "name": "Fio",
     "role": "user",
-    "salt": "bcd6031d18574a60f57c918c1397a799",
-    "hash": "403e7aabab12092bb61299d90382547fd7a0810c5d478ec87d3c6ac205c7077ca81feb4abd3fc9fe8932e74719778d4de8abc159f6872ea032ef06f476d948c9",
-    "createdAt": "2026-05-12T21:00:31.743Z"
-  },
-  {
-    "id": "b97ad605-444b-444b-bc2b-6a24f84866ca",
-    "username": "testing",
-    "name": "Testing",
-    "role": "admin",
-    "salt": "a14fd087b4819ec482418575f335bc07",
-    "hash": "b2ac7148ff02f26365239c969ee10a24c252d74f029f2c97928f38d400414f755218f4849ad4b2d6191e8a8aeb4f24f4faf22016f7951befd77919f5aa1627ba",
-    "createdAt": "2026-05-12T21:04:38.421Z"
+    "salt": "75d842b8b10b3c0661e5b197c0885ba1",
+    "hash": "b9f321ac6b23445d1d74270011c9e52d2e41a55cb0d96c493693322e1073944b81a01b886391cab79905da9db7a6683159a9e981df1d34a6f723ce66e5af2c95",
+    "createdAt": "2026-05-13T02:45:28.016Z"
   }
 ]
