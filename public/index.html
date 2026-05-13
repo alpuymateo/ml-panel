@@ -8894,7 +8894,7 @@ function renderOsItems() {
         <div style="text-align:center;flex-shrink:0;min-width:60px;">
           <div style="font-size:20px;font-weight:800;color:#4361ee;">${i.gap}</div>
         </div>
-        <button onclick="event.stopPropagation();addToOrden('${(i.sku||'').replace(/['"]/g,'')}','${i.name.replace(/['"]/g,'').slice(0,40)}',${i.gap},'${i.origen}','${(i.ml_thumbnail||'').replace(/['"]/g,'')}')" style="padding:8px 14px;background:#dc2626;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">+ Pedir</button>
+        <button class="os-pedir-btn" data-sku="${(i.sku||'').replace(/"/g,'&quot;')}" data-name="${i.name.replace(/"/g,'&quot;').slice(0,40)}" data-gap="${i.gap}" data-origen="${i.origen}" data-thumb="${(i.ml_thumbnail||'').replace(/"/g,'')}" style="padding:8px 14px;background:#dc2626;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">+ Pedir</button>
       </div>
       <div id="${detId}" style="display:none;margin-top:8px;padding:12px;background:#fafafa;border-radius:8px;border:1px solid #e5e7eb;">
         <div style="font-size:11px;color:#475569;margin-bottom:8px;">${razon}</div>
@@ -8922,6 +8922,13 @@ function renderOsItems() {
   const limitNote = shown > maxShow ? `<div style="text-align:center;padding:12px;color:#6b7280;font-size:12px;">Mostrando ${maxShow} de ${shown} productos. Usá los filtros para refinar.</div>` : '';
   content.innerHTML = `<div class="card" style="padding:0;overflow:hidden;">${html}${limitNote}</div>`;
   document.getElementById('os-count').textContent = shown + ' productos';
+  // Bind pedir buttons via delegation (avoids quote escaping issues)
+  content.querySelectorAll('.os-pedir-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      addToOrden(btn.dataset.sku, btn.dataset.name, parseInt(btn.dataset.gap)||0, btn.dataset.origen, btn.dataset.thumb);
+    });
+  });
   setTimeout(markOrdenButtons, 100);
 }
 
