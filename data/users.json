@@ -16,5 +16,14 @@
     "salt": "a0b112cd585182dfc8bcf59b5d0b68a9",
     "hash": "f833b96b21b8653807ef4cff8f658d9ce364b665f2da6e9f5d7dd8a295b08644a2aff020bcd64e7bcc35dad6d79788c3745e0866a37174a93858a2fc2b9f0b64",
     "createdAt": "2026-03-28T11:50:03.644Z"
+  },
+  {
+    "id": "b8295653-5f72-4075-a86b-8bad47dd929a",
+    "username": "fio",
+    "name": "Fio",
+    "role": "user",
+    "salt": "75d842b8b10b3c0661e5b197c0885ba1",
+    "hash": "b9f321ac6b23445d1d74270011c9e52d2e41a55cb0d96c493693322e1073944b81a01b886391cab79905da9db7a6683159a9e981df1d34a6f723ce66e5af2c95",
+    "createdAt": "2026-05-13T02:45:28.016Z"
   }
 ]
