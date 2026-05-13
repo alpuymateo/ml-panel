@@ -186,7 +186,7 @@
     "cbm_per_ctn": 0.048,
     "qty_per_ctn": 1000,
     "unit": "PC",
-    "cbm_per_unit": 0.003,
+    "cbm_per_unit": 0.000048,
     "cbm_source": "ia",
     "cbm_dims": "12x12x20"
   },
@@ -1565,7 +1565,7 @@
     "cbm_per_ctn": 0.024,
     "qty_per_ctn": 1000,
     "unit": "PC",
-    "cbm_per_unit": 0.012,
+    "cbm_per_unit": 0.000024,
     "cbm_source": "ia",
     "cbm_dims": "50x8x3"
   },

@@ -415,6 +415,9 @@
         <div class="nav-item" data-page="dimensiones" onclick="showPage('dimensiones')">
           <span class="nav-icon">📐</span> Dimensiones
         </div>
+        <div class="nav-item" data-page="catalogo-prod" onclick="showPage('catalogo-prod')">
+          <span class="nav-icon">📑</span> Cat&aacute;logo
+        </div>
         <div class="nav-item" data-page="cbm-local" onclick="showPage('cbm-local')">
           <span class="nav-icon">📦</span> CBM Local
         </div>
@@ -2234,6 +2237,32 @@
       <div id="oc-kpis"></div>
       <div id="oc-draft" style="margin-bottom:16px;"></div>
       <div id="oc-list"></div>
+    </div>
+
+    <!-- ══ CATÁLOGO PRODUCTOS ══ -->
+    <div id="page-catalogo-prod" style="display:none">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h1>📑 Cat&aacute;logo de productos</h1>
+          <p>Todos los productos con CBM, costo FOB y datos de compra</p>
+        </div>
+      </div>
+      <div id="catprod-kpis"></div>
+      <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <input type="text" class="search-input" id="catprod-search" placeholder="Buscar por nombre, SKU o IHOME..." style="width:280px;" oninput="loadCatalogoProd()">
+        <select class="filter-select" id="catprod-filter" onchange="loadCatalogoProd()">
+          <option value="">Todos</option>
+          <option value="sin_cbm">Sin CBM</option>
+        </select>
+        <select class="filter-select" id="catprod-sort" onchange="loadCatalogoProd()">
+          <option value="name">Alfab&eacute;tico</option>
+          <option value="stock">Mayor stock</option>
+          <option value="cost">Mayor costo</option>
+          <option value="fob">Mayor FOB</option>
+          <option value="cbm">Mayor CBM</option>
+        </select>
+      </div>
+      <div id="catprod-table"></div>
     </div>
 
     <!-- ══ CBM LOCAL ══ -->
@@ -8865,7 +8894,7 @@ function renderOsItems() {
         <div style="text-align:center;flex-shrink:0;min-width:60px;">
           <div style="font-size:20px;font-weight:800;color:#4361ee;">${i.gap}</div>
         </div>
-        <button onclick="event.stopPropagation();addToOrden('${(i.sku||'').replace(/'/g,'')}','${i.name.replace(/'/g,'').slice(0,40)}',${i.gap},'${i.origen}','${(i.ml_thumbnail||'').replace(/'/g,'')}')" style="padding:8px 14px;background:#dc2626;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">+ Pedir</button>
+        <button onclick="event.stopPropagation();addToOrden('${(i.sku||'').replace(/['"]/g,'')}','${i.name.replace(/['"]/g,'').slice(0,40)}',${i.gap},'${i.origen}','${(i.ml_thumbnail||'').replace(/['"]/g,'')}')" style="padding:8px 14px;background:#dc2626;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">+ Pedir</button>
       </div>
       <div id="${detId}" style="display:none;margin-top:8px;padding:12px;background:#fafafa;border-radius:8px;border:1px solid #e5e7eb;">
         <div style="font-size:11px;color:#475569;margin-bottom:8px;">${razon}</div>
@@ -9018,7 +9047,7 @@ async function loadOrdenSugerida() {
             <td style="padding:3px 4px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name}</td>
             <td style="padding:3px 4px;text-align:right;font-weight:700;color:#dc2626;">pedir ${i.gap}</td>
             <td style="padding:3px 4px;text-align:right;color:#6b7280;">stock: ${i.stock}</td>
-            <td><button data-sku-btn="${i.sku.replace(/'/g,"\\'")}" onclick="agregarAOrden('${i.sku.replace(/'/g,"\\'")}',${i.gap},'${i.name.replace(/'/g,"\\'")}')" style="padding:2px 6px;background:#dc2626;color:white;border:none;border-radius:3px;font-size:10px;cursor:pointer;">+</button></td>
+            <td><button data-sku-btn="${i.sku.replace(/'/g,"\\'")}" onclick="agregarAOrden('${i.sku.replace(/'/g,"\\'")}',${i.gap},'${i.name.replace(/['"]/g,"\\'")}')" style="padding:2px 6px;background:#dc2626;color:white;border:none;border-radius:3px;font-size:10px;cursor:pointer;">+</button></td>
           </tr>`;
         }
         html += `</tbody></table>`;
@@ -9034,7 +9063,7 @@ async function loadOrdenSugerida() {
               <td style="padding:3px 4px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name}</td>
               <td style="padding:3px 4px;text-align:right;color:#6b7280;">${i.avg_month}/mes</td>
               <td style="padding:3px 4px;text-align:right;color:#6b7280;">stock: ${i.stock}</td>
-              <td><button onclick="agregarAOrden('${i.sku.replace(/'/g,"\\'")}',${sugQty},'${i.name.replace(/'/g,"\\'")}')" style="padding:2px 6px;background:#2563eb;color:white;border:none;border-radius:3px;font-size:10px;cursor:pointer;">+ ${sugQty}</button></td>
+              <td><button onclick="agregarAOrden('${i.sku.replace(/'/g,"\\'")}',${sugQty},'${i.name.replace(/['"]/g,"\\'")}')" style="padding:2px 6px;background:#2563eb;color:white;border:none;border-radius:3px;font-size:10px;cursor:pointer;">+ ${sugQty}</button></td>
             </tr>`;
           }
           html += `</tbody></table>`;
@@ -9108,7 +9137,7 @@ async function loadOrdenSugerida() {
                 <div style="font-size:10px;color:#6b7280;">${i.avg_month}/mes</div>
               </div>
               <div style="text-align:right;flex-shrink:0;font-weight:800;font-size:16px;color:#4361ee;min-width:40px;">${sugQty}</div>
-              <button onclick="event.stopPropagation();agregarAOrden('${i.sku.replace(/'/g,"\\'")}',${sugQty},'${i.name.replace(/'/g,"\\'")}')" style="padding:6px 12px;background:#dc2626;color:white;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">+ Pedir</button>
+              <button onclick="event.stopPropagation();agregarAOrden('${i.sku.replace(/'/g,"\\'")}',${sugQty},'${i.name.replace(/['"]/g,"\\'")}')" style="padding:6px 12px;background:#dc2626;color:white;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">+ Pedir</button>
             </div>
             <div id="${detId}" style="display:none;margin-top:8px;padding:10px;background:#fff;border-radius:8px;border:1px solid #fee2e2;">
               <div style="font-size:11px;color:#475569;margin-bottom:8px;">${razon}</div>
@@ -9149,7 +9178,7 @@ async function loadOrdenSugerida() {
         const abcColor = i.abc==='A'?'#dc2626':i.abc==='B'?'#d97706':'#9ca3af';
         const mDetail = i.zafral_months.map(m => m.month.slice(5)+':'+m.qty).join(' ');
         html += '<tr style="background:#f5f3ff;"><td>'+thumb+'</td><td style="font-size:12px;">'+i.name+'<br><span style="color:#9ca3af;font-size:10px;">'+i.sku+' · '+i.origen+' · '+mDetail+'</span></td><td style="text-align:right;font-weight:600;">'+i.zafral_qty+'</td><td style="text-align:right;">'+i.zafral_avg+'/mes</td><td style="text-align:right;font-weight:600;color:#7c3aed;">'+fmt(i.zafral_total)+'</td><td style="text-align:right;color:'+(i.stock<=0?'#dc2626':'#10b981')+';font-weight:700;">'+i.stock+'</td><td style="text-align:center;color:'+abcColor+';font-weight:700;">'+i.abc+'</td>';
-        html += '<td><button onclick="agregarAOrden(\''+i.sku.replace(/'/g,"\\'")+'\','+i.zafral_avg+',\''+i.name.replace(/'/g,"\\'")+'\')" style="padding:4px 8px;background:#7c3aed;color:white;border:none;border-radius:4px;font-size:11px;cursor:pointer;">+ Pedir</button></td></tr>';
+        html += '<td><button onclick="agregarAOrden(\''+i.sku.replace(/'/g,"\\'")+'\','+i.zafral_avg+',\''+i.name.replace(/['"]/g,"\\'")+'\')" style="padding:4px 8px;background:#7c3aed;color:white;border:none;border-radius:4px;font-size:11px;cursor:pointer;">+ Pedir</button></td></tr>';
       }
       html += '</tbody></table></div></div>';
     }
