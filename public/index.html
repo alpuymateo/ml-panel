@@ -4844,6 +4844,84 @@ let catalogoView  = 'lista';
 let catalogoModo  = 'ver';
 let catalogoLoaded = false;
 
+// ── Macro-categorías del catálogo ────────────────────────────────
+const CATALOGO_MACRO = [
+  {
+    nombre: 'ILUMINACIÓN',
+    subs: [
+      { nombre: 'Lámparas de Escritorio', cats: ['PORTATILES'] },
+      { nombre: 'Lámparas de Pie',        cats: ['LAMPARA DE PIE'] },
+      { nombre: 'Apliques y Colgantes',   cats: ['APLIQUES INTERIOR', 'APLIQUES EXTERIOR', 'LAMPARAS COLGANTES'] },
+      { nombre: 'Plafones',               cats: ['PLAFONES CIRCULARES C/MADERA', 'PLAFONES CUADRADOS C/MADERA', 'PLAFONES SIN MADERA'] },
+      { nombre: 'Focos Exteriores',       cats: ['CAMPING Y EXTERIOR'] },
+      { nombre: 'Luces Decorativas',      cats: ['ILUMINACION DECORATIVA', 'GENERAL LED'] },
+      { nombre: 'Guía de Luces',          cats: ['MDF - LAMPARAS'] },
+      { nombre: 'Línea Craft',            cats: ['MDF - CUADROS Y TRIPTICOS', 'MDF - LINEA CRAFT', 'MDF - MUEBLES CRAFT', 'MDF - VARIOS CRAFT'] },
+      { nombre: 'Lámparas de Sal',        cats: ['LAMPARA DE SAL', 'LAMPARA DE SAL RUSTICA', 'LAMPARA DE SAL TALLADA', 'LAMPARA DE SAL USB', 'ACC. VARIOS LAMPARAS DE SAL', 'VARIOS SAL HIMALAYA'] },
+    ]
+  },
+  {
+    nombre: 'MUEBLES',
+    subs: [
+      { nombre: 'Dormitorio', cats: ['MOBILIARIO DORMITORIO DORIPEL', 'MOBILIARIO DORMITORIO MOVEISIM', 'MOBILIARIO DORMITORIO COMPLETA', 'MOBILIARIO DORMITORIO FELICCI', 'MOBILIARIO DORMITORIO MADESA', 'MOBILIARIO DORMITORIO TREVISUL', 'ORGANIZACION DORMTORIO'] },
+      { nombre: 'Living',     cats: ['MOBILIARIO LIVING COMPLETA', 'MOBILIARIO LIVING MOVEISIM', 'MOBILIARIO LIVING TREVISUL', 'MOBILIARIO LIVING APPUNTO', 'MOBILIARIO LIVING FELLICCI', 'LIVING'] },
+      { nombre: 'Escritorio', cats: ['MOBILIARIO ESCRITORIO MADESA', 'MOBILIARIO ESCRITORIO APPUNTO', 'ESCRITORIO'] },
+      { nombre: 'Comedor',    cats: ['MOBILIARIO COMEDOR MADESA', 'MOBILIARIO COMEDOR FELLICCI'] },
+      { nombre: 'Baño',       cats: ['MOBILIARIO BAÑO FELLICCI', 'MOBILIARIO BAÑO MOVEIS SIM'] },
+      { nombre: 'Colchones',  cats: ['COLCHONES'] },
+    ]
+  },
+  {
+    nombre: 'HOGAR',
+    subs: [
+      { nombre: 'Textil Living',    cats: ['TEXTIL LIVING', 'ALFOMBRAS'] },
+      { nombre: 'Ropa de Cama',     cats: ['ROPA DE CAMA Y ALMOHADONES'] },
+      { nombre: 'Cortinas',         cats: ['TOLDOS'] },
+      { nombre: 'Espejos',          cats: ['ESPEJOS'] },
+      { nombre: 'Soportes TV',      cats: ['SOPORTES TV FIJOS', 'SOPORTE TV MOVILES', 'SOPORTE TV'] },
+      { nombre: 'Cocina',           cats: ['ORG. COCINA Y UTENSILLOS', 'ESCURRIDORES', 'MOPAS'] },
+      { nombre: 'Organización',     cats: ['ORGANIZACION DEL ESPACIO', 'CESTOS Y CANASTOS'] },
+      { nombre: 'Invierno',         cats: ['MALLAS'] },
+      { nombre: 'Decoración',       cats: ['DECORACION EXTERIOR', 'VELAS Y SAHUMERIOS'] },
+    ]
+  },
+  {
+    nombre: 'OUTDOOR & RECREACIÓN',
+    subs: [
+      { nombre: 'Camping y Exterior', cats: ['CAMPING Y EXTERIOR', 'MUEBLES EXTERIOR'] },
+      { nombre: 'Hamacas',            cats: ['HAMACAS'] },
+      { nombre: 'Escaleras',          cats: ['ESCALERAS'] },
+      { nombre: 'Bicicletas',         cats: ['BICICLETAS ADULTO', 'BICICLETAS INFANTILES', 'ARTICULOS CICLISMO'] },
+      { nombre: 'Deportes',           cats: ['JUEGOS, JUGUETES Y DEPORTES', 'PATINES', 'TIEMPO LIBRE Y RECREACION'] },
+      { nombre: 'Mallas',             cats: ['MALLAS ELECTROSOLDADAS'] },
+    ]
+  },
+  {
+    nombre: 'FERRETERÍA',
+    subs: [
+      { nombre: 'Ferretería General', cats: ['VARIOS FERRETERIA'] },
+      { nombre: 'Grifería',           cats: ['LOZA SANITARIA', 'ACCESORIOS BAÑO'] },
+      { nombre: 'Pintura',            cats: ['PINTURA'] },
+      { nombre: 'Mangueras',          cats: ['MANGUERAS'] },
+    ]
+  },
+  {
+    nombre: 'BEBÉS & NIÑOS',
+    subs: [
+      { nombre: 'Bebés',  cats: ['MATERNIDAD Y BEBES'] },
+      { nombre: 'Niños',  cats: ['JUEGOS BEBE Y NIÑOS', 'MUEBLES Y ACCESORIO INFANTILES'] },
+    ]
+  },
+  {
+    nombre: 'OTROS',
+    subs: [
+      { nombre: 'Música',    cats: ['INSTRUMENTOS MUSICALES', 'ACCESORIOS MUSICA'] },
+      { nombre: 'Mascotas',  cats: ['ACCESORIOS MASCOTAS'] },
+      { nombre: 'Varios',    cats: ['ACCESORIOS VARIOS', 'ACCESORIOS VEHICULOS', 'BALANZAS'] },
+    ]
+  },
+];
+
 function setCatalogoModo(m) {
   catalogoModo = m;
   document.getElementById('cat-btn-ver').style.background   = m === 'ver'   ? '#374151' : 'transparent';
@@ -4868,14 +4946,10 @@ async function loadCatalogo() {
     document.getElementById('catalogo-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando catálogo...</div>';
     await loadOdoo();
   }
-  // Poblar selector de categorías con solo las que tienen mayoristas
+  // Poblar selector con macro-categorías
   const catSel = document.getElementById('catalogo-cat');
-  const cats = new Set();
-  for (const cat of (odooData?.categories || [])) {
-    if (cat.items.some(p => p.mayorista)) cats.add(cat.name);
-  }
   catSel.innerHTML = '<option value="">Todas las categorías</option>' +
-    [...cats].sort((a,b) => a.localeCompare(b,'es')).map(c => `<option value="${c}">${c}</option>`).join('');
+    CATALOGO_MACRO.map(m => `<option value="${m.nombre}">${m.nombre}</option>`).join('');
   catalogoLoaded = true;
   renderCatalogo();
   const total = (odooData?.categories || []).flatMap(c => c.items).filter(p => p.mayorista).length;
@@ -5003,105 +5077,143 @@ function descargarCatalogo() {
 
 function renderCatalogo() {
   if (!odooData) return;
-  const q          = (document.getElementById('catalogo-search')?.value || '').toLowerCase();
-  const catFilter  = document.getElementById('catalogo-cat')?.value || '';
+  const q           = (document.getElementById('catalogo-search')?.value || '').toLowerCase();
+  const macroFilter = document.getElementById('catalogo-cat')?.value || '';
   const stockFilter = document.getElementById('catalogo-stock')?.value || 'all';
-  const cont = document.getElementById('catalogo-content');
+  const cont        = document.getElementById('catalogo-content');
 
-  // Agrupar por categoría y registrar en mapa
-  const bycat = {};
+  // Construir lookup: nombre_odoo_cat → productos mayoristas
+  const odooBycat = {};
   for (const c of odooData.categories) {
-    if (catFilter && c.name !== catFilter) continue;
     for (const p of c.items) {
       if (!p.mayorista) continue;
       if (q && !p.name.toLowerCase().includes(q) && !(p.sku||'').toLowerCase().includes(q)) continue;
       if (stockFilter === 'con_stock' && !(p.stock > 0)) continue;
       if (stockFilter === 'sin_stock' && p.stock > 0) continue;
-      if (!bycat[c.name]) bycat[c.name] = [];
-      bycat[c.name].push(p);
-      catProductMap[p.id] = p; // registrar para onclick seguro
+      if (!odooBycat[c.name]) odooBycat[c.name] = [];
+      odooBycat[c.name].push(p);
+      catProductMap[p.id] = p;
     }
   }
-  const cats = Object.keys(bycat).sort((a,b) => a.localeCompare(b,'es'));
 
-  if (!cats.length) {
+  // Armar estructura macro → sub → productos
+  const macros = CATALOGO_MACRO
+    .filter(m => !macroFilter || m.nombre === macroFilter)
+    .map(m => ({
+      ...m,
+      subs: m.subs.map(s => ({
+        ...s,
+        items: s.cats.flatMap(cat => odooBycat[cat] || [])
+      })).filter(s => s.items.length > 0)
+    })).filter(m => m.subs.length > 0);
+
+  if (!macros.length) {
     cont.innerHTML = '<div style="color:#9ca3af;font-size:14px;padding:40px;text-align:center;">No se encontraron productos.</div>';
     return;
   }
 
-  const catHeader = name => `
-    <div style="display:flex;align-items:center;gap:12px;margin:28px 0 14px;">
-      <div style="height:2px;flex:0 0 18px;background:linear-gradient(90deg,#7c3aed,#a78bfa);border-radius:2px;"></div>
-      <span style="font-size:13px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap;">${name}</span>
-      <div style="height:2px;flex:1;background:#f3f4f6;border-radius:2px;"></div>
-      <span style="font-size:11px;color:#9ca3af;">${bycat[name].length} productos</span>
+  const macroHeader = (nombre, total) => `
+    <div style="margin:40px 0 6px;">
+      <div style="display:flex;align-items:baseline;gap:14px;">
+        <span style="font-size:22px;font-weight:900;color:#111827;letter-spacing:-0.01em;text-transform:uppercase;">${nombre}</span>
+        <span style="font-size:11px;color:#9ca3af;font-weight:500;">${total} productos</span>
+      </div>
+      <div style="height:2px;background:#111827;margin-top:6px;"></div>
     </div>`;
 
+  const subHeader = (nombre, total) => `
+    <div style="display:flex;align-items:center;gap:10px;margin:24px 0 12px;">
+      <span style="font-size:13px;font-weight:600;color:#374151;">${nombre}</span>
+      <div style="height:1px;flex:1;background:#e5e7eb;"></div>
+      <span style="font-size:11px;color:#9ca3af;">${total}</span>
+    </div>`;
+
+  const stockLabel = (stock) => {
+    if (stock > 10) return `<span style="font-size:10px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.05em;">● En stock</span>`;
+    if (stock > 0)  return `<span style="font-size:10px;font-weight:700;color:#d97706;text-transform:uppercase;letter-spacing:0.05em;">● Stock bajo (${stock})</span>`;
+    return `<span style="font-size:10px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:0.05em;">Sin stock</span>`;
+  };
+
   if (catalogoView === 'lista') {
-    cont.innerHTML = cats.map(name => `
-      ${catHeader(name)}
-      <div style="background:white;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden;margin-bottom:8px;">
-        ${bycat[name].map((p,i) => catalogoModo === 'pedir'
-          ? `<div onclick="addToCatPedidoById(${p.id})" id="cat-row-${p.id}"
-              style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f3f4f6;cursor:pointer;${i%2===1?'background:#fafafa':''};active:background:#dcfce7;"
-              ontouchstart="this.style.background='#dcfce7'" ontouchend="this.style.background='${i%2===1?'#fafafa':''}'">
-              <img src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
-                style="width:42px;height:42px;object-fit:contain;border-radius:6px;background:#f9fafb;flex-shrink:0;"
-                onerror="if(this.dataset.fb){this.style.opacity='0';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}">
-              <div style="flex:1;min-width:0;">
-                <div style="font-size:12px;font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
-                <div style="font-size:11px;color:#7c3aed;font-family:monospace;">${p.sku||'—'} · ${catStockBadge(p.stock??0)}</div>
-              </div>
-              <div style="font-size:14px;font-weight:800;color:#059669;white-space:nowrap;flex-shrink:0;">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
-              <div style="background:#059669;color:white;border-radius:8px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;flex-shrink:0;">+</div>
-            </div>`
-          : `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f3f4f6;${i%2===1?'background:#fafafa':''}">
-              <img src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
-                style="width:38px;height:38px;object-fit:contain;border-radius:6px;background:#f9fafb;flex-shrink:0;"
-                onerror="if(this.dataset.fb){this.style.opacity='0';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}">
-              <div style="flex:1;min-width:0;">
-                <div style="font-size:12px;font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
-                <div style="font-size:11px;color:#7c3aed;font-family:monospace;">${p.sku||'—'}</div>
-              </div>
-              <div style="text-align:right;flex-shrink:0;">
-                <div style="font-size:13px;font-weight:800;color:#059669;">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
-                <div style="font-size:11px;">${catStockBadge(p.stock??0)}</div>
-              </div>
-            </div>`
-        ).join('')}
-      </div>`).join('');
+    cont.innerHTML = `<style>
+      .clist-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #f3f4f6;}
+      .clist-row:last-child{border-bottom:none;}
+      .clist-row:hover{background:#fafafa;}
+      .clist-img{width:44px;height:44px;object-fit:contain;background:#f5f5f5;flex-shrink:0;mix-blend-mode:multiply;}
+      .clist-name{font-size:13px;font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .clist-sku{font-size:11px;color:#9ca3af;font-family:monospace;margin-top:1px;}
+      .clist-price{font-size:14px;font-weight:800;color:#111827;white-space:nowrap;}
+    </style>
+    ${macros.map(m => {
+      const total = m.subs.reduce((s,sub)=>s+sub.items.length,0);
+      return `${macroHeader(m.nombre, total)}
+      ${m.subs.map(sub => `
+        ${subHeader(sub.nombre, sub.items.length)}
+        <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:4px;">
+          ${sub.items.map((p,i) => catalogoModo === 'pedir'
+            ? `<div class="clist-row" onclick="addToCatPedidoById(${p.id})" id="cat-row-${p.id}" style="cursor:pointer;"
+                ontouchstart="this.style.background='#dcfce7'" ontouchend="this.style.background=''">
+                <img class="clist-img" src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
+                  onerror="if(this.dataset.fb){this.style.opacity='0';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}">
+                <div style="flex:1;min-width:0;">
+                  <div class="clist-name">${p.name}</div>
+                  <div class="clist-sku">${p.sku||'—'}</div>
+                </div>
+                ${stockLabel(p.stock??0)}
+                <div class="clist-price">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
+                <div style="background:#111827;color:white;border-radius:6px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0;">+</div>
+              </div>`
+            : `<div class="clist-row">
+                <img class="clist-img" src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
+                  onerror="if(this.dataset.fb){this.style.opacity='0';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}">
+                <div style="flex:1;min-width:0;">
+                  <div class="clist-name">${p.name}</div>
+                  <div class="clist-sku">${p.sku||'—'}</div>
+                </div>
+                ${stockLabel(p.stock??0)}
+                <div class="clist-price">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
+              </div>`
+          ).join('')}
+        </div>`).join('')}`;
+    }).join('')}`;
   } else {
-    cont.innerHTML = `
-      <style>
-        .cat-card{background:white;border-radius:16px;border:1px solid #e5e7eb;padding:16px;display:flex;flex-direction:column;gap:8px;transition:transform 0.15s,box-shadow 0.15s;position:relative;overflow:hidden;}
-        .cat-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(124,58,237,0.12);border-color:#c4b5fd;}
-        .cat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#7c3aed,#a78bfa);}
-        .cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;}
-        .cat-card-sku{font-family:monospace;font-size:11px;color:#7c3aed;font-weight:700;background:#f5f3ff;padding:2px 7px;border-radius:5px;display:inline-block;width:fit-content;}
-        .cat-card-name{font-size:12px;font-weight:600;color:#111827;line-height:1.4;flex:1;}
-        .cat-card-price{font-size:18px;font-weight:800;color:#059669;}
-        .cat-card-price span{font-size:12px;font-weight:500;color:#9ca3af;}
-        .cat-card-img{width:100%;height:130px;object-fit:contain;border-radius:8px;background:#f9fafb;display:block;}
-        .cat-card-img-ph{width:100%;height:130px;border-radius:8px;background:linear-gradient(135deg,#f5f3ff,#ede9fe);display:none;align-items:center;justify-content:center;font-size:32px;}
-      </style>
-      ${cats.map(name => `
-        ${catHeader(name)}
-        <div class="cat-grid" style="margin-bottom:8px;">
-          ${bycat[name].map(p => `
+    cont.innerHTML = `<style>
+      .cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:1px;background:#e0e0e0;}
+      .cat-card{background:#fff;display:flex;flex-direction:column;padding:0 0 16px;cursor:default;}
+      .cat-card-img-wrap{width:100%;height:190px;display:flex;align-items:center;justify-content:center;background:#f5f5f5;margin-bottom:12px;overflow:hidden;}
+      .cat-card-img{max-width:85%;max-height:170px;object-fit:contain;display:block;mix-blend-mode:multiply;}
+      .cat-card-body{padding:0 14px;}
+      .cat-card-sku{font-size:10px;font-weight:600;color:#9ca3af;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:5px;}
+      .cat-card-name{font-size:12px;font-weight:700;color:#111827;line-height:1.45;flex:1;margin-bottom:10px;}
+      .cat-card-divider{height:1px;background:#ebebeb;margin-bottom:10px;}
+      .cat-card-price{font-size:19px;font-weight:900;color:#111827;letter-spacing:-0.02em;}
+    </style>
+    ${macros.map(m => {
+      const total = m.subs.reduce((s,sub)=>s+sub.items.length,0);
+      return `${macroHeader(m.nombre, total)}
+      ${m.subs.map(sub => `
+        ${subHeader(sub.nombre, sub.items.length)}
+        <div class="cat-grid" style="margin-bottom:16px;">
+          ${sub.items.map(p => `
             <div class="cat-card">
-              <div class="cat-card-sku">${p.sku||'S/C'}</div>
-              <img class="cat-card-img" src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
-                onerror="if(this.dataset.fb){this.style.display='none';this.nextElementSibling.style.display='flex';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}" alt="${p.name}">
-              <div class="cat-card-img-ph">📦</div>
-              <div class="cat-card-name">${p.name}</div>
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">
-                <div class="cat-card-price"><span>$</span>${Math.round(p.price||0).toLocaleString('es-UY')}</div>
-                ${catStockBadge(p.stock??0)}
+              <div class="cat-card-img-wrap">
+                <img class="cat-card-img" src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
+                  onerror="if(this.dataset.fb){this.style.opacity='0.15';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}" alt="${p.name}">
               </div>
-              ${catalogoModo === 'pedir' ? `<button onclick="addToCatPedidoById(${p.id})"
-                style="width:100%;background:#059669;color:white;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px;min-height:44px;">+ Agregar al pedido</button>` : ''}
+              <div class="cat-card-body">
+                <div class="cat-card-sku">${p.sku||'S/C'}</div>
+                <div class="cat-card-name">${p.name}</div>
+                <div class="cat-card-divider"></div>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                  <div class="cat-card-price">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
+                  ${stockLabel(p.stock??0)}
+                </div>
+                ${catalogoModo === 'pedir' ? `<button onclick="addToCatPedidoById(${p.id})"
+                  style="width:100%;background:#111827;color:white;border:none;padding:9px;font-size:12px;font-weight:700;cursor:pointer;margin-top:12px;letter-spacing:0.04em;border-radius:4px;">+ AGREGAR</button>` : ''}
+              </div>
             </div>`).join('')}
         </div>`).join('')}`;
+    }).join('')}`;
   }
 }
 
