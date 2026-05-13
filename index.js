@@ -622,7 +622,7 @@ async function refreshStockCache(forceRefresh = false) {
       const freshItems = [];
       for (let i = 0; i < allIds.length; i += 20) {
         const batch = allIds.slice(i, i + 20);
-        const r = await axios.get(`${ML_API_URL}/items`, { headers, params: { ids: batch.join(',') } });
+        const r = await axios.get(`${ML_API_URL}/items`, { headers, params: { ids: batch.join(','), include_attributes: 'all' } });
         const details = (r.data || []).map(e => e.body).filter(Boolean);
         freshItems.push(...details);
         await sleep(100);
