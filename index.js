@@ -7241,7 +7241,7 @@ app.delete('/api/orden-draft', requireToken, (req, res) => {
 
 // Productos ya pedidos (para descontar del planificador)
 function getProductosPedidos() {
-  const ordenes = loadOrdenes().filter(o => o.status === 'pedida');
+  const ordenes = loadOrdenes().filter(o => ['pedida', 'preparada', 'confirmada'].includes(o.status));
   const pedidos = {};
   for (const o of ordenes) {
     for (const i of o.items) {
