@@ -4844,6 +4844,8 @@ let catalogoView  = 'lista';
 let catalogoModo  = 'ver';
 let catalogoLoaded = false;
 let catalogOverrides = {};
+let catalogSortOverrides = {};
+let catGridUidMap = {}; // subKey → [{uid, base}]
 
 // ── Macro-categorías del catálogo ────────────────────────────────
 const CATALOGO_MACRO = [
@@ -4970,6 +4972,29 @@ async function deleteCatOverride() {
   renderCatalogo();
 }
 
+// ── Orden manual ──────────────────────────────────────────────────
+async function saveCatSort(subKey) {
+  const entries = catGridUidMap[subKey] || [];
+  const withPos = entries.map(({uid, base}) => {
+    const input = document.getElementById(uid + '_ord');
+    return { base, pos: input ? (parseInt(input.value) || 999) : 999 };
+  });
+  withPos.sort((a, b) => a.pos - b.pos);
+  const order = withPos.map(x => x.base);
+  await fetch('/api/catalog/sort', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: subKey, order })
+  });
+  catalogSortOverrides[subKey] = order;
+  renderCatalogo();
+}
+async function resetCatSort(subKey) {
+  await fetch('/api/catalog/sort/' + encodeURIComponent(subKey), { method: 'DELETE', headers: authHeaders() });
+  delete catalogSortOverrides[subKey];
+  renderCatalogo();
+}
+
 function catSelectVariant(uid, idx, variants) {
   const v = variants[idx];
   const main = document.getElementById(uid+'_main');
@@ -5017,11 +5042,15 @@ async function loadCatalogo() {
     document.getElementById('catalogo-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando catálogo...</div>';
     await loadOdoo();
   }
-  // Cargar overrides
+  // Cargar overrides y orden manual
   try {
-    const r = await fetch('/api/catalog/overrides', { headers: authHeaders() });
-    catalogOverrides = await r.json();
-  } catch(e) { catalogOverrides = {}; }
+    const [rOv, rSt] = await Promise.all([
+      fetch('/api/catalog/overrides', { headers: authHeaders() }),
+      fetch('/api/catalog/sort',      { headers: authHeaders() })
+    ]);
+    catalogOverrides     = await rOv.json();
+    catalogSortOverrides = await rSt.json();
+  } catch(e) { catalogOverrides = {}; catalogSortOverrides = {}; }
   // Poblar selector con macro-categorías
   const catSel = document.getElementById('catalogo-cat');
   catSel.innerHTML = '<option value="">Todas las categorías</option>' +
@@ -5240,9 +5269,15 @@ function renderCatalogo() {
       <span style="font-size:11px;color:#9ca3af;font-weight:500;">${total} productos</span>
     </div>`;
 
-  const subHeader = (nombre, total) => `
-    <div style="padding:20px 0 10px;">
+  const subHeader = (nombre, total, subKey) => `
+    <div style="padding:20px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
       <span style="font-size:16px;font-weight:800;color:#111827;text-transform:uppercase;letter-spacing:0.03em;">${nombre}</span>
+      ${catalogoModo === 'ver' ? `<div style="display:flex;gap:6px;flex-shrink:0;">
+        ${catalogSortOverrides[subKey] ? `<button onclick="resetCatSort('${subKey.replace(/'/g,"\\'")}')"
+          style="font-size:10px;font-weight:600;color:#dc2626;background:#fff;border:1px solid #fca5a5;border-radius:5px;padding:3px 8px;cursor:pointer;">↺ Reset</button>` : ''}
+        <button onclick="saveCatSort('${subKey.replace(/'/g,"\\'")}')"
+          style="font-size:11px;font-weight:600;color:#fff;background:#111827;border:none;border-radius:5px;padding:4px 10px;cursor:pointer;">Guardar orden</button>
+      </div>` : ''}
     </div>`;
 
   const stockLabel = (stock) => {
@@ -5324,6 +5359,7 @@ function renderCatalogo() {
       const total = m.subs.reduce((s,sub)=>s+sub.items.length,0);
       return `${macroHeader(m.nombre, total)}
       ${m.subs.map(sub => {
+        const subKey = m.nombre + '||' + sub.nombre;
         // Agrupar por SKU base (antes del primer guión)
         const groups = {};
         const groupOrder = [];
@@ -5332,7 +5368,21 @@ function renderCatalogo() {
           if (!groups[base]) { groups[base] = []; groupOrder.push(base); }
           groups[base].push(p);
         }
-        const cards = groupOrder.map(base => {
+        // Aplicar orden manual si existe
+        const sortOv = catalogSortOverrides[subKey];
+        if (sortOv) {
+          groupOrder.sort((a, b) => {
+            const ia = sortOv.indexOf(a), ib = sortOv.indexOf(b);
+            if (ia === -1 && ib === -1) return 0;
+            if (ia === -1) return 1;
+            if (ib === -1) return -1;
+            return ia - ib;
+          });
+        }
+        // Guardar mapa uid→base para saveCatSort
+        catGridUidMap[subKey] = groupOrder.map(base => ({ uid: 'cv_' + base.replace(/\W/g,'_'), base }));
+
+        const cards = groupOrder.map((base, cardIdx) => {
           const variants = groups[base];
           const p0 = variants[0];
           const isGroup = variants.length > 1;
@@ -5367,9 +5417,14 @@ function renderCatalogo() {
             ? `<button onclick="openCatOverride('${base}','${m.nombre}','${sub.nombre}')"
                 style="position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.9);border:1px solid #e5e7eb;border-radius:5px;padding:3px 6px;font-size:10px;color:#6b7280;cursor:pointer;font-weight:600;" title="Mover categoría">✎</button>`
             : '';
+          const orderInput = catalogoModo === 'ver'
+            ? `<input type="number" id="${uid}_ord" value="${cardIdx+1}" min="1"
+                style="position:absolute;top:8px;right:8px;width:34px;height:22px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;font-weight:700;text-align:center;color:#374151;background:rgba(255,255,255,0.92);padding:0;" title="Posición">`
+            : '';
           return `
           <div class="cat-card" style="position:relative;">
             ${editBtn}
+            ${orderInput}
             <div style="display:flex;padding:12px 12px 0;">
               <div style="flex:1;min-width:0;height:170px;display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:6px;overflow:hidden;">
                 <img id="${uid}_main" class="cat-card-img" src="${p0.ml_thumbnail || '/api/odoo/imagen/'+p0.id}" loading="lazy"
@@ -5392,7 +5447,7 @@ function renderCatalogo() {
           </div>`;
         });
         return `
-        ${subHeader(sub.nombre, groupOrder.length)}
+        ${subHeader(sub.nombre, groupOrder.length, subKey)}
         <div class="cat-grid" style="margin-bottom:16px;">
           ${cards.join('')}
         </div>`;

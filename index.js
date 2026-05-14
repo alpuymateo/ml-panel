@@ -2274,6 +2274,33 @@ app.delete('/api/catalog/override/:sku_base', requireToken, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Orden manual del catálogo ─────────────────────────────────────
+const CATALOG_SORT_FILE = path.join(__dirname, 'data', 'catalog_sort.json');
+function loadCatalogSort() {
+  try { return fs.existsSync(CATALOG_SORT_FILE) ? JSON.parse(fs.readFileSync(CATALOG_SORT_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveCatalogSort(data) {
+  fs.writeFileSync(CATALOG_SORT_FILE, JSON.stringify(data, null, 2));
+}
+
+app.get('/api/catalog/sort', requireToken, (req, res) => res.json(loadCatalogSort()));
+
+app.post('/api/catalog/sort', requireToken, (req, res) => {
+  const { key, order } = req.body;
+  if (!key || !Array.isArray(order)) return res.status(400).json({ error: 'key y order requeridos' });
+  const sort = loadCatalogSort();
+  sort[key] = order;
+  saveCatalogSort(sort);
+  res.json({ ok: true });
+});
+
+app.delete('/api/catalog/sort/:key', requireToken, (req, res) => {
+  const sort = loadCatalogSort();
+  delete sort[decodeURIComponent(req.params.key)];
+  saveCatalogSort(sort);
+  res.json({ ok: true });
+});
+
 function loadMaterialCache() {
   try { return fs.existsSync(MATERIAL_CACHE_FILE) ? JSON.parse(fs.readFileSync(MATERIAL_CACHE_FILE, 'utf8')) : {}; } catch { return {}; }
 }
