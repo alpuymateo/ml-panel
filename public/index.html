@@ -5198,10 +5198,30 @@ function renderCatalogo() {
           const items = [...s.cats.flatMap(cat => odooBycat[cat] || []), ...(overrideItems[key] || [])];
           const STYLE_ORDER = ['nordico','rustico','clasico','moderno','industrial','novelty','led','sal','otro'];
           const MAT_ORDER   = ['madera','tela','cristal','metal','plastico','sal','otro'];
+          const getStyle = p => {
+            if (p.style_group) return p.style_group;
+            const n = (p.name||'').toLowerCase();
+            if (/nordi|escandinav|bambu|ratan|mimbre|ratán|praga|medellin|medellín|cali|bogot|nórdic/.test(n)) return 'nordico';
+            if (/rustic|colonial|cuerda|cañamo|yute|tejid|madera/.test(n)) return 'rustico';
+            if (/industrial|jaula|galpon|retro|curva|vintage|filament/.test(n)) return 'industrial';
+            if (/astronauta|novedad|novelty|cohete|animal|infantil/.test(n)) return 'novelty';
+            if (/led|smd|plafon|panel|tunis|general led/.test(n)) return 'led';
+            if (/sal\b|himalaya/.test(n)) return 'sal';
+            if (/clasic|clásic|verona|florencia|napoles|napol/.test(n)) return 'clasico';
+            return 'moderno';
+          };
+          const getMat = p => {
+            if (p.material_group) return p.material_group;
+            const n = (p.name||'').toLowerCase();
+            if (/madera|wood|bambu|ratán|ratan|mimbre/.test(n)) return 'madera';
+            if (/tela|lino|linen|fabric|pantalla/.test(n)) return 'tela';
+            if (/metal|hierro|acero|aluminio/.test(n)) return 'metal';
+            return 'otro';
+          };
           return items.sort((a, b) => {
-            const si = STYLE_ORDER.indexOf(a.style_group||'otro') - STYLE_ORDER.indexOf(b.style_group||'otro');
+            const si = STYLE_ORDER.indexOf(getStyle(a)) - STYLE_ORDER.indexOf(getStyle(b));
             if (si !== 0) return si;
-            const mi = MAT_ORDER.indexOf(a.material_group||'otro') - MAT_ORDER.indexOf(b.material_group||'otro');
+            const mi = MAT_ORDER.indexOf(getMat(a)) - MAT_ORDER.indexOf(getMat(b));
             if (mi !== 0) return mi;
             return a.name.localeCompare(b.name,'es');
           });
