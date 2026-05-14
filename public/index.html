@@ -5103,7 +5103,19 @@ function renderCatalogo() {
       ...m,
       subs: m.subs.map(s => ({
         ...s,
-        items: s.cats.flatMap(cat => odooBycat[cat] || [])
+        items: (() => {
+          const items = s.cats.flatMap(cat => odooBycat[cat] || []);
+          if (!items.some(p => p.material_group)) return items;
+          // Agrupar por material, mantener orden interno por nombre
+          const ORDER = ['madera','metal','tela','cristal','sal','plastico','otro'];
+          const groups = {};
+          for (const p of items) {
+            const g = p.material_group || 'otro';
+            if (!groups[g]) groups[g] = [];
+            groups[g].push(p);
+          }
+          return ORDER.flatMap(g => (groups[g] || []).sort((a,b) => a.name.localeCompare(b.name,'es')));
+        })()
       })).filter(s => s.items.length > 0)
     })).filter(m => m.subs.length > 0);
 

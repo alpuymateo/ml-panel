@@ -2246,6 +2246,57 @@ function upgradeMlThumb(url) {
 let _catalogoCache = null;
 let _catalogoCacheTime = 0;
 const CATALOGO_CACHE_FILE = path.join(__dirname, 'data', 'catalogo_cache.json');
+const MATERIAL_CACHE_FILE = path.join(__dirname, 'data', 'material_cache.json');
+
+function loadMaterialCache() {
+  try { return fs.existsSync(MATERIAL_CACHE_FILE) ? JSON.parse(fs.readFileSync(MATERIAL_CACHE_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveMaterialCache(cache) {
+  try { fs.writeFileSync(MATERIAL_CACHE_FILE, JSON.stringify(cache, null, 2)); } catch(e) {}
+}
+
+// Analiza imagen de un producto con Claude vision y retorna grupo de material
+async function analyzeMaterialGroup(productId, imageUrl, productName) {
+  if (!anthropic || !imageUrl) return 'otro';
+  try {
+    const msg = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 20,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'url', url: imageUrl } },
+          { type: 'text', text: `Analizá esta imagen de producto (${productName}). Respondé SOLO con una de estas palabras según el material principal visible: madera, metal, tela, cristal, sal, plastico, otro` }
+        ]
+      }]
+    });
+    const val = msg.content[0]?.text?.trim().toLowerCase().split(/\s/)[0] || 'otro';
+    const valid = ['madera','metal','tela','cristal','sal','plastico','otro'];
+    return valid.includes(val) ? val : 'otro';
+  } catch(e) {
+    return 'otro';
+  }
+}
+
+// Enriquece productos del catálogo con material_group usando cache + Claude vision
+async function enrichMaterialGroups(categories) {
+  if (!anthropic) return;
+  const cache = loadMaterialCache();
+  let dirty = false;
+  const allProducts = categories.flatMap(c => c.items);
+  const pending = allProducts.filter(p => p.ml_thumbnail && !cache[p.id]);
+  if (pending.length === 0) { allProducts.forEach(p => { if (cache[p.id]) p.material_group = cache[p.id]; }); return; }
+  console.log(`[material] analizando ${pending.length} productos nuevos con Claude vision...`);
+  for (const p of pending) {
+    p.material_group = await analyzeMaterialGroup(p.id, p.ml_thumbnail, p.name);
+    cache[p.id] = p.material_group;
+    dirty = true;
+    await new Promise(r => setTimeout(r, 200)); // evitar rate limit
+  }
+  allProducts.forEach(p => { if (cache[p.id]) p.material_group = cache[p.id]; });
+  if (dirty) saveMaterialCache(cache);
+  console.log('[material] análisis completado');
+}
 
 async function buildCatalogoCache(force = false, onLog) {
   if (!force && _catalogoCache && (Date.now() - _catalogoCacheTime < 3600000)) return _catalogoCache;
@@ -2261,6 +2312,11 @@ async function buildCatalogoCache(force = false, onLog) {
   }
   console.log('[catalogo] construyendo cache...');
   const result = await _buildCatalogoData(force, onLog);
+  // Enriquecer con material_group en background (no bloquea)
+  enrichMaterialGroups(result.categories).then(() => {
+    try { fs.writeFileSync(CATALOGO_CACHE_FILE, JSON.stringify(result)); } catch(e) {}
+    console.log('[catalogo] cache con materiales guardado');
+  }).catch(e => console.error('[material] error:', e.message));
   _catalogoCache = result;
   _catalogoCacheTime = Date.now();
   try { fs.writeFileSync(CATALOGO_CACHE_FILE, JSON.stringify(result)); } catch(e) {}
