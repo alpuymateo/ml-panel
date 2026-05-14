@@ -2357,7 +2357,14 @@ app.get('/api/odoo/productos', async (req, res) => {
     if (req.query.refresh === 'true' && !process.env.RAILWAY_ENVIRONMENT) {
       buildCatalogoCache(true).catch(e => console.error('[catalogo] refresh error:', e.message));
     }
-    // Serve from cache if available
+    // Serve from cache if available (intentar cargar desde disco si no está en memoria)
+    if (!_catalogoCache && fs.existsSync(CATALOGO_CACHE_FILE)) {
+      try {
+        _catalogoCache = JSON.parse(fs.readFileSync(CATALOGO_CACHE_FILE, 'utf8'));
+        _catalogoCacheTime = Date.now();
+        console.log('[catalogo] cache cargado desde disco (on-demand)');
+      } catch(e) {}
+    }
     if (_catalogoCache) return res.json(_catalogoCache);
     // No cache yet — serve products from odooCache without sales (fast fallback)
     if (odooCache && odooCache.length > 0) {
