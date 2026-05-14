@@ -757,6 +757,16 @@ async function refreshStockCache(forceRefresh = false) {
         sku: (item.attributes || []).find(a => a.id === 'SELLER_SKU')?.value_name
           || (item.attributes || []).find(a => a.id === 'SELLER_SKU')?.values?.[0]?.name
           || null,
+        dimensions: (() => {
+          const attrs = item.attributes || [];
+          const get = (...ids) => { for (const id of ids) { const a = attrs.find(x => x.id === id); if (a?.value_name) return a.value_name; } return null; };
+          return {
+            height: get('HEIGHT', 'PACKAGE_HEIGHT'),
+            width:  get('WIDTH',  'PACKAGE_WIDTH'),
+            length: get('LENGTH', 'DEPTH', 'PACKAGE_LENGTH'),
+            weight: get('WEIGHT', 'PACKAGE_WEIGHT'),
+          };
+        })(),
         variations: (item.variations || []).map(v => ({
           id: v.id,
           name: (v.attribute_combinations || []).map(a => a.value_name).join(', '),
@@ -2286,6 +2296,7 @@ app.get('/api/odoo/productos', async (req, res) => {
           sales_by_month: {}, sales_by_channel: { ml:{}, mayorista:{}, local:{} },
           ml_stock: ml?.stock ?? null, ml_price: ml?.price ?? null, ml_status: ml?.status ?? null,
           ml_thumbnail: ml ? upgradeMlThumb(ml.thumbnail) : null,
+          ml_dimensions: ml?.dimensions || null,
           odoo_image: p.image_128 ? 'data:image/png;base64,' + p.image_128 : null,
           incoming: 0, incoming_detail: [], categ: cat, mayorista: p.x_studio_producto_mayorista || false,
         });
@@ -2425,6 +2436,7 @@ async function _buildCatalogoData(forceProducts, onLog) {
         ml_price:     ml ? ml.price     : null,
         ml_status:    ml ? ml.status    : null,
         ml_thumbnail: ml ? upgradeMlThumb(ml.thumbnail) : null,
+        ml_dimensions: ml?.dimensions || null,
         odoo_image: p.image_128 ? `data:image/png;base64,${p.image_128}` : null,
         incoming: incomingBySku[sku.trim()] || 0,
         incoming_detail: incomingDetailBySku[sku.trim()] || [],

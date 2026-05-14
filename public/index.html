@@ -5134,6 +5134,15 @@ function renderCatalogo() {
     return `<span style="font-size:10px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:0.05em;">Sin stock</span>`;
   };
 
+  const dimsLabel = (d) => {
+    if (!d) return '';
+    const parts = [];
+    if (d.length && d.width && d.height) parts.push(`${d.length}×${d.width}×${d.height} cm`);
+    else if (d.height || d.width || d.length) parts.push([d.length,d.width,d.height].filter(Boolean).join('×')+' cm');
+    if (d.weight) parts.push(d.weight);
+    return parts.length ? `<div style="font-size:10px;color:#6b7280;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${parts.join(' · ')}</div>` : '';
+  };
+
   if (catalogoView === 'lista') {
     cont.innerHTML = `<style>
       .clist-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #f3f4f6;}
@@ -5158,6 +5167,7 @@ function renderCatalogo() {
                 <div style="flex:1;min-width:0;">
                   <div class="clist-name">${p.name}</div>
                   <div class="clist-sku">${p.sku||'—'}</div>
+                  ${dimsLabel(p.ml_dimensions)}
                 </div>
                 ${stockLabel(p.stock??0)}
                 <div class="clist-price">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
@@ -5169,6 +5179,7 @@ function renderCatalogo() {
                 <div style="flex:1;min-width:0;">
                   <div class="clist-name">${p.name}</div>
                   <div class="clist-sku">${p.sku||'—'}</div>
+                  ${dimsLabel(p.ml_dimensions)}
                 </div>
                 ${stockLabel(p.stock??0)}
                 <div class="clist-price">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
@@ -5184,7 +5195,8 @@ function renderCatalogo() {
       .cat-card-img{max-width:85%;max-height:170px;object-fit:contain;display:block;mix-blend-mode:multiply;}
       .cat-card-body{padding:0 14px;}
       .cat-card-sku{font-size:10px;font-weight:600;color:#9ca3af;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:5px;}
-      .cat-card-name{font-size:12px;font-weight:700;color:#111827;line-height:1.45;flex:1;margin-bottom:10px;}
+      .cat-card-name{font-size:12px;font-weight:700;color:#111827;line-height:1.45;flex:1;margin-bottom:6px;}
+      .cat-card-dims{font-size:10px;color:#6b7280;margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
       .cat-card-divider{height:1px;background:#ebebeb;margin-bottom:10px;}
       .cat-card-price{font-size:19px;font-weight:900;color:#111827;letter-spacing:-0.02em;}
     </style>
@@ -5194,7 +5206,16 @@ function renderCatalogo() {
       ${m.subs.map(sub => `
         ${subHeader(sub.nombre, sub.items.length)}
         <div class="cat-grid" style="margin-bottom:16px;">
-          ${sub.items.map(p => `
+          ${sub.items.map(p => {
+            const d = p.ml_dimensions;
+            const dimParts = [];
+            if (d) {
+              if (d.length && d.width && d.height) dimParts.push(`${d.length}×${d.width}×${d.height} cm`);
+              else if (d.height || d.width || d.length) dimParts.push([d.length,d.width,d.height].filter(Boolean).join('×')+' cm');
+              if (d.weight) dimParts.push(d.weight);
+            }
+            const dimHtml = dimParts.length ? `<div class="cat-card-dims">${dimParts.join(' · ')}</div>` : '<div class="cat-card-dims" style="min-height:14px;"></div>';
+            return `
             <div class="cat-card">
               <div class="cat-card-img-wrap">
                 <img class="cat-card-img" src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
@@ -5203,6 +5224,7 @@ function renderCatalogo() {
               <div class="cat-card-body">
                 <div class="cat-card-sku">${p.sku||'S/C'}</div>
                 <div class="cat-card-name">${p.name}</div>
+                ${dimHtml}
                 <div class="cat-card-divider"></div>
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
                   <div class="cat-card-price">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
@@ -5211,7 +5233,8 @@ function renderCatalogo() {
                 ${catalogoModo === 'pedir' ? `<button onclick="addToCatPedidoById(${p.id})"
                   style="width:100%;background:#111827;color:white;border:none;padding:9px;font-size:12px;font-weight:700;cursor:pointer;margin-top:12px;letter-spacing:0.04em;border-radius:4px;">+ AGREGAR</button>` : ''}
               </div>
-            </div>`).join('')}
+            </div>`;
+          }).join('')}
         </div>`).join('')}`;
     }).join('')}`;
   }
