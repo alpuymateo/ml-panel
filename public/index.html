@@ -4922,6 +4922,29 @@ const CATALOGO_MACRO = [
   },
 ];
 
+function catSelectVariant(uid, idx, variants) {
+  const v = variants[idx];
+  const main = document.getElementById(uid+'_main');
+  const skuEl = document.getElementById(uid+'_sku');
+  const priceEl = document.getElementById(uid+'_price');
+  const stockEl = document.getElementById(uid+'_stock');
+  const btn = document.getElementById(uid+'_btn');
+  if (main) main.src = v.img;
+  if (skuEl) skuEl.textContent = v.sku || 'S/C';
+  if (priceEl) priceEl.textContent = '$' + Math.round(v.price).toLocaleString('es-UY');
+  if (stockEl) stockEl.innerHTML = v.stock > 10
+    ? '<span style="font-size:10px;font-weight:700;color:#059669;text-transform:uppercase;">● En stock</span>'
+    : v.stock > 0
+    ? `<span style="font-size:10px;font-weight:700;color:#d97706;text-transform:uppercase;">● Stock bajo (${v.stock})</span>`
+    : '<span style="font-size:10px;font-weight:700;color:#dc2626;text-transform:uppercase;">Sin stock</span>';
+  if (btn) btn.setAttribute('onclick', `addToCatPedidoById(${v.id})`);
+  // Actualizar borde activo en miniaturas
+  for (let i = 0; i < variants.length; i++) {
+    const th = document.getElementById(uid+'_th_'+i);
+    if (th) th.classList.toggle('active', i === idx);
+  }
+}
+
 function setCatalogoModo(m) {
   catalogoModo = m;
   document.getElementById('cat-btn-ver').style.background   = m === 'ver'   ? '#374151' : 'transparent';
@@ -5206,43 +5229,80 @@ function renderCatalogo() {
       .cat-card-dims{font-size:10px;color:#6b7280;margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
       .cat-card-divider{height:1px;background:#ebebeb;margin-bottom:10px;}
       .cat-card-price{font-size:19px;font-weight:900;color:#111827;letter-spacing:-0.02em;}
+      .cat-thumb{width:44px;height:44px;object-fit:contain;background:#f5f5f5;border-radius:4px;cursor:pointer;border:2px solid transparent;transition:border-color .15s;}
+      .cat-thumb:hover{border-color:#9ca3af;}
+      .cat-thumb.active{border-color:#111827;}
     </style>
     ${macros.map(m => {
       const total = m.subs.reduce((s,sub)=>s+sub.items.length,0);
       return `${macroHeader(m.nombre, total)}
-      ${m.subs.map(sub => `
-        ${subHeader(sub.nombre, sub.items.length)}
+      ${m.subs.map(sub => {
+        // Agrupar por SKU base (antes del primer guión)
+        const groups = {};
+        const groupOrder = [];
+        for (const p of sub.items) {
+          const base = p.sku ? p.sku.split('-')[0] : ('__'+p.id);
+          if (!groups[base]) { groups[base] = []; groupOrder.push(base); }
+          groups[base].push(p);
+        }
+        const cards = groupOrder.map(base => {
+          const variants = groups[base];
+          const p0 = variants[0];
+          const isGroup = variants.length > 1;
+          const uid = 'cv_' + base.replace(/\W/g,'_');
+
+          // Nombre sin sufijo de color para grupos
+          const displayName = isGroup
+            ? p0.name.replace(/[-–]\s*(VER|ROS|AMA|GRI|BLA|NEG|ROJ|AZU|NAR|VIO|BEI|MAR|CRE|TUR|AZL|GRS|PLT|BCO|BLN|BLC|BLQ|BLU|RED|GRN|YEL|BRN|PNK|GLD|SLV)\b.*/i, '').trim()
+            : p0.name;
+
+          const minPrice = Math.min(...variants.map(v => v.price||0));
+          const maxPrice = Math.max(...variants.map(v => v.price||0));
+          const priceHtml = isGroup && minPrice !== maxPrice
+            ? `desde $${Math.round(minPrice).toLocaleString('es-UY')}`
+            : `$${Math.round(p0.price||0).toLocaleString('es-UY')}`;
+
+          const thumbsHtml = isGroup ? `
+            <div style="display:flex;flex-direction:column;gap:4px;margin-left:6px;flex-shrink:0;">
+              ${variants.slice(0,5).map((v,i) => `
+                <img class="cat-thumb${i===0?' active':''}" id="${uid}_th_${i}"
+                  src="${v.ml_thumbnail || '/api/odoo/imagen/'+v.id}" loading="lazy"
+                  onerror="this.style.opacity='0.2'"
+                  onclick="catSelectVariant('${uid}',${i},${JSON.stringify(variants.map(v=>({img:v.ml_thumbnail||'/api/odoo/imagen/'+v.id,sku:v.sku||'',stock:v.stock??0,price:v.price||0,id:v.id}))).replace(/"/g,'&quot;')})"
+                  title="${v.sku||''}">
+              `).join('')}
+              ${variants.length > 5 ? `<div style="font-size:9px;color:#9ca3af;text-align:center;">+${variants.length-5}</div>` : ''}
+            </div>` : '';
+
+          return `
+          <div class="cat-card">
+            <div style="display:flex;padding:12px 12px 0;">
+              <div style="flex:1;min-width:0;height:170px;display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:6px;overflow:hidden;">
+                <img id="${uid}_main" class="cat-card-img" src="${p0.ml_thumbnail || '/api/odoo/imagen/'+p0.id}" loading="lazy"
+                  onerror="if(this.dataset.fb){this.style.opacity='0.15';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p0.id}';}" alt="${displayName}"
+                  style="max-width:90%;max-height:155px;object-fit:contain;mix-blend-mode:multiply;">
+              </div>
+              ${thumbsHtml}
+            </div>
+            <div class="cat-card-body" style="margin-top:10px;">
+              <div class="cat-card-sku" id="${uid}_sku">${p0.sku||'S/C'}</div>
+              <div class="cat-card-name">${displayName}</div>
+              <div class="cat-card-divider"></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                <div class="cat-card-price" id="${uid}_price">${priceHtml}</div>
+                <div id="${uid}_stock">${stockLabel(p0.stock??0)}</div>
+              </div>
+              ${catalogoModo === 'pedir' ? `<button id="${uid}_btn" onclick="addToCatPedidoById(${p0.id})"
+                style="width:100%;background:#111827;color:white;border:none;padding:9px;font-size:12px;font-weight:700;cursor:pointer;margin-top:12px;letter-spacing:0.04em;border-radius:4px;">+ AGREGAR</button>` : ''}
+            </div>
+          </div>`;
+        });
+        return `
+        ${subHeader(sub.nombre, groupOrder.length)}
         <div class="cat-grid" style="margin-bottom:16px;">
-          ${sub.items.map(p => {
-            const d = p.ml_dimensions;
-            const dimParts = [];
-            if (d) {
-              if (d.length && d.width && d.height) dimParts.push(`${d.length}×${d.width}×${d.height} cm`);
-              else if (d.height || d.width || d.length) dimParts.push([d.length,d.width,d.height].filter(Boolean).join('×')+' cm');
-              if (d.weight) dimParts.push(d.weight);
-            }
-            const dimHtml = dimParts.length ? `<div class="cat-card-dims">${dimParts.join(' · ')}</div>` : '<div class="cat-card-dims" style="min-height:14px;"></div>';
-            return `
-            <div class="cat-card">
-              <div class="cat-card-img-wrap">
-                <img class="cat-card-img" src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
-                  onerror="if(this.dataset.fb){this.style.opacity='0.15';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}" alt="${p.name}">
-              </div>
-              <div class="cat-card-body">
-                <div class="cat-card-sku">${p.sku||'S/C'}</div>
-                <div class="cat-card-name">${p.name}</div>
-                ${dimHtml}
-                <div class="cat-card-divider"></div>
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
-                  <div class="cat-card-price">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
-                  ${stockLabel(p.stock??0)}
-                </div>
-                ${catalogoModo === 'pedir' ? `<button onclick="addToCatPedidoById(${p.id})"
-                  style="width:100%;background:#111827;color:white;border:none;padding:9px;font-size:12px;font-weight:700;cursor:pointer;margin-top:12px;letter-spacing:0.04em;border-radius:4px;">+ AGREGAR</button>` : ''}
-              </div>
-            </div>`;
-          }).join('')}
-        </div>`).join('')}`;
+          ${cards.join('')}
+        </div>`;
+      }).join('')}`;
     }).join('')}`;
   }
 }
