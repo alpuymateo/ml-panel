@@ -5106,113 +5106,146 @@ async function loadCatalogo() {
 
 function descargarCatalogo() {
   if (!odooData) return;
-  const q          = (document.getElementById('catalogo-search')?.value || '').toLowerCase();
-  const catFilter  = document.getElementById('catalogo-cat')?.value || '';
+  const q           = (document.getElementById('catalogo-search')?.value || '').toLowerCase();
+  const macroFilter = document.getElementById('catalogo-cat')?.value || '';
   const stockFilter = document.getElementById('catalogo-stock')?.value || 'all';
-  const view       = catalogoView;
+  const fecha       = new Date().toLocaleDateString('es-UY', {day:'2-digit',month:'long',year:'numeric'});
 
-  const bycat = {};
+  // ── Reusar la misma lógica que renderCatalogo ──────────────────
+  const odooBycat = {};
   for (const c of odooData.categories) {
-    if (catFilter && c.name !== catFilter) continue;
     for (const p of c.items) {
       if (!p.mayorista) continue;
       if (q && !p.name.toLowerCase().includes(q) && !(p.sku||'').toLowerCase().includes(q)) continue;
       if (stockFilter === 'con_stock' && !(p.stock > 0)) continue;
       if (stockFilter === 'sin_stock' && p.stock > 0) continue;
-      if (!bycat[c.name]) bycat[c.name] = [];
-      bycat[c.name].push(p);
+      if (!odooBycat[c.name]) odooBycat[c.name] = [];
+      odooBycat[c.name].push(p);
     }
   }
-  const cats = Object.keys(bycat).sort((a,b) => a.localeCompare(b,'es'));
-  if (!cats.length) return alert('No hay productos para descargar.');
+  const overrideItems = {};
+  for (const [skuBase, dest] of Object.entries(catalogOverrides)) {
+    const key = dest.macro + '||' + dest.sub;
+    for (const cat of Object.keys(odooBycat)) {
+      odooBycat[cat] = odooBycat[cat].filter(p => {
+        const base = p.sku ? p.sku.split('-')[0] : '';
+        if (base === skuBase) { if (!overrideItems[key]) overrideItems[key] = []; overrideItems[key].push(p); return false; }
+        return true;
+      });
+    }
+  }
 
-  const totalItems = cats.reduce((s,c) => s + bycat[c].length, 0);
-  const fecha = new Date().toLocaleDateString('es-UY', {day:'2-digit',month:'long',year:'numeric'});
+  const STYLE_ORDER = ['nordico','rustico','clasico','moderno','industrial','novelty','led','sal','otro'];
+  const getStyle = p => {
+    if (p.style_group) return p.style_group;
+    const n = (p.name||'').toLowerCase();
+    if (/nordi|escandinav|bambu|ratan|mimbre|ratán|praga|medellin|medellín|cali|bogot|nórdic/.test(n)) return 'nordico';
+    if (/rustic|colonial|cuerda|cañamo|yute|tejid|madera/.test(n)) return 'rustico';
+    if (/industrial|jaula|galpon|retro|curva|vintage|filament/.test(n)) return 'industrial';
+    if (/astronauta|novedad|novelty|cohete|animal|infantil/.test(n)) return 'novelty';
+    if (/led|smd|plafon|panel|tunis|general led/.test(n)) return 'led';
+    if (/sal\b|himalaya/.test(n)) return 'sal';
+    if (/clasic|clásic|verona|florencia|napoles|napol/.test(n)) return 'clasico';
+    return 'moderno';
+  };
 
-  const productRows = (items) => items.map(p => {
-    const imgSrc = p.ml_thumbnail || (location.origin + '/api/odoo/imagen/' + p.id);
-    const stockTxt = p.stock > 0 ? `<span style="color:#059669;font-weight:700;">${p.stock} u.</span>` : `<span style="color:#dc2626;">Sin stock</span>`;
-    return view === 'lista'
-      ? `<tr>
-          <td style="padding:7px 10px;"><img src="${imgSrc}" style="width:44px;height:44px;object-fit:contain;border-radius:6px;background:#f9fafb;" onerror="this.style.opacity='0'"></td>
-          <td style="padding:7px 10px;font-family:monospace;font-size:11px;color:#7c3aed;font-weight:700;">${p.sku||'—'}</td>
-          <td style="padding:7px 10px;font-size:12px;color:#111827;font-weight:500;">${p.name}</td>
-          <td style="padding:7px 10px;font-size:13px;font-weight:800;color:#059669;text-align:right;white-space:nowrap;">$${Math.round(p.price||0).toLocaleString('es-UY')}</td>
-          <td style="padding:7px 10px;text-align:center;font-size:12px;">${stockTxt}</td>
-        </tr>`
-      : `<div style="background:white;border-radius:14px;border:1px solid #e5e7eb;padding:14px;display:flex;flex-direction:column;gap:8px;break-inside:avoid;position:relative;overflow:hidden;">
-          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#7c3aed,#a78bfa);"></div>
-          <div style="font-family:monospace;font-size:10px;color:#7c3aed;font-weight:700;background:#f5f3ff;padding:2px 6px;border-radius:4px;display:inline-block;width:fit-content;">${p.sku||'S/C'}</div>
-          <img src="${imgSrc}" style="width:100%;height:120px;object-fit:contain;border-radius:8px;background:#f9fafb;" onerror="this.style.opacity='0'">
-          <div style="font-size:11px;font-weight:600;color:#111827;line-height:1.4;">${p.name}</div>
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;">
-            <div style="font-size:17px;font-weight:800;color:#059669;"><span style="font-size:11px;font-weight:500;color:#9ca3af;">$</span>${Math.round(p.price||0).toLocaleString('es-UY')}</div>
-            <div style="font-size:11px;">${stockTxt}</div>
-          </div>
-        </div>`;
-  }).join('');
+  const macros = CATALOGO_MACRO
+    .filter(m => !macroFilter || m.nombre === macroFilter)
+    .map(m => ({
+      ...m,
+      subs: m.subs.map(s => {
+        const subKey  = m.nombre + '||' + s.nombre;
+        const raw     = [...s.cats.flatMap(cat => odooBycat[cat] || []), ...(overrideItems[subKey] || [])];
+        const groups  = {};
+        const order   = [];
+        for (const p of raw) {
+          const base = p.sku ? p.sku.split('-')[0] : ('__'+p.id);
+          if (!groups[base]) { groups[base] = []; order.push(base); }
+          groups[base].push(p);
+        }
+        // Aplicar sort override o auto-sort
+        const sortOv = catalogSortOverrides[subKey];
+        if (sortOv) {
+          order.sort((a,b) => { const ia=sortOv.indexOf(a),ib=sortOv.indexOf(b); if(ia===-1&&ib===-1)return 0; if(ia===-1)return 1; if(ib===-1)return -1; return ia-ib; });
+        } else {
+          const items = order.map(b => groups[b][0]);
+          items.sort((a,b) => { const si=STYLE_ORDER.indexOf(getStyle(a))-STYLE_ORDER.indexOf(getStyle(b)); return si!==0?si:a.name.localeCompare(b.name,'es'); });
+          order.splice(0, order.length, ...items.map(p => p.sku?p.sku.split('-')[0]:('__'+p.id)));
+        }
+        return { ...s, groups, order };
+      }).filter(s => s.order.length > 0)
+    })).filter(m => m.subs.length > 0);
 
-  const catSection = (name) => view === 'lista'
-    ? `<div style="display:flex;align-items:center;gap:12px;margin:24px 0 10px;page-break-inside:avoid;">
-        <div style="height:2px;width:18px;background:linear-gradient(90deg,#7c3aed,#a78bfa);border-radius:2px;flex-shrink:0;"></div>
-        <span style="font-size:12px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap;">${name}</span>
-        <div style="height:2px;flex:1;background:#f3f4f6;border-radius:2px;"></div>
-        <span style="font-size:10px;color:#9ca3af;">${bycat[name].length} productos</span>
+  if (!macros.length) return alert('No hay productos para descargar.');
+  const totalGroups = macros.reduce((s,m) => s + m.subs.reduce((ss,sub) => ss + sub.order.length, 0), 0);
+
+  // ── Generar HTML del PDF ────────────────────────────────────────
+  const stockBadge = (stock) => stock > 10
+    ? `<span style="font-size:9px;font-weight:700;color:#059669;">● En stock</span>`
+    : stock > 0
+    ? `<span style="font-size:9px;font-weight:700;color:#d97706;">● Stock bajo (${stock})</span>`
+    : `<span style="font-size:9px;font-weight:700;color:#dc2626;">Sin stock</span>`;
+
+  const cardHtml = (groups, base) => {
+    const variants = groups[base];
+    const p0       = variants[0];
+    const isGroup  = variants.length > 1;
+    const displayName = isGroup
+      ? p0.name.replace(/[-–]\s*(VER|ROS|AMA|GRI|BLA|NEG|ROJ|AZU|NAR|VIO|BEI|MAR|CRE|TUR|AZL|GRS|PLT|BCO|BLN|BLC|BLQ|BLU|RED|GRN|YEL|BRN|PNK|GLD|SLV)\b.*/i,'').trim()
+      : p0.name;
+    const minPrice = Math.min(...variants.map(v=>v.price||0));
+    const maxPrice = Math.max(...variants.map(v=>v.price||0));
+    const priceHtml = isGroup && minPrice !== maxPrice
+      ? `desde $${Math.round(minPrice).toLocaleString('es-UY')}`
+      : `$${Math.round(p0.price||0).toLocaleString('es-UY')}`;
+    const imgSrc = p0.ml_thumbnail || (location.origin + '/api/odoo/imagen/' + p0.id);
+    const variantDots = isGroup
+      ? `<div style="display:flex;gap:3px;margin-top:4px;">${variants.slice(0,6).map(()=>'<div style="width:6px;height:6px;border-radius:50%;background:#d1d5db;"></div>').join('')}${variants.length>6?`<span style="font-size:8px;color:#9ca3af;">+${variants.length-6}</span>`:''}</div>`
+      : '';
+    return `<div style="background:white;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;break-inside:avoid;display:flex;flex-direction:column;">
+      <div style="background:#f5f5f5;height:140px;display:flex;align-items:center;justify-content:center;">
+        <img src="${imgSrc}" style="max-width:90%;max-height:128px;object-fit:contain;mix-blend-mode:multiply;" onerror="this.style.opacity='0.1'">
       </div>
-      <table style="width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;">
-        <thead><tr style="background:#f9fafb;">
-          <th style="width:52px;border-bottom:1px solid #f3f4f6;"></th>
-          <th style="text-align:left;padding:7px 10px;font-size:10px;color:#9ca3af;font-weight:600;border-bottom:1px solid #f3f4f6;">SKU</th>
-          <th style="text-align:left;padding:7px 10px;font-size:10px;color:#9ca3af;font-weight:600;border-bottom:1px solid #f3f4f6;">PRODUCTO</th>
-          <th style="text-align:right;padding:7px 10px;font-size:10px;color:#9ca3af;font-weight:600;border-bottom:1px solid #f3f4f6;">PRECIO</th>
-          <th style="text-align:center;padding:7px 10px;font-size:10px;color:#9ca3af;font-weight:600;border-bottom:1px solid #f3f4f6;">STOCK</th>
-        </tr></thead>
-        <tbody>${productRows(bycat[name])}</tbody>
-      </table>`
-    : `<div style="display:flex;align-items:center;gap:12px;margin:24px 0 12px;page-break-inside:avoid;">
-        <div style="height:2px;width:18px;background:linear-gradient(90deg,#7c3aed,#a78bfa);border-radius:2px;flex-shrink:0;"></div>
-        <span style="font-size:12px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap;">${name}</span>
-        <div style="height:2px;flex:1;background:#f3f4f6;border-radius:2px;"></div>
-        <span style="font-size:10px;color:#9ca3af;">${bycat[name].length} productos</span>
+      <div style="padding:10px 12px 12px;display:flex;flex-direction:column;flex:1;">
+        <div style="font-size:9px;font-weight:700;color:#9ca3af;letter-spacing:0.08em;margin-bottom:4px;">${p0.sku||'S/C'}${isGroup?` +${variants.length-1}`:''}</div>
+        <div style="font-size:11px;font-weight:700;color:#111827;line-height:1.4;flex:1;">${displayName}</div>
+        ${variantDots}
+        <div style="height:1px;background:#f3f4f6;margin:8px 0;"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:16px;font-weight:900;color:#111827;">${priceHtml}</div>
+          <div>${stockBadge(p0.stock??0)}</div>
+        </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:8px;">
-        ${productRows(bycat[name])}
-      </div>`;
+    </div>`;
+  };
 
   const html = `<!DOCTYPE html><html lang="es"><head>
     <meta charset="UTF-8">
     <title>Catálogo Mayorista</title>
     <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: white; color: #111827; padding: 32px 40px; }
-      @media print {
-        body { padding: 16px 20px; }
-        @page { size: A4; margin: 15mm 15mm; }
-        tr { page-break-inside: avoid; }
-      }
-      .header-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; padding-bottom:16px; border-bottom:2px solid #7c3aed; }
-      .brand { display:flex; align-items:center; gap:12px; }
-      .brand-title { font-size:22px; font-weight:800; color:#111827; }
-      .brand-title span { color:#7c3aed; }
-      .meta { font-size:12px; color:#6b7280; text-align:right; line-height:1.7; }
+      *{box-sizing:border-box;margin:0;padding:0;}
+      body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:white;color:#111827;padding:28px 32px;}
+      @media print{body{padding:12px 16px;}@page{size:A4;margin:12mm 12mm;}}
     </style>
   </head><body>
-    <div class="header-bar">
-      <div class="brand">
-        <div style="width:40px;height:40px;background:linear-gradient(135deg,#7c3aed,#a78bfa);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-size:20px;">🏷</div>
-        <div>
-          <div class="brand-title">Catálogo <span>Mayorista</span></div>
-          <div style="font-size:11px;color:#6b7280;">${totalItems} productos · ${cats.length} categorías</div>
-        </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;padding-bottom:16px;border-bottom:2px solid #111827;">
+      <div>
+        <div style="font-size:22px;font-weight:900;color:#111827;">Catálogo Mayorista</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:3px;">${totalGroups} productos · Vigencia: ${fecha}</div>
       </div>
-      <div class="meta">
-        <div><strong>Vigencia:</strong> ${fecha}</div>
-        ${catFilter ? `<div><strong>Categoría:</strong> ${catFilter}</div>` : ''}
-        ${stockFilter === 'con_stock' ? '<div style="color:#059669;font-weight:600;">Solo con stock disponible</div>' : ''}
-      </div>
+      ${stockFilter==='con_stock'?'<div style="font-size:11px;font-weight:600;color:#059669;background:#f0fdf4;padding:4px 10px;border-radius:6px;">Solo con stock</div>':''}
     </div>
-    ${cats.map(catSection).join('')}
-    <div style="margin-top:32px;padding-top:12px;border-top:1px solid #f3f4f6;font-size:10px;color:#9ca3af;text-align:center;">
+    ${macros.map(m => `
+      <div style="margin:32px 0 16px;border-radius:8px;background:#111827;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;break-before:${m===macros[0]?'avoid':'page'};">
+        <span style="font-size:20px;font-weight:900;color:white;text-transform:uppercase;letter-spacing:-0.01em;">${m.nombre}</span>
+        <span style="font-size:10px;color:#9ca3af;">${m.subs.reduce((s,sub)=>s+sub.order.length,0)} productos</span>
+      </div>
+      ${m.subs.map(sub => `
+        <div style="font-size:14px;font-weight:800;color:#111827;text-transform:uppercase;letter-spacing:0.03em;margin:20px 0 10px;">${sub.nombre}</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:6px;">
+          ${sub.order.map(base => cardHtml(sub.groups, base)).join('')}
+        </div>`).join('')}`).join('')}
+    <div style="margin-top:28px;padding-top:10px;border-top:1px solid #f3f4f6;font-size:9px;color:#9ca3af;text-align:center;">
       Precios en pesos uruguayos · Sujetos a disponibilidad de stock · ${fecha}
     </div>
   </body></html>`;
