@@ -7850,4 +7850,6 @@ app.get('/api/trends/regions', requireToken, async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
   console.log(`Iniciá el flujo OAuth en http://localhost:${PORT}/login`);
+  // Cargar catálogo desde disco al arrancar (para que style_group y material_group estén disponibles)
+  buildCatalogoCache(false).catch(e => console.error('[catalogo] error carga inicial:', e.message));
 });
