@@ -4923,6 +4923,20 @@ const CATALOGO_MACRO = [
   },
 ];
 
+// ── Popup de variantes ───────────────────────────────────────────
+function openVariantsPopup(uid, variants) {
+  const modal = document.getElementById('variants-popup');
+  const grid = document.getElementById('variants-popup-grid');
+  grid.innerHTML = variants.map((v,i) => `
+    <div onclick="catSelectVariant('${uid}',${i},${JSON.stringify(variants).replace(/"/g,'&quot;')});document.getElementById('variants-popup').style.display='none';"
+      style="cursor:pointer;text-align:center;padding:8px;border-radius:8px;border:1px solid #e5e7eb;background:#fafafa;transition:background .15s;"
+      onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='#fafafa'">
+      <img src="${v.img}" style="width:60px;height:60px;object-fit:contain;mix-blend-mode:multiply;">
+      <div style="font-size:10px;color:#6b7280;margin-top:4px;font-family:monospace;">${v.sku}</div>
+    </div>`).join('');
+  modal.style.display = 'flex';
+}
+
 // ── Override de categoría ─────────────────────────────────────────
 function openCatOverride(skuBase, currentMacro, currentSub) {
   const modal = document.getElementById('cat-override-modal');
@@ -5315,16 +5329,18 @@ function renderCatalogo() {
             ? `desde $${Math.round(minPrice).toLocaleString('es-UY')}`
             : `$${Math.round(p0.price||0).toLocaleString('es-UY')}`;
 
+          const variantsData = JSON.stringify(variants.map(v=>({img:v.ml_thumbnail||'/api/odoo/imagen/'+v.id,sku:v.sku||'',stock:v.stock??0,price:v.price||0,id:v.id}))).replace(/"/g,'&quot;');
           const thumbsHtml = isGroup ? `
             <div style="display:flex;flex-direction:column;gap:4px;margin-left:6px;flex-shrink:0;">
-              ${variants.slice(0,5).map((v,i) => `
+              ${variants.slice(0,3).map((v,i) => `
                 <img class="cat-thumb${i===0?' active':''}" id="${uid}_th_${i}"
                   src="${v.ml_thumbnail || '/api/odoo/imagen/'+v.id}" loading="lazy"
                   onerror="this.style.opacity='0.2'"
-                  onclick="catSelectVariant('${uid}',${i},${JSON.stringify(variants.map(v=>({img:v.ml_thumbnail||'/api/odoo/imagen/'+v.id,sku:v.sku||'',stock:v.stock??0,price:v.price||0,id:v.id}))).replace(/"/g,'&quot;')})"
+                  onclick="catSelectVariant('${uid}',${i},${variantsData})"
                   title="${v.sku||''}">
               `).join('')}
-              ${variants.length > 5 ? `<div style="font-size:9px;color:#9ca3af;text-align:center;">+${variants.length-5}</div>` : ''}
+              ${variants.length > 3 ? `<button onclick="openVariantsPopup('${uid}',${variantsData})"
+                style="width:44px;height:44px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:4px;font-size:11px;font-weight:700;color:#374151;cursor:pointer;">+</button>` : ''}
             </div>` : '';
 
           const editBtn = catalogoModo === 'ver'
@@ -11776,6 +11792,17 @@ showPage = function(page) {
 };
 
 </script>
+
+<!-- Popup variantes -->
+<div id="variants-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:24px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div style="font-size:14px;font-weight:800;color:#111827;">Todas las variantes</div>
+      <button onclick="document.getElementById('variants-popup').style.display='none'" style="background:none;border:none;font-size:18px;color:#9ca3af;cursor:pointer;">✕</button>
+    </div>
+    <div id="variants-popup-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;"></div>
+  </div>
+</div>
 
 <!-- Modal override de categoría -->
 <div id="cat-override-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
