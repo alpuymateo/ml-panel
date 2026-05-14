@@ -5196,15 +5196,15 @@ function renderCatalogo() {
         items: (() => {
           const key = m.nombre + '||' + s.nombre;
           const items = [...s.cats.flatMap(cat => odooBycat[cat] || []), ...(overrideItems[key] || [])];
-          if (!items.some(p => p.material_group)) return items;
-          const ORDER = ['madera','metal','tela','cristal','sal','plastico','otro'];
-          const groups = {};
-          for (const p of items) {
-            const g = p.material_group || 'otro';
-            if (!groups[g]) groups[g] = [];
-            groups[g].push(p);
-          }
-          return ORDER.flatMap(g => (groups[g] || []).sort((a,b) => a.name.localeCompare(b.name,'es')));
+          const STYLE_ORDER = ['nordico','rustico','clasico','moderno','industrial','novelty','led','sal','otro'];
+          const MAT_ORDER   = ['madera','tela','cristal','metal','plastico','sal','otro'];
+          return items.sort((a, b) => {
+            const si = STYLE_ORDER.indexOf(a.style_group||'otro') - STYLE_ORDER.indexOf(b.style_group||'otro');
+            if (si !== 0) return si;
+            const mi = MAT_ORDER.indexOf(a.material_group||'otro') - MAT_ORDER.indexOf(b.material_group||'otro');
+            if (mi !== 0) return mi;
+            return a.name.localeCompare(b.name,'es');
+          });
         })()
       })).filter(s => s.items.length > 0)
     })).filter(m => m.subs.length > 0);
