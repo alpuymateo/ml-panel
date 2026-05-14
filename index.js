@@ -2247,6 +2247,32 @@ let _catalogoCache = null;
 let _catalogoCacheTime = 0;
 const CATALOGO_CACHE_FILE = path.join(__dirname, 'data', 'catalogo_cache.json');
 const MATERIAL_CACHE_FILE = path.join(__dirname, 'data', 'material_cache.json');
+const CATALOG_OVERRIDES_FILE = path.join(__dirname, 'data', 'catalog_overrides.json');
+
+function loadCatalogOverrides() {
+  try { return fs.existsSync(CATALOG_OVERRIDES_FILE) ? JSON.parse(fs.readFileSync(CATALOG_OVERRIDES_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveCatalogOverrides(data) {
+  fs.writeFileSync(CATALOG_OVERRIDES_FILE, JSON.stringify(data, null, 2));
+}
+
+app.get('/api/catalog/overrides', requireToken, (req, res) => res.json(loadCatalogOverrides()));
+
+app.post('/api/catalog/override', requireToken, (req, res) => {
+  const { sku_base, macro, sub } = req.body;
+  if (!sku_base || !macro || !sub) return res.status(400).json({ error: 'sku_base, macro y sub requeridos' });
+  const overrides = loadCatalogOverrides();
+  overrides[sku_base] = { macro, sub };
+  saveCatalogOverrides(overrides);
+  res.json({ ok: true });
+});
+
+app.delete('/api/catalog/override/:sku_base', requireToken, (req, res) => {
+  const overrides = loadCatalogOverrides();
+  delete overrides[req.params.sku_base];
+  saveCatalogOverrides(overrides);
+  res.json({ ok: true });
+});
 
 function loadMaterialCache() {
   try { return fs.existsSync(MATERIAL_CACHE_FILE) ? JSON.parse(fs.readFileSync(MATERIAL_CACHE_FILE, 'utf8')) : {}; } catch { return {}; }

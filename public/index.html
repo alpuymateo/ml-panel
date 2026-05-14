@@ -4843,6 +4843,7 @@ function mlStockBadge(s) {
 let catalogoView  = 'lista';
 let catalogoModo  = 'ver';
 let catalogoLoaded = false;
+let catalogOverrides = {};
 
 // ── Macro-categorías del catálogo ────────────────────────────────
 const CATALOGO_MACRO = [
@@ -4922,6 +4923,39 @@ const CATALOGO_MACRO = [
   },
 ];
 
+// ── Override de categoría ─────────────────────────────────────────
+function openCatOverride(skuBase, currentMacro, currentSub) {
+  const modal = document.getElementById('cat-override-modal');
+  document.getElementById('co-sku').textContent = skuBase;
+  document.getElementById('co-sku-input').value = skuBase;
+  // Poblar macros
+  const macroSel = document.getElementById('co-macro');
+  macroSel.innerHTML = CATALOGO_MACRO.map(m => `<option value="${m.nombre}" ${m.nombre===currentMacro?'selected':''}>${m.nombre}</option>`).join('');
+  populateCatOverrideSubs(currentMacro, currentSub);
+  modal.style.display = 'flex';
+}
+function populateCatOverrideSubs(macro, currentSub) {
+  const m = CATALOGO_MACRO.find(x => x.nombre === macro);
+  const subSel = document.getElementById('co-sub');
+  subSel.innerHTML = m ? m.subs.map(s => `<option value="${s.nombre}" ${s.nombre===currentSub?'selected':''}>${s.nombre}</option>`).join('') : '';
+}
+async function saveCatOverride() {
+  const skuBase = document.getElementById('co-sku-input').value;
+  const macro = document.getElementById('co-macro').value;
+  const sub = document.getElementById('co-sub').value;
+  await fetch('/api/catalog/override', { method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify({sku_base:skuBase, macro, sub}) });
+  catalogOverrides[skuBase] = { macro, sub };
+  document.getElementById('cat-override-modal').style.display = 'none';
+  renderCatalogo();
+}
+async function deleteCatOverride() {
+  const skuBase = document.getElementById('co-sku-input').value;
+  await fetch('/api/catalog/override/'+encodeURIComponent(skuBase), { method:'DELETE', headers: authHeaders() });
+  delete catalogOverrides[skuBase];
+  document.getElementById('cat-override-modal').style.display = 'none';
+  renderCatalogo();
+}
+
 function catSelectVariant(uid, idx, variants) {
   const v = variants[idx];
   const main = document.getElementById(uid+'_main');
@@ -4969,6 +5003,11 @@ async function loadCatalogo() {
     document.getElementById('catalogo-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando catálogo...</div>';
     await loadOdoo();
   }
+  // Cargar overrides
+  try {
+    const r = await fetch('/api/catalog/overrides', { headers: authHeaders() });
+    catalogOverrides = await r.json();
+  } catch(e) { catalogOverrides = {}; }
   // Poblar selector con macro-categorías
   const catSel = document.getElementById('catalogo-cat');
   catSel.innerHTML = '<option value="">Todas las categorías</option>' +
@@ -5119,6 +5158,20 @@ function renderCatalogo() {
     }
   }
 
+  // Aplicar overrides: mover productos a macro/sub personalizada
+  const overrideItems = {}; // 'macro||sub' → [productos]
+  for (const [skuBase, dest] of Object.entries(catalogOverrides)) {
+    const key = dest.macro + '||' + dest.sub;
+    // Quitar de odooBycat
+    for (const cat of Object.keys(odooBycat)) {
+      odooBycat[cat] = odooBycat[cat].filter(p => {
+        const base = p.sku ? p.sku.split('-')[0] : '';
+        if (base === skuBase) { if (!overrideItems[key]) overrideItems[key] = []; overrideItems[key].push(p); return false; }
+        return true;
+      });
+    }
+  }
+
   // Armar estructura macro → sub → productos
   const macros = CATALOGO_MACRO
     .filter(m => !macroFilter || m.nombre === macroFilter)
@@ -5127,9 +5180,9 @@ function renderCatalogo() {
       subs: m.subs.map(s => ({
         ...s,
         items: (() => {
-          const items = s.cats.flatMap(cat => odooBycat[cat] || []);
+          const key = m.nombre + '||' + s.nombre;
+          const items = [...s.cats.flatMap(cat => odooBycat[cat] || []), ...(overrideItems[key] || [])];
           if (!items.some(p => p.material_group)) return items;
-          // Agrupar por material, mantener orden interno por nombre
           const ORDER = ['madera','metal','tela','cristal','sal','plastico','otro'];
           const groups = {};
           for (const p of items) {
@@ -5274,8 +5327,13 @@ function renderCatalogo() {
               ${variants.length > 5 ? `<div style="font-size:9px;color:#9ca3af;text-align:center;">+${variants.length-5}</div>` : ''}
             </div>` : '';
 
+          const editBtn = catalogoModo === 'ver'
+            ? `<button onclick="openCatOverride('${base}','${m.nombre}','${sub.nombre}')"
+                style="position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.9);border:1px solid #e5e7eb;border-radius:5px;padding:3px 6px;font-size:10px;color:#6b7280;cursor:pointer;font-weight:600;" title="Mover categoría">✎</button>`
+            : '';
           return `
-          <div class="cat-card">
+          <div class="cat-card" style="position:relative;">
+            ${editBtn}
             <div style="display:flex;padding:12px 12px 0;">
               <div style="flex:1;min-width:0;height:170px;display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:6px;overflow:hidden;">
                 <img id="${uid}_main" class="cat-card-img" src="${p0.ml_thumbnail || '/api/odoo/imagen/'+p0.id}" loading="lazy"
@@ -11718,5 +11776,28 @@ showPage = function(page) {
 };
 
 </script>
+
+<!-- Modal override de categoría -->
+<div id="cat-override-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:28px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="font-size:15px;font-weight:800;color:#111827;margin-bottom:4px;">Mover producto</div>
+    <div style="font-size:12px;color:#6b7280;margin-bottom:20px;">SKU base: <span id="co-sku" style="font-family:monospace;color:#111827;font-weight:600;"></span></div>
+    <input type="hidden" id="co-sku-input">
+    <div style="margin-bottom:12px;">
+      <label style="font-size:11px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:0.05em;">Categoría</label>
+      <select id="co-macro" onchange="populateCatOverrideSubs(this.value,'')"
+        style="width:100%;margin-top:6px;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;"></select>
+    </div>
+    <div style="margin-bottom:20px;">
+      <label style="font-size:11px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:0.05em;">Subcategoría</label>
+      <select id="co-sub" style="width:100%;margin-top:6px;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;"></select>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="saveCatOverride()" style="flex:1;background:#111827;color:white;border:none;padding:10px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">Guardar</button>
+      <button onclick="deleteCatOverride()" style="background:#fee2e2;color:#dc2626;border:none;padding:10px 14px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Quitar</button>
+      <button onclick="document.getElementById('cat-override-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:10px 14px;border-radius:6px;font-size:13px;cursor:pointer;">Cancelar</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
