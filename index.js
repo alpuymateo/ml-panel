@@ -2379,6 +2379,25 @@ async function buildCatalogoCache(force = false, onLog) {
 
 // Catalogo se sirve del cache en disco. En Railway nunca conecta a Odoo.
 
+// Importar cache de catálogo desde local → Railway
+app.post('/api/catalog/import-cache', requireToken, (req, res) => {
+  try {
+    const data = req.body;
+    if (!data || !data.categories || !Array.isArray(data.categories)) {
+      return res.status(400).json({ error: 'Formato inválido: se espera { categories, ... }' });
+    }
+    data.importedAt = new Date().toISOString();
+    fs.writeFileSync(CATALOGO_CACHE_FILE, JSON.stringify(data));
+    _catalogoCache = data;
+    _catalogoCacheTime = Date.now();
+    const total = data.categories.reduce((s, c) => s + c.items.length, 0);
+    console.log('[catalogo] cache importado:', total, 'productos,', data.categories.length, 'categorías');
+    res.json({ ok: true, total, categories: data.categories.length, importedAt: data.importedAt });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/odoo/productos', async (req, res) => {
   try {
     if (req.query.refresh === 'true' && !process.env.RAILWAY_ENVIRONMENT) {
