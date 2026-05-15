@@ -2274,6 +2274,25 @@ app.delete('/api/catalog/override/:sku_base', requireToken, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Imagen pinneada por SKU base ──────────────────────────────────
+const CATALOG_PINNED_FILE = path.join(__dirname, 'data', 'catalog_pinned.json');
+function loadCatalogPinned() {
+  try { return fs.existsSync(CATALOG_PINNED_FILE) ? JSON.parse(fs.readFileSync(CATALOG_PINNED_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveCatalogPinned(data) {
+  fs.writeFileSync(CATALOG_PINNED_FILE, JSON.stringify(data, null, 2));
+}
+app.get('/api/catalog/pinned', requireToken, (req, res) => res.json(loadCatalogPinned()));
+app.post('/api/catalog/pinned', requireToken, (req, res) => {
+  const { sku_base, sku_variant } = req.body;
+  if (!sku_base) return res.status(400).json({ error: 'sku_base requerido' });
+  const pinned = loadCatalogPinned();
+  if (sku_variant) pinned[sku_base] = sku_variant;
+  else delete pinned[sku_base];
+  saveCatalogPinned(pinned);
+  res.json({ ok: true });
+});
+
 // ── Orden manual del catálogo ─────────────────────────────────────
 const CATALOG_SORT_FILE = path.join(__dirname, 'data', 'catalog_sort.json');
 function loadCatalogSort() {

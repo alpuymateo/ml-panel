@@ -4845,6 +4845,7 @@ let catalogoModo  = 'ver';
 let catalogoLoaded = false;
 let catalogOverrides = {};
 let catalogSortOverrides = {};
+let catalogPinned = {};  // base  → sku_variant pinneado
 let catGridUidMap = {};  // subKey → [{uid, base}]
 let catCardMeta = {};    // base  → {name, thumb, subKey}
 
@@ -4957,6 +4958,23 @@ function openCatOverride(skuBase, currentMacro, currentSub) {
   const currentPos = entries.findIndex(x => x.base === skuBase) + 1;
   document.getElementById('co-pos').value = currentPos || 1;
   document.getElementById('co-pos-max').textContent = entries.length;
+  // Variantes para elegir imagen
+  const metaVariants = (meta.variants || []);
+  const pinnedSku = catalogPinned[skuBase];
+  const variantPickerEl = document.getElementById('co-variant-picker');
+  if (metaVariants.length > 1) {
+    variantPickerEl.style.display = 'block';
+    variantPickerEl.querySelector('.co-vp-thumbs').innerHTML = metaVariants.map(v => {
+      const img = v.ml_thumbnail || '/api/odoo/imagen/' + v.id;
+      const active = (pinnedSku ? v.sku === pinnedSku : v === metaVariants[0]);
+      return `<div onclick="pinVariant('${skuBase}','${v.sku}')" title="${v.sku}"
+        style="cursor:pointer;border-radius:6px;overflow:hidden;border:2px solid ${active?'#111827':'#e5e7eb'};flex-shrink:0;width:52px;height:52px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;">
+        <img src="${img}" style="width:46px;height:46px;object-fit:contain;mix-blend-mode:multiply;" onerror="this.style.opacity='0.2'">
+      </div>`;
+    }).join('');
+  } else {
+    variantPickerEl.style.display = 'none';
+  }
   // Macros
   const macroSel = document.getElementById('co-macro');
   macroSel.innerHTML = CATALOGO_MACRO.map(m => `<option value="${m.nombre}" ${m.nombre===currentMacro?'selected':''}>${m.nombre}</option>`).join('');
@@ -5013,6 +5031,32 @@ async function deleteCatOverride() {
   delete catalogOverrides[skuBase];
   document.getElementById('cat-override-modal').style.display = 'none';
   renderCatalogo();
+}
+
+// ── Imagen pinneada ───────────────────────────────────────────────
+async function pinVariant(skuBase, skuVariant) {
+  await fetch('/api/catalog/pinned', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sku_base: skuBase, sku_variant: skuVariant })
+  });
+  catalogPinned[skuBase] = skuVariant;
+  // Actualizar borde activo en el picker
+  const picker = document.querySelector('.co-vp-thumbs');
+  if (picker) {
+    picker.querySelectorAll('div[onclick]').forEach(d => {
+      d.style.borderColor = d.title === skuVariant ? '#111827' : '#e5e7eb';
+    });
+  }
+  // Actualizar imagen principal del modal
+  const meta = catCardMeta[skuBase];
+  if (meta) {
+    const v = (meta.variants||[]).find(x => x.sku === skuVariant);
+    if (v) {
+      const thumb = document.getElementById('co-thumb');
+      if (thumb) thumb.src = v.ml_thumbnail || '/api/odoo/imagen/' + v.id;
+    }
+  }
 }
 
 // ── Orden manual ──────────────────────────────────────────────────
@@ -5085,15 +5129,17 @@ async function loadCatalogo() {
     document.getElementById('catalogo-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando catálogo...</div>';
     await loadOdoo();
   }
-  // Cargar overrides y orden manual
+  // Cargar overrides, orden manual e imágenes pinneadas
   try {
-    const [rOv, rSt] = await Promise.all([
+    const [rOv, rSt, rPn] = await Promise.all([
       fetch('/api/catalog/overrides', { headers: authHeaders() }),
-      fetch('/api/catalog/sort',      { headers: authHeaders() })
+      fetch('/api/catalog/sort',      { headers: authHeaders() }),
+      fetch('/api/catalog/pinned',    { headers: authHeaders() })
     ]);
     catalogOverrides     = await rOv.json();
     catalogSortOverrides = await rSt.json();
-  } catch(e) { catalogOverrides = {}; catalogSortOverrides = {}; }
+    catalogPinned        = await rPn.json();
+  } catch(e) { catalogOverrides = {}; catalogSortOverrides = {}; catalogPinned = {}; }
   // Poblar selector con macro-categorías
   const catSel = document.getElementById('catalogo-cat');
   catSel.innerHTML = '<option value="">Todas las categorías</option>' +
@@ -5457,7 +5503,8 @@ function renderCatalogo() {
 
         const cards = groupOrder.map((base, cardIdx) => {
           const variants = groups[base];
-          const p0 = variants[0];
+          const pinnedSku = catalogPinned[base];
+          const p0 = (pinnedSku && variants.find(v => v.sku === pinnedSku)) || variants[0];
           const isGroup = variants.length > 1;
           const uid = 'cv_' + base.replace(/\W/g,'_');
 
@@ -5466,7 +5513,7 @@ function renderCatalogo() {
             ? p0.name.replace(/[-–]\s*(VER|ROS|AMA|GRI|BLA|NEG|ROJ|AZU|NAR|VIO|BEI|MAR|CRE|TUR|AZL|GRS|PLT|BCO|BLN|BLC|BLQ|BLU|RED|GRN|YEL|BRN|PNK|GLD|SLV)\b.*/i, '').trim()
             : p0.name;
           // Guardar meta para el modal
-          catCardMeta[base] = { name: displayName, thumb: p0.ml_thumbnail || '/api/odoo/imagen/'+p0.id, subKey };
+          catCardMeta[base] = { name: displayName, thumb: p0.ml_thumbnail || '/api/odoo/imagen/'+p0.id, subKey, variants };
 
           const minPrice = Math.min(...variants.map(v => v.price||0));
           const maxPrice = Math.max(...variants.map(v => v.price||0));
@@ -11970,6 +12017,11 @@ showPage = function(page) {
           style="width:100%;padding:9px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:white;margin-bottom:6px;"></select>
         <select id="co-sub" onchange="populateCatOverrideSubs(document.getElementById('co-macro').value, this.value)"
           style="width:100%;padding:9px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:white;"></select>
+      </div>
+      <!-- Imagen principal (solo grupos con variantes) -->
+      <div id="co-variant-picker" style="display:none;margin-bottom:16px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:8px;">Imagen principal</label>
+        <div class="co-vp-thumbs" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
       </div>
       <!-- Posición -->
       <div style="margin-bottom:22px;">
