@@ -2274,6 +2274,30 @@ app.delete('/api/catalog/override/:sku_base', requireToken, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Labels personalizados de categorías ───────────────────────────
+const CATALOG_LABELS_FILE = path.join(__dirname, 'data', 'catalog_labels.json');
+function loadCatalogLabels() {
+  try { return fs.existsSync(CATALOG_LABELS_FILE) ? JSON.parse(fs.readFileSync(CATALOG_LABELS_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveCatalogLabels(data) {
+  fs.writeFileSync(CATALOG_LABELS_FILE, JSON.stringify(data, null, 2));
+}
+app.get('/api/catalog/labels', requireToken, (req, res) => res.json(loadCatalogLabels()));
+app.post('/api/catalog/labels', requireToken, (req, res) => {
+  const { key, name } = req.body;
+  if (!key || !name) return res.status(400).json({ error: 'key y name requeridos' });
+  const labels = loadCatalogLabels();
+  labels[key] = name;
+  saveCatalogLabels(labels);
+  res.json({ ok: true });
+});
+app.delete('/api/catalog/labels/:key', requireToken, (req, res) => {
+  const labels = loadCatalogLabels();
+  delete labels[decodeURIComponent(req.params.key)];
+  saveCatalogLabels(labels);
+  res.json({ ok: true });
+});
+
 // ── Imagen pinneada por SKU base ──────────────────────────────────
 const CATALOG_PINNED_FILE = path.join(__dirname, 'data', 'catalog_pinned.json');
 function loadCatalogPinned() {

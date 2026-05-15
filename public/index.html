@@ -4845,9 +4845,10 @@ let catalogoModo  = 'ver';
 let catalogoLoaded = false;
 let catalogOverrides = {};
 let catalogSortOverrides = {};
-let catalogPinned = {};  // base  → sku_variant pinneado
-let catGridUidMap = {};  // subKey → [{uid, base}]
-let catCardMeta = {};    // base  → {name, thumb, subKey}
+let catalogPinned = {};   // base   → sku_variant pinneado
+let catalogLabels = {};   // key    → nombre personalizado
+let catGridUidMap = {};   // subKey → [{uid, base}]
+let catCardMeta = {};     // base   → {name, thumb, subKey}
 
 // ── Macro-categorías del catálogo ────────────────────────────────
 const CATALOGO_MACRO = [
@@ -5033,6 +5034,32 @@ async function deleteCatOverride() {
   renderCatalogo();
 }
 
+// ── Labels editables ──────────────────────────────────────────────
+function editCatLabel(key, el, dark) {
+  if (catalogoModo !== 'ver') return;
+  const current = el.textContent;
+  const inp = document.createElement('input');
+  inp.value = current;
+  inp.style.cssText = `font-size:inherit;font-weight:inherit;color:inherit;background:transparent;border:none;border-bottom:2px solid ${dark?'rgba(255,255,255,0.6)':'rgba(0,0,0,0.3)'};outline:none;min-width:180px;width:${Math.max(180, current.length*14)}px;font-family:inherit;letter-spacing:inherit;text-transform:inherit;padding:0;`;
+  el.replaceWith(inp);
+  inp.focus(); inp.select();
+  const restore = () => { inp.replaceWith(el); };
+  const save = async () => {
+    const name = inp.value.trim();
+    if (!name || name === current) { restore(); return; }
+    await fetch('/api/catalog/labels', { method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify({key, name}) });
+    catalogLabels[key] = name;
+    renderCatalogo();
+  };
+  inp.addEventListener('blur', save);
+  inp.addEventListener('keydown', e => { if(e.key==='Enter'){e.preventDefault();inp.blur();} if(e.key==='Escape'){inp.value=current;inp.blur();} });
+}
+async function resetCatLabel(key) {
+  await fetch('/api/catalog/labels/'+encodeURIComponent(key), { method:'DELETE', headers: authHeaders() });
+  delete catalogLabels[key];
+  renderCatalogo();
+}
+
 // ── Imagen pinneada ───────────────────────────────────────────────
 async function pinVariant(skuBase, skuVariant) {
   await fetch('/api/catalog/pinned', {
@@ -5129,17 +5156,19 @@ async function loadCatalogo() {
     document.getElementById('catalogo-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando catálogo...</div>';
     await loadOdoo();
   }
-  // Cargar overrides, orden manual e imágenes pinneadas
+  // Cargar overrides, orden, imágenes pinneadas y labels
   try {
-    const [rOv, rSt, rPn] = await Promise.all([
+    const [rOv, rSt, rPn, rLb] = await Promise.all([
       fetch('/api/catalog/overrides', { headers: authHeaders() }),
       fetch('/api/catalog/sort',      { headers: authHeaders() }),
-      fetch('/api/catalog/pinned',    { headers: authHeaders() })
+      fetch('/api/catalog/pinned',    { headers: authHeaders() }),
+      fetch('/api/catalog/labels',    { headers: authHeaders() })
     ]);
     catalogOverrides     = await rOv.json();
     catalogSortOverrides = await rSt.json();
     catalogPinned        = await rPn.json();
-  } catch(e) { catalogOverrides = {}; catalogSortOverrides = {}; catalogPinned = {}; }
+    catalogLabels        = await rLb.json();
+  } catch(e) { catalogOverrides = {}; catalogSortOverrides = {}; catalogPinned = {}; catalogLabels = {}; }
   // Poblar selector con macro-categorías
   const catSel = document.getElementById('catalogo-cat');
   catSel.innerHTML = '<option value="">Todas las categorías</option>' +
@@ -5385,19 +5414,35 @@ function renderCatalogo() {
     return;
   }
 
-  const macroHeader = (nombre, total) => `
-    <div style="margin:40px 0 16px;border-radius:8px;overflow:hidden;background:#111827;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;">
-      <span style="font-size:24px;font-weight:900;color:#ffffff;letter-spacing:-0.01em;text-transform:uppercase;">${nombre}</span>
+  const macroHeader = (nombre, total) => {
+    const label = catalogLabels[nombre] || nombre;
+    const hint  = catalogoModo === 'ver' ? ' title="Doble click para editar"' : '';
+    const reset = catalogoModo === 'ver' && catalogLabels[nombre]
+      ? `<button onclick="resetCatLabel('${nombre}')" style="font-size:10px;color:#6b7280;background:transparent;border:none;cursor:pointer;padding:0 6px;" title="Restaurar nombre original">↺</button>` : '';
+    return `<div style="margin:40px 0 16px;border-radius:8px;overflow:hidden;background:#111827;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span ondblclick="editCatLabel('${nombre}',this,true)"${hint} style="font-size:24px;font-weight:900;color:#ffffff;letter-spacing:-0.01em;text-transform:uppercase;cursor:${catalogoModo==='ver'?'text':'default'};">${label}</span>
+        ${reset}
+      </div>
       <span style="font-size:11px;color:#9ca3af;font-weight:500;">${total} productos</span>
     </div>`;
+  };
 
-  const subHeader = (nombre, total, subKey) => `
-    <div style="padding:20px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-      <span style="font-size:16px;font-weight:800;color:#111827;text-transform:uppercase;letter-spacing:0.03em;">${nombre}</span>
-      ${catalogoModo === 'ver' && catalogSortOverrides[subKey] ? `
-        <button onclick="resetCatSort('${subKey.replace(/'/g,"\\'")}')"
-          style="font-size:10px;font-weight:600;color:#dc2626;background:#fff;border:1px solid #fca5a5;border-radius:5px;padding:3px 8px;cursor:pointer;flex-shrink:0;">↺ Resetear orden</button>` : ''}
+  const subHeader = (nombre, total, subKey) => {
+    const label = catalogLabels[subKey] || nombre;
+    const hint  = catalogoModo === 'ver' ? ' title="Doble click para editar"' : '';
+    const resetLabel = catalogoModo === 'ver' && catalogLabels[subKey]
+      ? `<button onclick="resetCatLabel('${subKey.replace(/'/g,"\\'")}')" style="font-size:10px;color:#9ca3af;background:transparent;border:none;cursor:pointer;padding:0 4px;" title="Restaurar nombre original">↺</button>` : '';
+    const resetSort = catalogoModo === 'ver' && catalogSortOverrides[subKey]
+      ? `<button onclick="resetCatSort('${subKey.replace(/'/g,"\\'")}')" style="font-size:10px;font-weight:600;color:#dc2626;background:#fff;border:1px solid #fca5a5;border-radius:5px;padding:3px 8px;cursor:pointer;flex-shrink:0;">↺ Orden</button>` : '';
+    return `<div style="padding:20px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <div style="display:flex;align-items:center;gap:4px;min-width:0;">
+        <span ondblclick="editCatLabel('${subKey.replace(/'/g,"\\'")}'  ,this,false)"${hint} style="font-size:16px;font-weight:800;color:#111827;text-transform:uppercase;letter-spacing:0.03em;cursor:${catalogoModo==='ver'?'text':'default'};">${label}</span>
+        ${resetLabel}
+      </div>
+      ${resetSort}
     </div>`;
+  };
 
   const stockLabel = (stock) => {
     if (stock > 10) return `<span style="font-size:10px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.05em;">● En stock</span>`;
