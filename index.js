@@ -2274,6 +2274,30 @@ app.delete('/api/catalog/override/:sku_base', requireToken, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Orden de subcategorías ────────────────────────────────────────
+const CATALOG_SUB_SORT_FILE = path.join(__dirname, 'data', 'catalog_sub_sort.json');
+function loadCatalogSubSort() {
+  try { return fs.existsSync(CATALOG_SUB_SORT_FILE) ? JSON.parse(fs.readFileSync(CATALOG_SUB_SORT_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveCatalogSubSort(data) {
+  fs.writeFileSync(CATALOG_SUB_SORT_FILE, JSON.stringify(data, null, 2));
+}
+app.get('/api/catalog/sub-sort', requireToken, (req, res) => res.json(loadCatalogSubSort()));
+app.post('/api/catalog/sub-sort', requireToken, (req, res) => {
+  const { macro, order } = req.body;
+  if (!macro || !Array.isArray(order)) return res.status(400).json({ error: 'macro y order requeridos' });
+  const sort = loadCatalogSubSort();
+  sort[macro] = order;
+  saveCatalogSubSort(sort);
+  res.json({ ok: true });
+});
+app.delete('/api/catalog/sub-sort/:macro', requireToken, (req, res) => {
+  const sort = loadCatalogSubSort();
+  delete sort[decodeURIComponent(req.params.macro)];
+  saveCatalogSubSort(sort);
+  res.json({ ok: true });
+});
+
 // ── Subcategorías personalizadas ──────────────────────────────────
 const CATALOG_CUSTOM_SUBS_FILE = path.join(__dirname, 'data', 'catalog_custom_subs.json');
 function loadCustomSubs() {

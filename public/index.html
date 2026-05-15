@@ -4848,6 +4848,7 @@ let catalogSortOverrides = {};
 let catalogPinned = {};     // base   → sku_variant pinneado
 let catalogLabels = {};     // key    → nombre personalizado
 let catalogCustomSubs = []; // [{id, macro, nombre}]
+let catalogSubSort = {};    // macro  → [sub nombres en orden]
 let catGridUidMap = {};     // subKey → [{uid, base}]
 let catCardMeta = {};       // base   → {name, thumb, subKey}
 
@@ -5040,6 +5041,29 @@ async function deleteCatOverride() {
   renderCatalogo();
 }
 
+// ── Orden de subcategorías ────────────────────────────────────────
+async function saveSubSort(macro) {
+  const inputs = document.querySelectorAll(`[data-sub-sort-macro="${CSS.escape(macro)}"]`);
+  const withPos = Array.from(inputs).map(inp => ({
+    nombre: inp.dataset.subNombre,
+    pos: parseInt(inp.value) || 999
+  }));
+  withPos.sort((a, b) => a.pos - b.pos);
+  const order = withPos.map(x => x.nombre);
+  await fetch('/api/catalog/sub-sort', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ macro, order })
+  });
+  catalogSubSort[macro] = order;
+  renderCatalogo();
+}
+async function resetSubSort(macro) {
+  await fetch('/api/catalog/sub-sort/' + encodeURIComponent(macro), { method: 'DELETE', headers: authHeaders() });
+  delete catalogSubSort[macro];
+  renderCatalogo();
+}
+
 // ── Subcategorías personalizadas ──────────────────────────────────
 function openAddCustomSub(macro) {
   document.getElementById('add-sub-macro').value = macro;
@@ -5186,21 +5210,23 @@ async function loadCatalogo() {
     document.getElementById('catalogo-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando catálogo...</div>';
     await loadOdoo();
   }
-  // Cargar overrides, orden, pinned, labels y custom subs
+  // Cargar overrides, orden, pinned, labels, custom subs y orden de subs
   try {
-    const [rOv, rSt, rPn, rLb, rCs] = await Promise.all([
+    const [rOv, rSt, rPn, rLb, rCs, rSs] = await Promise.all([
       fetch('/api/catalog/overrides',   { headers: authHeaders() }),
       fetch('/api/catalog/sort',        { headers: authHeaders() }),
       fetch('/api/catalog/pinned',      { headers: authHeaders() }),
       fetch('/api/catalog/labels',      { headers: authHeaders() }),
-      fetch('/api/catalog/custom-subs', { headers: authHeaders() })
+      fetch('/api/catalog/custom-subs', { headers: authHeaders() }),
+      fetch('/api/catalog/sub-sort',    { headers: authHeaders() })
     ]);
     catalogOverrides     = await rOv.json();
     catalogSortOverrides = await rSt.json();
     catalogPinned        = await rPn.json();
     catalogLabels        = await rLb.json();
     catalogCustomSubs    = await rCs.json();
-  } catch(e) { catalogOverrides = {}; catalogSortOverrides = {}; catalogPinned = {}; catalogLabels = {}; catalogCustomSubs = []; }
+    catalogSubSort       = await rSs.json();
+  } catch(e) { catalogOverrides = {}; catalogSortOverrides = {}; catalogPinned = {}; catalogLabels = {}; catalogCustomSubs = []; catalogSubSort = {}; }
   // Poblar selector con macro-categorías
   const catSel = document.getElementById('catalogo-cat');
   catSel.innerHTML = '<option value="">Todas las categorías</option>' +
@@ -5474,19 +5500,23 @@ function renderCatalogo() {
       ? `<button onclick="resetCatLabel('${nombre}')" style="font-size:10px;color:#6b7280;background:transparent;border:none;cursor:pointer;padding:0 6px;" title="Restaurar nombre original">↺</button>` : '';
     const addBtn = catalogoModo === 'ver'
       ? `<button onclick="openAddCustomSub('${nombre}')" style="font-size:11px;font-weight:700;color:#9ca3af;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 10px;cursor:pointer;" title="Agregar subcategoría">+ Sub</button>` : '';
+    const saveSubBtn = catalogoModo === 'ver'
+      ? `<button onclick="saveSubSort('${nombre.replace(/'/g,"\\'")}')" style="font-size:11px;font-weight:700;color:#fff;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:4px 10px;cursor:pointer;" title="Guardar orden de subcategorías">Guardar orden</button>` : '';
+    const resetSubBtn = catalogoModo === 'ver' && catalogSubSort[nombre]
+      ? `<button onclick="resetSubSort('${nombre.replace(/'/g,"\\'")}')" style="font-size:10px;color:#6b7280;background:transparent;border:none;cursor:pointer;padding:0 4px;" title="Restaurar orden original">↺</button>` : '';
     return `<div style="margin:40px 0 16px;border-radius:8px;overflow:hidden;background:#111827;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;">
       <div style="display:flex;align-items:center;gap:6px;">
         <span ondblclick="editCatLabel('${nombre}',this,true)"${hint} style="font-size:24px;font-weight:900;color:#ffffff;letter-spacing:-0.01em;text-transform:uppercase;cursor:${catalogoModo==='ver'?'text':'default'};">${label}</span>
         ${reset}
       </div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        ${addBtn}
+      <div style="display:flex;align-items:center;gap:8px;">
+        ${saveSubBtn}${resetSubBtn}${addBtn}
         <span style="font-size:11px;color:#9ca3af;font-weight:500;">${total} productos</span>
       </div>
     </div>`;
   };
 
-  const subHeader = (nombre, total, subKey, customId) => {
+  const subHeader = (nombre, total, subKey, customId, subIdx=0) => {
     const label = catalogLabels[subKey] || nombre;
     const hint  = catalogoModo === 'ver' ? ' title="Doble click para editar"' : '';
     const resetLabel = catalogoModo === 'ver' && catalogLabels[subKey]
@@ -5496,7 +5526,8 @@ function renderCatalogo() {
     const deleteBtn = catalogoModo === 'ver' && customId
       ? `<button onclick="deleteCustomSub('${customId}')" style="font-size:10px;font-weight:600;color:#dc2626;background:#fff;border:1px solid #fca5a5;border-radius:5px;padding:3px 8px;cursor:pointer;flex-shrink:0;" title="Eliminar subcategoría">✕ Eliminar sub</button>` : '';
     return `<div style="padding:20px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-      <div style="display:flex;align-items:center;gap:4px;min-width:0;">
+      <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+        ${catalogoModo === 'ver' ? `<input type="number" data-sub-sort-macro="${subKey.split('||')[0]}" data-sub-nombre="${nombre}" value="${subIdx+1}" min="1" style="width:32px;height:22px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;font-weight:700;text-align:center;color:#374151;padding:0;flex-shrink:0;">` : ''}
         <span ondblclick="editCatLabel('${subKey.replace(/'/g,"\\'")}'  ,this,false)"${hint} style="font-size:16px;font-weight:800;color:#111827;text-transform:uppercase;letter-spacing:0.03em;cursor:${catalogoModo==='ver'?'text':'default'};">${label}</span>
         ${resetLabel}
       </div>
@@ -5582,7 +5613,20 @@ function renderCatalogo() {
     ${macros.map(m => {
       const total = m.subs.reduce((s,sub)=>s+sub.items.length,0);
       return `${macroHeader(m.nombre, total)}
-      ${m.subs.map(sub => {
+      ${(() => {
+        // Aplicar orden de subcategorías si existe
+        let subs = m.subs;
+        const subSortOv = catalogSubSort[m.nombre];
+        if (subSortOv) {
+          subs = [...subs].sort((a, b) => {
+            const ia = subSortOv.indexOf(a.nombre), ib = subSortOv.indexOf(b.nombre);
+            if (ia === -1 && ib === -1) return 0;
+            if (ia === -1) return 1; if (ib === -1) return -1;
+            return ia - ib;
+          });
+        }
+        return subs;
+      })().map((sub, subIdx) => {
         const subKey = m.nombre + '||' + sub.nombre;
         // Agrupar por SKU base (antes del primer guión)
         const groups = {};
@@ -5669,7 +5713,7 @@ function renderCatalogo() {
           </div>`;
         });
         return `
-        ${subHeader(sub.nombre, groupOrder.length, subKey, sub.customId)}
+        ${subHeader(sub.nombre, groupOrder.length, subKey, sub.customId, subIdx)}
         <div class="cat-grid" style="margin-bottom:16px;">
           ${cards.join('')}
         </div>`;
