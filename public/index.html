@@ -5042,25 +5042,64 @@ async function deleteCatOverride() {
 }
 
 // ── Orden de subcategorías ────────────────────────────────────────
-async function saveSubSort(macro) {
-  const inputs = document.querySelectorAll(`[data-sub-sort-macro="${CSS.escape(macro)}"]`);
-  const withPos = Array.from(inputs).map(inp => ({
-    nombre: inp.dataset.subNombre,
-    pos: parseInt(inp.value) || 999
-  }));
-  withPos.sort((a, b) => a.pos - b.pos);
-  const order = withPos.map(x => x.nombre);
+let _subSortMacro = '';
+let _subSortList  = [];
+
+function openSubSortModal(macro) {
+  _subSortMacro = macro;
+  // Construir lista actual de subs para esa macro
+  const m = CATALOGO_MACRO.find(x => x.nombre === macro);
+  const staticSubs = m ? m.subs.map(s => s.nombre) : [];
+  const customSubs = catalogCustomSubs.filter(s => s.macro === macro).map(s => s.nombre);
+  const allSubs    = [...new Set([...staticSubs, ...customSubs])].filter(n => n);
+  const sortOv     = catalogSubSort[macro];
+  if (sortOv) {
+    _subSortList = [
+      ...sortOv.filter(n => allSubs.includes(n)),
+      ...allSubs.filter(n => !sortOv.includes(n))
+    ];
+  } else {
+    _subSortList = [...allSubs];
+  }
+  document.getElementById('sub-sort-macro-label').textContent = catalogLabels[macro] || macro;
+  renderSubSortList();
+  document.getElementById('sub-sort-modal').style.display = 'flex';
+}
+
+function renderSubSortList() {
+  const list = document.getElementById('sub-sort-list');
+  list.innerHTML = _subSortList.map((nombre, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:white;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:6px;">
+      <span style="font-size:11px;font-weight:700;color:#9ca3af;width:18px;text-align:right;flex-shrink:0;">${i+1}</span>
+      <span style="flex:1;font-size:13px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:0.02em;">${catalogLabels[_subSortMacro+'||'+nombre] || nombre}</span>
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <button onclick="subSortMove(${i},-1)" ${i===0?'disabled':''} style="width:26px;height:22px;border:1px solid #e5e7eb;border-radius:4px;background:white;cursor:pointer;font-size:12px;color:#374151;${i===0?'opacity:.3;':''}"">↑</button>
+        <button onclick="subSortMove(${i},1)" ${i===_subSortList.length-1?'disabled':''} style="width:26px;height:22px;border:1px solid #e5e7eb;border-radius:4px;background:white;cursor:pointer;font-size:12px;color:#374151;${i===_subSortList.length-1?'opacity:.3;':''}"">↓</button>
+      </div>
+    </div>`).join('');
+}
+
+function subSortMove(idx, dir) {
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= _subSortList.length) return;
+  [_subSortList[idx], _subSortList[newIdx]] = [_subSortList[newIdx], _subSortList[idx]];
+  renderSubSortList();
+}
+
+async function saveSubSort() {
   await fetch('/api/catalog/sub-sort', {
     method: 'POST',
     headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ macro, order })
+    body: JSON.stringify({ macro: _subSortMacro, order: _subSortList })
   });
-  catalogSubSort[macro] = order;
+  catalogSubSort[_subSortMacro] = [..._subSortList];
+  document.getElementById('sub-sort-modal').style.display = 'none';
   renderCatalogo();
 }
-async function resetSubSort(macro) {
-  await fetch('/api/catalog/sub-sort/' + encodeURIComponent(macro), { method: 'DELETE', headers: authHeaders() });
-  delete catalogSubSort[macro];
+async function resetSubSort() {
+  await fetch('/api/catalog/sub-sort/' + encodeURIComponent(_subSortMacro), { method: 'DELETE', headers: authHeaders() });
+  delete catalogSubSort[_subSortMacro];
+  document.getElementById('sub-sort-modal').style.display = 'none';
   renderCatalogo();
 }
 
@@ -5500,17 +5539,15 @@ function renderCatalogo() {
       ? `<button onclick="resetCatLabel('${nombre}')" style="font-size:10px;color:#6b7280;background:transparent;border:none;cursor:pointer;padding:0 6px;" title="Restaurar nombre original">↺</button>` : '';
     const addBtn = catalogoModo === 'ver'
       ? `<button onclick="openAddCustomSub('${nombre}')" style="font-size:11px;font-weight:700;color:#9ca3af;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 10px;cursor:pointer;" title="Agregar subcategoría">+ Sub</button>` : '';
-    const saveSubBtn = catalogoModo === 'ver'
-      ? `<button onclick="saveSubSort('${nombre.replace(/'/g,"\\'")}')" style="font-size:11px;font-weight:700;color:#fff;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:4px 10px;cursor:pointer;" title="Guardar orden de subcategorías">Guardar orden</button>` : '';
-    const resetSubBtn = catalogoModo === 'ver' && catalogSubSort[nombre]
-      ? `<button onclick="resetSubSort('${nombre.replace(/'/g,"\\'")}')" style="font-size:10px;color:#6b7280;background:transparent;border:none;cursor:pointer;padding:0 4px;" title="Restaurar orden original">↺</button>` : '';
+    const ordenarBtn = catalogoModo === 'ver'
+      ? `<button onclick="openSubSortModal('${nombre.replace(/'/g,"\\'")}')" style="font-size:11px;font-weight:700;color:#fff;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:4px 10px;cursor:pointer;">⇅ Ordenar</button>` : '';
     return `<div style="margin:40px 0 16px;border-radius:8px;overflow:hidden;background:#111827;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;">
       <div style="display:flex;align-items:center;gap:6px;">
         <span ondblclick="editCatLabel('${nombre}',this,true)"${hint} style="font-size:24px;font-weight:900;color:#ffffff;letter-spacing:-0.01em;text-transform:uppercase;cursor:${catalogoModo==='ver'?'text':'default'};">${label}</span>
         ${reset}
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
-        ${saveSubBtn}${resetSubBtn}${addBtn}
+        ${ordenarBtn}${addBtn}
         <span style="font-size:11px;color:#9ca3af;font-weight:500;">${total} productos</span>
       </div>
     </div>`;
@@ -5527,7 +5564,6 @@ function renderCatalogo() {
       ? `<button onclick="deleteCustomSub('${customId}')" style="font-size:10px;font-weight:600;color:#dc2626;background:#fff;border:1px solid #fca5a5;border-radius:5px;padding:3px 8px;cursor:pointer;flex-shrink:0;" title="Eliminar subcategoría">✕ Eliminar sub</button>` : '';
     return `<div style="padding:20px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
       <div style="display:flex;align-items:center;gap:6px;min-width:0;">
-        ${catalogoModo === 'ver' && subKey ? `<input type="number" data-sub-sort-macro="${subKey.split('||')[0]}" data-sub-nombre="${nombre}" value="${subIdx+1}" min="1" style="width:32px;height:22px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;font-weight:700;text-align:center;color:#374151;padding:0;flex-shrink:0;">` : ''}
         <span ondblclick="editCatLabel('${subKey.replace(/'/g,"\\'")}'  ,this,false)"${hint} style="font-size:16px;font-weight:800;color:#111827;text-transform:uppercase;letter-spacing:0.03em;cursor:${catalogoModo==='ver'?'text':'default'};">${label}</span>
         ${resetLabel}
       </div>
@@ -12146,6 +12182,21 @@ showPage = function(page) {
 </div>
 
 <!-- Modal override de categoría -->
+<div id="sub-sort-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:#f9fafb;border-radius:16px;width:380px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.3);overflow:hidden;">
+    <div style="padding:18px 20px 14px;background:white;border-bottom:1px solid #f3f4f6;">
+      <div style="font-size:15px;font-weight:800;color:#111827;">Ordenar subcategorías</div>
+      <div id="sub-sort-macro-label" style="font-size:11px;color:#9ca3af;margin-top:2px;text-transform:uppercase;letter-spacing:0.05em;"></div>
+    </div>
+    <div id="sub-sort-list" style="flex:1;overflow-y:auto;padding:14px 16px;"></div>
+    <div style="padding:14px 16px;background:white;border-top:1px solid #f3f4f6;display:grid;grid-template-columns:1fr auto auto;gap:8px;">
+      <button onclick="saveSubSort()" style="background:#111827;color:white;border:none;padding:11px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Guardar</button>
+      <button onclick="resetSubSort()" style="background:#fee2e2;color:#dc2626;border:none;padding:11px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;" title="Volver al orden original">↺ Reset</button>
+      <button onclick="document.getElementById('sub-sort-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 14px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <div id="add-sub-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
   <div style="background:white;border-radius:14px;width:320px;box-shadow:0 20px 50px rgba(0,0,0,0.25);overflow:hidden;">
     <div style="padding:20px 20px 16px;border-bottom:1px solid #f3f4f6;">
