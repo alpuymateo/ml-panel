@@ -4845,10 +4845,11 @@ let catalogoModo  = 'ver';
 let catalogoLoaded = false;
 let catalogOverrides = {};
 let catalogSortOverrides = {};
-let catalogPinned = {};   // base   → sku_variant pinneado
-let catalogLabels = {};   // key    → nombre personalizado
-let catGridUidMap = {};   // subKey → [{uid, base}]
-let catCardMeta = {};     // base   → {name, thumb, subKey}
+let catalogPinned = {};     // base   → sku_variant pinneado
+let catalogLabels = {};     // key    → nombre personalizado
+let catalogCustomSubs = []; // [{id, macro, nombre}]
+let catGridUidMap = {};     // subKey → [{uid, base}]
+let catCardMeta = {};       // base   → {name, thumb, subKey}
 
 // ── Macro-categorías del catálogo ────────────────────────────────
 const CATALOGO_MACRO = [
@@ -4984,9 +4985,14 @@ function openCatOverride(skuBase, currentMacro, currentSub) {
 }
 function populateCatOverrideSubs(macro, currentSub) {
   const m = CATALOGO_MACRO.find(x => x.nombre === macro);
+  const customSubs = catalogCustomSubs.filter(s => s.macro === macro);
   const subSel = document.getElementById('co-sub');
   subSel.onchange = null; // evitar bucle
-  subSel.innerHTML = m ? m.subs.map(s => `<option value="${s.nombre}" ${s.nombre===currentSub?'selected':''}>${s.nombre}</option>`).join('') : '';
+  const allSubs = [
+    ...(m ? m.subs.map(s => s.nombre) : []),
+    ...customSubs.map(s => s.nombre)
+  ];
+  subSel.innerHTML = allSubs.map(nombre => `<option value="${nombre}" ${nombre===currentSub?'selected':''}>${nombre}</option>`).join('');
   subSel.onchange = () => {
     const subKey = document.getElementById('co-macro').value + '||' + subSel.value;
     const entries = catGridUidMap[subKey] || [];
@@ -5031,6 +5037,30 @@ async function deleteCatOverride() {
   await fetch('/api/catalog/override/'+encodeURIComponent(skuBase), { method:'DELETE', headers: authHeaders() });
   delete catalogOverrides[skuBase];
   document.getElementById('cat-override-modal').style.display = 'none';
+  renderCatalogo();
+}
+
+// ── Subcategorías personalizadas ──────────────────────────────────
+function openAddCustomSub(macro) {
+  document.getElementById('add-sub-macro').value = macro;
+  document.getElementById('add-sub-macro-label').textContent = catalogLabels[macro] || macro;
+  document.getElementById('add-sub-nombre').value = '';
+  document.getElementById('add-sub-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('add-sub-nombre').focus(), 50);
+}
+async function saveCustomSub() {
+  const macro  = document.getElementById('add-sub-macro').value;
+  const nombre = document.getElementById('add-sub-nombre').value.trim();
+  if (!nombre) return;
+  const r = await fetch('/api/catalog/custom-subs', { method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify({macro, nombre}) });
+  const { id } = await r.json();
+  catalogCustomSubs.push({ id, macro, nombre });
+  document.getElementById('add-sub-modal').style.display = 'none';
+  renderCatalogo();
+}
+async function deleteCustomSub(id) {
+  await fetch('/api/catalog/custom-subs/'+id, { method:'DELETE', headers: authHeaders() });
+  catalogCustomSubs = catalogCustomSubs.filter(s => s.id !== id);
   renderCatalogo();
 }
 
@@ -5156,19 +5186,21 @@ async function loadCatalogo() {
     document.getElementById('catalogo-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando catálogo...</div>';
     await loadOdoo();
   }
-  // Cargar overrides, orden, imágenes pinneadas y labels
+  // Cargar overrides, orden, pinned, labels y custom subs
   try {
-    const [rOv, rSt, rPn, rLb] = await Promise.all([
-      fetch('/api/catalog/overrides', { headers: authHeaders() }),
-      fetch('/api/catalog/sort',      { headers: authHeaders() }),
-      fetch('/api/catalog/pinned',    { headers: authHeaders() }),
-      fetch('/api/catalog/labels',    { headers: authHeaders() })
+    const [rOv, rSt, rPn, rLb, rCs] = await Promise.all([
+      fetch('/api/catalog/overrides',   { headers: authHeaders() }),
+      fetch('/api/catalog/sort',        { headers: authHeaders() }),
+      fetch('/api/catalog/pinned',      { headers: authHeaders() }),
+      fetch('/api/catalog/labels',      { headers: authHeaders() }),
+      fetch('/api/catalog/custom-subs', { headers: authHeaders() })
     ]);
     catalogOverrides     = await rOv.json();
     catalogSortOverrides = await rSt.json();
     catalogPinned        = await rPn.json();
     catalogLabels        = await rLb.json();
-  } catch(e) { catalogOverrides = {}; catalogSortOverrides = {}; catalogPinned = {}; catalogLabels = {}; }
+    catalogCustomSubs    = await rCs.json();
+  } catch(e) { catalogOverrides = {}; catalogSortOverrides = {}; catalogPinned = {}; catalogLabels = {}; catalogCustomSubs = []; }
   // Poblar selector con macro-categorías
   const catSel = document.getElementById('catalogo-cat');
   catSel.innerHTML = '<option value="">Todas las categorías</option>' +
@@ -5409,6 +5441,27 @@ function renderCatalogo() {
       })).filter(s => s.items.length > 0)
     })).filter(m => m.subs.length > 0);
 
+  // Inyectar subcategorías personalizadas
+  for (const csub of catalogCustomSubs) {
+    if (macroFilter && csub.macro !== macroFilter) continue;
+    let macro = macros.find(m => m.nombre === csub.macro);
+    if (!macro) {
+      // La macro fue filtrada (0 productos estándar) — la agregamos vacía
+      macro = { nombre: csub.macro, subs: [] };
+      macros.push(macro);
+    }
+    const subKey = csub.macro + '||' + csub.nombre;
+    const items = (overrideItems[subKey] || []).filter(p => {
+      if (q && !p.name.toLowerCase().includes(q) && !(p.sku||'').toLowerCase().includes(q)) return false;
+      if (stockFilter === 'con_stock' && !(p.stock > 0)) return false;
+      if (stockFilter === 'sin_stock' && p.stock > 0) return false;
+      return true;
+    });
+    if (items.length > 0 || catalogoModo === 'ver') {
+      macro.subs.push({ nombre: csub.nombre, cats: [], items, isCustom: true, customId: csub.id });
+    }
+  }
+
   if (!macros.length) {
     cont.innerHTML = '<div style="color:#9ca3af;font-size:14px;padding:40px;text-align:center;">No se encontraron productos.</div>';
     return;
@@ -5419,28 +5472,35 @@ function renderCatalogo() {
     const hint  = catalogoModo === 'ver' ? ' title="Doble click para editar"' : '';
     const reset = catalogoModo === 'ver' && catalogLabels[nombre]
       ? `<button onclick="resetCatLabel('${nombre}')" style="font-size:10px;color:#6b7280;background:transparent;border:none;cursor:pointer;padding:0 6px;" title="Restaurar nombre original">↺</button>` : '';
+    const addBtn = catalogoModo === 'ver'
+      ? `<button onclick="openAddCustomSub('${nombre}')" style="font-size:11px;font-weight:700;color:#9ca3af;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 10px;cursor:pointer;" title="Agregar subcategoría">+ Sub</button>` : '';
     return `<div style="margin:40px 0 16px;border-radius:8px;overflow:hidden;background:#111827;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;">
       <div style="display:flex;align-items:center;gap:6px;">
         <span ondblclick="editCatLabel('${nombre}',this,true)"${hint} style="font-size:24px;font-weight:900;color:#ffffff;letter-spacing:-0.01em;text-transform:uppercase;cursor:${catalogoModo==='ver'?'text':'default'};">${label}</span>
         ${reset}
       </div>
-      <span style="font-size:11px;color:#9ca3af;font-weight:500;">${total} productos</span>
+      <div style="display:flex;align-items:center;gap:10px;">
+        ${addBtn}
+        <span style="font-size:11px;color:#9ca3af;font-weight:500;">${total} productos</span>
+      </div>
     </div>`;
   };
 
-  const subHeader = (nombre, total, subKey) => {
+  const subHeader = (nombre, total, subKey, customId) => {
     const label = catalogLabels[subKey] || nombre;
     const hint  = catalogoModo === 'ver' ? ' title="Doble click para editar"' : '';
     const resetLabel = catalogoModo === 'ver' && catalogLabels[subKey]
       ? `<button onclick="resetCatLabel('${subKey.replace(/'/g,"\\'")}')" style="font-size:10px;color:#9ca3af;background:transparent;border:none;cursor:pointer;padding:0 4px;" title="Restaurar nombre original">↺</button>` : '';
     const resetSort = catalogoModo === 'ver' && catalogSortOverrides[subKey]
       ? `<button onclick="resetCatSort('${subKey.replace(/'/g,"\\'")}')" style="font-size:10px;font-weight:600;color:#dc2626;background:#fff;border:1px solid #fca5a5;border-radius:5px;padding:3px 8px;cursor:pointer;flex-shrink:0;">↺ Orden</button>` : '';
+    const deleteBtn = catalogoModo === 'ver' && customId
+      ? `<button onclick="deleteCustomSub('${customId}')" style="font-size:10px;font-weight:600;color:#dc2626;background:#fff;border:1px solid #fca5a5;border-radius:5px;padding:3px 8px;cursor:pointer;flex-shrink:0;" title="Eliminar subcategoría">✕ Eliminar sub</button>` : '';
     return `<div style="padding:20px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
       <div style="display:flex;align-items:center;gap:4px;min-width:0;">
         <span ondblclick="editCatLabel('${subKey.replace(/'/g,"\\'")}'  ,this,false)"${hint} style="font-size:16px;font-weight:800;color:#111827;text-transform:uppercase;letter-spacing:0.03em;cursor:${catalogoModo==='ver'?'text':'default'};">${label}</span>
         ${resetLabel}
       </div>
-      ${resetSort}
+      <div style="display:flex;gap:6px;align-items:center;">${resetSort}${deleteBtn}</div>
     </div>`;
   };
 
@@ -5609,7 +5669,7 @@ function renderCatalogo() {
           </div>`;
         });
         return `
-        ${subHeader(sub.nombre, groupOrder.length, subKey)}
+        ${subHeader(sub.nombre, groupOrder.length, subKey, sub.customId)}
         <div class="cat-grid" style="margin-bottom:16px;">
           ${cards.join('')}
         </div>`;
@@ -12042,6 +12102,25 @@ showPage = function(page) {
 </div>
 
 <!-- Modal override de categoría -->
+<div id="add-sub-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:white;border-radius:14px;width:320px;box-shadow:0 20px 50px rgba(0,0,0,0.25);overflow:hidden;">
+    <div style="padding:20px 20px 16px;border-bottom:1px solid #f3f4f6;">
+      <div style="font-size:15px;font-weight:800;color:#111827;">Nueva subcategoría</div>
+      <div style="font-size:11px;color:#9ca3af;margin-top:2px;">en <span id="add-sub-macro-label" style="font-weight:600;color:#374151;"></span></div>
+    </div>
+    <div style="padding:18px 20px 20px;">
+      <input type="hidden" id="add-sub-macro">
+      <input type="text" id="add-sub-nombre" placeholder="Nombre de la subcategoría"
+        onkeydown="if(event.key==='Enter')saveCustomSub()"
+        style="width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;outline:none;margin-bottom:14px;">
+      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;">
+        <button onclick="saveCustomSub()" style="background:#111827;color:white;border:none;padding:11px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Crear</button>
+        <button onclick="document.getElementById('add-sub-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 16px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="cat-override-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
   <div style="background:white;border-radius:16px;width:360px;max-width:95vw;box-shadow:0 24px 60px rgba(0,0,0,0.3);overflow:hidden;">
     <!-- Header producto -->

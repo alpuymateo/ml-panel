@@ -2274,6 +2274,30 @@ app.delete('/api/catalog/override/:sku_base', requireToken, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Subcategorías personalizadas ──────────────────────────────────
+const CATALOG_CUSTOM_SUBS_FILE = path.join(__dirname, 'data', 'catalog_custom_subs.json');
+function loadCustomSubs() {
+  try { return fs.existsSync(CATALOG_CUSTOM_SUBS_FILE) ? JSON.parse(fs.readFileSync(CATALOG_CUSTOM_SUBS_FILE, 'utf8')) : []; } catch { return []; }
+}
+function saveCustomSubs(data) {
+  fs.writeFileSync(CATALOG_CUSTOM_SUBS_FILE, JSON.stringify(data, null, 2));
+}
+app.get('/api/catalog/custom-subs', requireToken, (req, res) => res.json(loadCustomSubs()));
+app.post('/api/catalog/custom-subs', requireToken, (req, res) => {
+  const { macro, nombre } = req.body;
+  if (!macro || !nombre) return res.status(400).json({ error: 'macro y nombre requeridos' });
+  const subs = loadCustomSubs();
+  const id = 'custom_' + Date.now();
+  subs.push({ id, macro, nombre });
+  saveCustomSubs(subs);
+  res.json({ ok: true, id });
+});
+app.delete('/api/catalog/custom-subs/:id', requireToken, (req, res) => {
+  const subs = loadCustomSubs().filter(s => s.id !== req.params.id);
+  saveCustomSubs(subs);
+  res.json({ ok: true });
+});
+
 // ── Labels personalizados de categorías ───────────────────────────
 const CATALOG_LABELS_FILE = path.join(__dirname, 'data', 'catalog_labels.json');
 function loadCatalogLabels() {
