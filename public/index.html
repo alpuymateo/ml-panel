@@ -5516,7 +5516,7 @@ function renderCatalogo() {
     </div>`;
   };
 
-  const subHeader = (nombre, total, subKey, customId, subIdx=0) => {
+  const subHeader = (nombre, total, subKey='', customId, subIdx=0) => {
     const label = catalogLabels[subKey] || nombre;
     const hint  = catalogoModo === 'ver' ? ' title="Doble click para editar"' : '';
     const resetLabel = catalogoModo === 'ver' && catalogLabels[subKey]
@@ -5527,7 +5527,7 @@ function renderCatalogo() {
       ? `<button onclick="deleteCustomSub('${customId}')" style="font-size:10px;font-weight:600;color:#dc2626;background:#fff;border:1px solid #fca5a5;border-radius:5px;padding:3px 8px;cursor:pointer;flex-shrink:0;" title="Eliminar subcategoría">✕ Eliminar sub</button>` : '';
     return `<div style="padding:20px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
       <div style="display:flex;align-items:center;gap:6px;min-width:0;">
-        ${catalogoModo === 'ver' ? `<input type="number" data-sub-sort-macro="${subKey.split('||')[0]}" data-sub-nombre="${nombre}" value="${subIdx+1}" min="1" style="width:32px;height:22px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;font-weight:700;text-align:center;color:#374151;padding:0;flex-shrink:0;">` : ''}
+        ${catalogoModo === 'ver' && subKey ? `<input type="number" data-sub-sort-macro="${subKey.split('||')[0]}" data-sub-nombre="${nombre}" value="${subIdx+1}" min="1" style="width:32px;height:22px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;font-weight:700;text-align:center;color:#374151;padding:0;flex-shrink:0;">` : ''}
         <span ondblclick="editCatLabel('${subKey.replace(/'/g,"\\'")}'  ,this,false)"${hint} style="font-size:16px;font-weight:800;color:#111827;text-transform:uppercase;letter-spacing:0.03em;cursor:${catalogoModo==='ver'?'text':'default'};">${label}</span>
         ${resetLabel}
       </div>
@@ -5563,8 +5563,8 @@ function renderCatalogo() {
     ${macros.map(m => {
       const total = m.subs.reduce((s,sub)=>s+sub.items.length,0);
       return `${macroHeader(m.nombre, total)}
-      ${m.subs.map(sub => `
-        ${subHeader(sub.nombre, sub.items.length)}
+      ${m.subs.map((sub, subIdx) => `
+        ${subHeader(sub.nombre, sub.items.length, m.nombre+'||'+sub.nombre, sub.customId, subIdx)}
         <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:4px;">
           ${sub.items.map((p,i) => catalogoModo === 'pedir'
             ? `<div class="clist-row" onclick="addToCatPedidoById(${p.id})" id="cat-row-${p.id}" style="cursor:pointer;"
