@@ -2170,6 +2170,66 @@ app.post('/api/odoo/sync-push', requireAdmin, async (req, res) => {
   })();
 });
 
+// Rebuild catálogo desde Odoo (sin git push — funciona en Railway)
+app.post('/api/catalog/rebuild', requireAdmin, async (req, res) => {
+  if (_syncStatus === 'running') return res.status(409).json({ error: 'Ya hay una sincronización en curso' });
+  _syncLog = [];
+  _syncStatus = 'running';
+  _syncProgress = 0;
+  res.json({ ok: true, message: 'Rebuild iniciado' });
+  (async () => {
+    try {
+      _syncLog.push({ t: Date.now(), msg: 'Conectando a Odoo...' });
+      const uid = await odooAuth();
+      _syncLog.push({ t: Date.now(), msg: 'Autenticado (uid: ' + uid + ')' });
+      _syncProgress = 10;
+
+      const fieldsAll = ['name', 'default_code', 'list_price', 'standard_price', 'categ_id', 'taxes_id', 'uom_id', 'x_studio_producto_mayorista', 'qty_available', 'image_128'];
+      const fieldsLight = ['name', 'default_code', 'list_price', 'standard_price', 'categ_id', 'taxes_id', 'uom_id', 'x_studio_producto_mayorista', 'qty_available'];
+      const since = odooCacheTime > 0 ? new Date(odooCacheTime).toISOString().replace('T', ' ').slice(0, 19) : null;
+
+      if (since && odooCache?.length > 0) {
+        _syncLog.push({ t: Date.now(), msg: 'Modo incremental desde ' + since });
+        const updated = await odooSearchRead(uid, 'product.product', [['active', '=', true], ['write_date', '>', since]], fieldsLight, {},
+          (total) => { _syncProgress = Math.min(35, 10 + total / 10); }
+        );
+        if (updated.length > 0) {
+          const cacheMap = {};
+          for (const p of odooCache) cacheMap[p.id] = p;
+          for (const p of updated) cacheMap[p.id] = p;
+          odooCache = Object.values(cacheMap);
+          _syncLog.push({ t: Date.now(), msg: updated.length + ' productos actualizados' });
+        }
+        const newProds = await odooSearchRead(uid, 'product.product', [['active', '=', true], ['create_date', '>', since]], fieldsAll, {});
+        const existingIds = new Set(odooCache.map(p => p.id));
+        const reallyNew = newProds.filter(p => !existingIds.has(p.id));
+        if (reallyNew.length > 0) {
+          odooCache.push(...reallyNew);
+          _syncLog.push({ t: Date.now(), msg: reallyNew.length + ' productos nuevos' });
+        }
+      } else {
+        _syncLog.push({ t: Date.now(), msg: 'Carga completa desde Odoo...' });
+        odooCache = await odooSearchRead(uid, 'product.product', [['active', '=', true]], fieldsAll, {},
+          (total) => { _syncLog.push({ t: Date.now(), msg: '  → ' + total + ' productos...' }); _syncProgress = Math.min(50, 10 + total / 200); }
+        );
+      }
+      odooCacheTime = Date.now();
+      saveOdooCacheToDisk();
+      _syncLog.push({ t: Date.now(), msg: 'Odoo cache: ' + odooCache.length + ' productos' });
+      _syncProgress = 60;
+
+      _syncLog.push({ t: Date.now(), msg: 'Construyendo catálogo...' });
+      await buildCatalogoCache(true, (msg) => _syncLog.push({ t: Date.now(), msg: '  ' + msg }));
+      _syncLog.push({ t: Date.now(), msg: 'Catálogo listo: ' + (_catalogoCache?.total || 0) + ' productos' });
+      _syncProgress = 100;
+      _syncStatus = 'done';
+    } catch(e) {
+      _syncLog.push({ t: Date.now(), msg: 'ERROR: ' + e.message });
+      _syncStatus = 'error';
+    }
+  })();
+});
+
 // Polling endpoint para el progreso
 app.get('/api/odoo/sync-status', requireAdmin, (req, res) => {
   const lastUpdate = odooCacheTime ? new Date(odooCacheTime).toISOString() : null;
@@ -2389,6 +2449,52 @@ app.delete('/api/catalog/sort/:key', requireToken, (req, res) => {
   const sort = loadCatalogSort();
   delete sort[decodeURIComponent(req.params.key)];
   saveCatalogSort(sort);
+  res.json({ ok: true });
+});
+
+// ── Productos manuales ────────────────────────────────────────────
+const CATALOG_MANUAL_FILE = path.join(__dirname, 'data', 'catalog_manual_products.json');
+function loadManualProducts() {
+  try { return fs.existsSync(CATALOG_MANUAL_FILE) ? JSON.parse(fs.readFileSync(CATALOG_MANUAL_FILE, 'utf8')) : []; } catch { return []; }
+}
+function saveManualProducts(data) {
+  fs.writeFileSync(CATALOG_MANUAL_FILE, JSON.stringify(data, null, 2));
+}
+app.get('/api/catalog/manual-products', requireToken, (req, res) => res.json(loadManualProducts()));
+app.post('/api/catalog/manual-products', requireToken, (req, res) => {
+  const { sku, name, price, image, macro, sub } = req.body;
+  if (!name || !macro || !sub) return res.status(400).json({ error: 'Faltan campos requeridos (name, macro, sub)' });
+  // Buscar stock en odooCache por SKU
+  let stock = 0;
+  if (sku && odooCache) {
+    const found = odooCache.find(p => (p.default_code || '').trim() === sku.trim());
+    if (found) stock = found.qty_available || 0;
+  }
+  const products = loadManualProducts();
+  const id = 'manual_' + Date.now();
+  const product = { id, sku: sku || '', name, price: parseFloat(price) || 0, stock, image: image || '', macro, sub, mayorista: true, manual: true };
+  products.push(product);
+  saveManualProducts(products);
+  res.json(product);
+});
+app.put('/api/catalog/manual-products/:id', requireToken, (req, res) => {
+  const products = loadManualProducts();
+  const idx = products.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'No encontrado' });
+  const { sku, name, price, image, macro, sub } = req.body;
+  // Re-buscar stock si cambió el SKU
+  let stock = products[idx].stock;
+  if (sku && sku !== products[idx].sku && odooCache) {
+    const found = odooCache.find(p => (p.default_code || '').trim() === sku.trim());
+    if (found) stock = found.qty_available || 0;
+  }
+  products[idx] = { ...products[idx], sku: sku ?? products[idx].sku, name: name ?? products[idx].name, price: price != null ? parseFloat(price) : products[idx].price, stock, image: image ?? products[idx].image, macro: macro ?? products[idx].macro, sub: sub ?? products[idx].sub };
+  saveManualProducts(products);
+  res.json(products[idx]);
+});
+app.delete('/api/catalog/manual-products/:id', requireToken, (req, res) => {
+  const products = loadManualProducts().filter(p => p.id !== req.params.id);
+  saveManualProducts(products);
   res.json({ ok: true });
 });
 
@@ -3037,6 +3143,166 @@ app.post('/api/odoo/cotizacion-crear', express.json(), async (req, res) => {
     res.json({ success: true, order_id: orderId, order_name: order.name, amount_total: order.amount_total });
   } catch (err) {
     console.error('[cotizacion-crear] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Pedidos mayoristas ────────────────────────────────────────────
+app.get('/api/odoo/pedidos-mayoristas', requireToken, async (req, res) => {
+  try {
+    const uid = await odooAuthStaging();
+    const estado = req.query.estado || '';
+    const domain = [['pricelist_id', '=', 2]]; // MAYORISTA UYU
+    if (estado) domain.push(['state', '=', estado]);
+
+    const orders = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'search_read',
+      [domain],
+      { fields: ['name','partner_id','date_order','amount_total','state','invoice_status','picking_ids'], order: 'date_order desc', limit: 100 },
+    ]);
+
+    // Para cada orden con facturas, buscar los números
+    const allOrderIds = orders.map(o => o.id);
+    let invoiceMap = {};
+    if (allOrderIds.length) {
+      const invoiceLines = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'search_read',
+        [[['invoice_origin', 'in', orders.map(o => o.name)], ['move_type', '=', 'out_invoice']]],
+        { fields: ['name', 'invoice_origin', 'state', 'amount_total', 'invoice_date_due'] },
+      ]);
+      for (const inv of invoiceLines) {
+        if (!invoiceMap[inv.invoice_origin]) invoiceMap[inv.invoice_origin] = [];
+        invoiceMap[inv.invoice_origin].push(inv);
+      }
+    }
+
+    res.json(orders.map(o => ({ ...o, invoices: invoiceMap[o.name] || [] })));
+  } catch (err) {
+    console.error('[pedidos-mayoristas] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/odoo/pedido-mayorista/:id', requireToken, async (req, res) => {
+  try {
+    const uid = await odooAuthStaging();
+    const orderId = parseInt(req.params.id);
+    const [order] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'read',
+      [[orderId]], { fields: ['name','partner_id','date_order','amount_total','state','invoice_status','order_line','picking_ids','note'] },
+    ]);
+    // Líneas
+    const lines = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order.line', 'read',
+      [order.order_line], { fields: ['product_id','name','product_uom_qty','price_unit','price_subtotal','discount'] },
+    ]);
+    // Facturas
+    const invoices = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'search_read',
+      [[['invoice_origin', '=', order.name], ['move_type', '=', 'out_invoice']]],
+      { fields: ['name','state','amount_total','invoice_date_due'] },
+    ]);
+    // Remitos
+    let pickings = [];
+    if (order.picking_ids?.length) {
+      pickings = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'stock.picking', 'read',
+        [order.picking_ids], { fields: ['name','state','scheduled_date'] },
+      ]);
+    }
+    res.json({ ...order, lines, invoices, pickings });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Confirmar orden + crear factura + remito ─────────────────────
+app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res) => {
+  try {
+    const { partner_id, lineas, notas, forma_pago, dias_vencimiento } = req.body;
+    if (!partner_id) return res.status(400).json({ error: 'Se requiere partner_id' });
+    if (!lineas?.length) return res.status(400).json({ error: 'Se requieren líneas' });
+
+    const uid = await odooAuthStaging();
+
+    // 1. Crear orden de venta
+    const order_lines = lineas.map(l => [0, 0, {
+      product_id:      l.product_id,
+      name:            l.product_name,
+      product_uom_qty: l.cantidad,
+      price_unit:      l.precio,
+      product_uom:     l.uom_id?.[0] || 1,
+      tax_id:          [[6, 0, l.tax_ids || []]],
+      ...(l.descuento ? { discount: l.descuento } : {}),
+    }]);
+
+    const orderId = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'create',
+      [{ partner_id, pricelist_id: 2, date_order: new Date().toISOString().replace('T', ' ').slice(0, 19), note: notas || '', order_line: order_lines }],
+    ]);
+
+    // 2. Confirmar orden
+    await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'action_confirm', [[orderId]],
+    ]);
+
+    // 3. Leer orden confirmada (nombre + pickings)
+    const [order] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'read',
+      [[orderId]], { fields: ['name', 'amount_total', 'picking_ids'] },
+    ]);
+
+    // 4. Crear factura desde la orden
+    const invoiceIds = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', '_create_invoices',
+      [[orderId]], { final: false },
+    ]);
+
+    if (!invoiceIds?.length) return res.status(500).json({ error: 'No se pudo crear la factura' });
+    const invoiceId = invoiceIds[0];
+
+    // 5. Ajustar fecha de vencimiento si es crédito
+    if (forma_pago === 'credito' && dias_vencimiento) {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + parseInt(dias_vencimiento));
+      await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'write',
+        [[invoiceId], { invoice_date_due: dueDate.toISOString().slice(0, 10) }],
+      ]);
+    }
+
+    // 6. Validar/postear la factura
+    await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'action_post', [[invoiceId]],
+    ]);
+
+    // 7. Leer nombre de factura
+    const [invoice] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'read',
+      [[invoiceId]], { fields: ['name', 'amount_total', 'invoice_date_due'] },
+    ]);
+
+    // 8. Leer remito(s)
+    let pickings = [];
+    if (order.picking_ids?.length) {
+      pickings = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'stock.picking', 'read',
+        [order.picking_ids], { fields: ['name', 'state'] },
+      ]);
+    }
+
+    res.json({
+      success:      true,
+      order_id:     orderId,
+      order_name:   order.name,
+      amount_total: order.amount_total,
+      invoice_id:   invoiceId,
+      invoice_name: invoice.name,
+      invoice_due:  invoice.invoice_date_due,
+      pickings:     pickings.map(p => ({ name: p.name, state: p.state })),
+    });
+  } catch (err) {
+    console.error('[cotizacion-confirmar-full] error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

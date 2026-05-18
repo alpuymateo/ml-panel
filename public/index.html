@@ -1061,8 +1061,16 @@
             </div>
           </div>
 
-          <div style="margin-bottom:8px;">
+          <div style="margin-bottom:6px;">
             <label style="font-size:12px;font-weight:600;color:#6b7280;">LÍNEAS DE PRODUCTOS</label>
+            <div style="display:grid;grid-template-columns:90px 1fr 90px 70px 100px 36px;gap:8px;margin-top:6px;padding:0 2px;">
+              <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;">SKU</span>
+              <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;">Nombre</span>
+              <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;">Color</span>
+              <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;text-align:center;">Cant.</span>
+              <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;text-align:right;">Precio</span>
+              <span></span>
+            </div>
           </div>
           <div id="cot-lineas" style="margin-bottom:16px;"></div>
 
@@ -1071,20 +1079,42 @@
             <textarea id="cot-notas" rows="2" style="width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;resize:vertical;"></textarea>
           </div>
 
-          <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <!-- Forma de pago -->
+          <div style="background:#f9fafb;border-radius:10px;padding:14px 16px;margin-bottom:14px;">
+            <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Forma de pago</div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
+                <input type="radio" name="cot-forma-pago" value="contado" id="cot-fp-contado" onchange="toggleVencimiento()" style="accent-color:#111827;"> Contado
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
+                <input type="radio" name="cot-forma-pago" value="credito" id="cot-fp-credito" onchange="toggleVencimiento()" checked style="accent-color:#111827;"> Crédito
+              </label>
+              <div id="cot-dias-wrap" style="display:flex;align-items:center;gap:6px;margin-left:8px;">
+                <span style="font-size:13px;color:#6b7280;">Días:</span>
+                <input type="number" id="cot-dias-venc" value="30" min="1" max="365" style="width:60px;padding:5px 8px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;text-align:center;">
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
             <button onclick="goBackStep1()" style="padding:10px 20px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;">← Volver</button>
-            <button onclick="crearCotizacion()" id="cot-btn-crear" style="padding:10px 24px;background:#059669;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;">✅ Crear cotización en Odoo</button>
+            <button onclick="crearCotizacion()" id="cot-btn-crear" style="padding:10px 20px;background:#6b7280;color:white;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;">Guardar borrador</button>
+            <button onclick="confirmarYFacturar()" id="cot-btn-full" style="padding:10px 24px;background:#059669;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:700;">✅ Confirmar y facturar</button>
           </div>
           <div id="cot-step2-error" style="color:#ef4444;font-size:13px;margin-top:12px;display:none;"></div>
         </div>
 
         <!-- Paso 3: resultado -->
-        <div id="cot-step-3" style="display:none;text-align:center;padding:20px 0;">
-          <div style="font-size:56px;margin-bottom:16px;">🎉</div>
-          <h2 style="font-size:20px;font-weight:700;margin-bottom:8px;">¡Cotización creada!</h2>
-          <div id="cot-result-name" style="font-size:28px;font-weight:800;color:#7c3aed;margin-bottom:8px;"></div>
-          <div id="cot-result-total" style="font-size:16px;color:#6b7280;margin-bottom:24px;"></div>
-          <button onclick="closeCotizacionModal()" style="padding:12px 28px;background:#7c3aed;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;">Cerrar</button>
+        <div id="cot-step-3" style="display:none;padding:20px 0;">
+          <div style="text-align:center;margin-bottom:20px;">
+            <div style="font-size:48px;margin-bottom:10px;">✅</div>
+            <h2 id="cot-result-title" style="font-size:18px;font-weight:700;margin-bottom:4px;">¡Listo!</h2>
+            <div id="cot-result-total" style="font-size:14px;color:#6b7280;"></div>
+          </div>
+          <div id="cot-result-cards" style="display:grid;gap:10px;margin-bottom:20px;"></div>
+          <div style="text-align:center;">
+            <button onclick="closeCotizacionModal()" style="padding:12px 28px;background:#111827;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;">Cerrar</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1164,11 +1194,23 @@
 
     <!-- ── Pedidos Mayoristas ── -->
     <div id="page-pedidos-may" style="display:none">
-      <div class="page-header">
-        <h1>Pedidos Mayoristas</h1>
-        <p id="ped-may-subtitle">Órdenes creadas desde el catálogo</p>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+        <div>
+          <h1 style="font-size:22px;font-weight:800;margin:0;">Pedidos Mayoristas</h1>
+          <p style="font-size:13px;color:#6b7280;margin:4px 0 0;">Órdenes de venta con lista mayorista</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="ped-may-filter" onchange="loadPedidosMay()" style="padding:8px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+            <option value="">Todos</option>
+            <option value="draft">Borrador</option>
+            <option value="sale">Confirmado</option>
+            <option value="done">Hecho</option>
+            <option value="cancel">Cancelado</option>
+          </select>
+          <button onclick="loadPedidosMay()" style="padding:8px 14px;background:#111827;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">↻ Actualizar</button>
+        </div>
       </div>
-      <div id="ped-may-content"><div class="loading">Sin pedidos aún.</div></div>
+      <div id="ped-may-content"><div class="loading"><span class="spinner"></span>Cargando...</div></div>
     </div>
 
     <!-- ══ Oportunidades ══ -->
@@ -2538,7 +2580,6 @@ function showPage(page) {
     odooMLLoaded = true;
   }
   if (page === 'catalogo' && !catalogoLoaded) {
-    document.getElementById('catalogo-stock').value = 'con_stock';
     loadCatalogo();
   }
   if (page === 'ml-estrategia') { loadEstrategia(); }
@@ -3966,6 +4007,45 @@ init();
 // ── Gestión de usuarios ───────────────────────────────────────────
 let _syncPollInterval = null;
 
+async function rebuildCatalog() {
+  const btn = document.getElementById('rebuild-catalog-btn');
+  const status = document.getElementById('sync-push-status');
+  btn.disabled = true;
+  btn.textContent = 'Actualizando...';
+  status.innerHTML = '';
+  try {
+    const r = await fetch('/api/catalog/rebuild', { method: 'POST', headers: authHeaders() });
+    const d = await r.json();
+    if (!r.ok) {
+      status.innerHTML = `<div style="font-size:12px;color:#dc2626;">Error: ${d.error}</div>`;
+      btn.disabled = false; btn.textContent = '↻ Actualizar catálogo'; return;
+    }
+    // Polling de progreso
+    const poll = setInterval(async () => {
+      try {
+        const rs = await fetch('/api/odoo/sync-status', { headers: authHeaders() });
+        const ds = await rs.json();
+        const pct = ds.progress || 0;
+        const lastLine = ds.log?.length ? ds.log[ds.log.length - 1].msg : '';
+        status.innerHTML = `<div style="font-size:12px;color:#059669;">↻ ${pct}% — ${lastLine}</div>`;
+        if (ds.status === 'done' || ds.status === 'error') {
+          clearInterval(poll);
+          btn.disabled = false; btn.textContent = '↻ Actualizar catálogo';
+          if (ds.status === 'done') {
+            status.innerHTML = `<div style="font-size:12px;color:#059669;font-weight:700;">✓ Catálogo actualizado — ${ds.productCount} productos</div>`;
+            loadCatalogo();
+          } else {
+            status.innerHTML = `<div style="font-size:12px;color:#dc2626;">Error: ${lastLine}</div>`;
+          }
+        }
+      } catch(e) { clearInterval(poll); btn.disabled = false; btn.textContent = '↻ Actualizar catálogo'; }
+    }, 2000);
+  } catch(e) {
+    status.innerHTML = `<div style="font-size:12px;color:#dc2626;">Error: ${e.message}</div>`;
+    btn.disabled = false; btn.textContent = '↻ Actualizar catálogo';
+  }
+}
+
 async function syncOdooPush() {
   const btn = document.getElementById('sync-push-btn');
   const status = document.getElementById('sync-push-status');
@@ -4256,7 +4336,7 @@ function renderStep2(data) {
   // Líneas
   const lineasEl = document.getElementById('cot-lineas');
   lineasEl.innerHTML = data.lineas.map((l, i) => `
-    <div style="display:grid;grid-template-columns:90px 1fr 80px 100px 36px;gap:8px;align-items:start;margin-bottom:8px;">
+    <div style="display:grid;grid-template-columns:90px 1fr 90px 70px 100px 36px;gap:8px;align-items:start;margin-bottom:8px;">
       <input value="${l.sku}" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:monospace;margin-top:1px;" disabled>
       ${l.found
         ? `<input value="${l.product_name || ''}" id="cot-l-name-${i}" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;">`
@@ -4268,6 +4348,7 @@ function renderStep2(data) {
             <div id="cot-l-drop-${i}" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid #e5e7eb;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:100;max-height:180px;overflow-y:auto;"></div>
            </div>`
       }
+      <input type="text" value="${l.color||''}" id="cot-l-color-${i}" placeholder="NEG, BLA..." style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:monospace;">
       <input type="number" value="${l.cantidad}" id="cot-l-qty-${i}" min="1" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;text-align:center;">
       <input type="number" value="${l.precio}" id="cot-l-price-${i}" step="0.01" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;text-align:right;">
       <button onclick="removeCotLinea(${i})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;cursor:pointer;font-size:16px;padding:4px 8px;margin-top:1px;">✕</button>
@@ -4381,15 +4462,7 @@ async function crearCotizacion() {
     const partner_id = selVal || _cotPartnerId;
     if (!partner_id) throw new Error('Seleccioná o buscá un cliente válido');
 
-    const lineas = cotExtracted.lineas.map((l, i) => ({
-      product_id:   l.product_id,
-      product_name: document.getElementById(`cot-l-name-${i}`)?.value || l.product_name,
-      cantidad:     parseFloat(document.getElementById(`cot-l-qty-${i}`)?.value) || 1,
-      precio:       parseFloat(document.getElementById(`cot-l-price-${i}`)?.value) || 0,
-      uom_id:       l.uom_id,
-      tax_ids:      l.tax_ids,
-    })).filter(l => l.product_id);
-
+    const lineas = getCotLineas();
     if (!lineas.length) throw new Error('No hay líneas con productos válidos');
 
     const res = await fetch('/api/odoo/cotizacion-crear', {
@@ -4402,13 +4475,76 @@ async function crearCotizacion() {
 
     document.getElementById('cot-step-2').style.display = 'none';
     document.getElementById('cot-step-3').style.display = '';
-    document.getElementById('cot-result-name').textContent = data.order_name;
+    document.getElementById('cot-result-title').textContent = '¡Borrador creado!';
     document.getElementById('cot-result-total').textContent = 'Total: $' + data.amount_total.toLocaleString('es-UY', { minimumFractionDigits: 2 });
+    document.getElementById('cot-result-cards').innerHTML = resultCard('Orden', data.order_name, '#7c3aed');
   } catch (e) {
     errEl.textContent = 'Error: ' + e.message;
     errEl.style.display = '';
   } finally {
-    btn.textContent = '✅ Crear cotización en Odoo';
+    btn.textContent = 'Guardar borrador';
+    btn.disabled = false;
+  }
+}
+
+function toggleVencimiento() {
+  const esCred = document.getElementById('cot-fp-credito').checked;
+  document.getElementById('cot-dias-wrap').style.display = esCred ? 'flex' : 'none';
+}
+
+function resultCard(label, value, color = '#111827') {
+  return `<div style="background:#f9fafb;border-radius:10px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-size:12px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;">${label}</span>
+    <span style="font-size:18px;font-weight:800;color:${color};">${value}</span>
+  </div>`;
+}
+
+function getCotLineas() {
+  return (cotExtracted?.lineas || []).map((l, i) => ({
+    product_id:   l.product_id,
+    product_name: document.getElementById(`cot-l-name-${i}`)?.value || l.product_name,
+    cantidad:     parseFloat(document.getElementById(`cot-l-qty-${i}`)?.value) || 1,
+    precio:       parseFloat(document.getElementById(`cot-l-price-${i}`)?.value) || 0,
+    uom_id:       l.uom_id,
+    tax_ids:      l.tax_ids,
+  })).filter(l => l.product_id);
+}
+
+async function confirmarYFacturar() {
+  const btn   = document.getElementById('cot-btn-full');
+  const errEl = document.getElementById('cot-step2-error');
+  errEl.style.display = 'none';
+  btn.textContent = '⏳ Procesando...';
+  btn.disabled = true;
+  try {
+    const selVal = parseInt(document.getElementById('cot-partner-select').value);
+    const partner_id = selVal || _cotPartnerId;
+    if (!partner_id) throw new Error('Seleccioná o buscá un cliente válido');
+    const lineas = getCotLineas();
+    if (!lineas.length) throw new Error('No hay líneas con productos válidos');
+    const forma_pago      = document.getElementById('cot-fp-credito').checked ? 'credito' : 'contado';
+    const dias_vencimiento = parseInt(document.getElementById('cot-dias-venc').value) || 30;
+    const res = await fetch('/api/odoo/cotizacion-confirmar-full', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ partner_id, lineas, notas: document.getElementById('cot-notas').value, forma_pago, dias_vencimiento }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    document.getElementById('cot-step-2').style.display = 'none';
+    document.getElementById('cot-step-3').style.display = '';
+    document.getElementById('cot-result-title').textContent = '¡Confirmado y facturado!';
+    document.getElementById('cot-result-total').textContent = 'Total: $' + data.amount_total.toLocaleString('es-UY', { minimumFractionDigits: 2 });
+    const due = data.invoice_due ? ` · vence ${data.invoice_due}` : '';
+    document.getElementById('cot-result-cards').innerHTML =
+      resultCard('Orden de venta', data.order_name, '#7c3aed') +
+      resultCard('Factura' + due, data.invoice_name, '#059669') +
+      (data.pickings?.length ? data.pickings.map(p => resultCard('Remito', p.name, '#2563eb')).join('') : '');
+  } catch (e) {
+    errEl.textContent = 'Error: ' + e.message;
+    errEl.style.display = '';
+  } finally {
+    btn.textContent = '✅ Confirmar y facturar';
     btn.disabled = false;
   }
 }
@@ -4696,7 +4832,142 @@ function updateCatPedidoBar() {
 
 function verPedidoMayorista() {
   showPage('pedidos-may');
-  renderPedidoActual();
+  loadPedidosMay();
+}
+
+// ── Lista de pedidos mayoristas desde Odoo ────────────────────────
+const ESTADO_LABEL = { draft:'Borrador', sent:'Enviado', sale:'Confirmado', done:'Hecho', cancel:'Cancelado' };
+const ESTADO_COLOR = { draft:'#6b7280', sent:'#2563eb', sale:'#059669', done:'#7c3aed', cancel:'#dc2626' };
+const INV_LABEL    = { not_invoiced:'Sin factura', invoiced:'Facturado', to_invoice:'A facturar' };
+
+async function loadPedidosMay() {
+  const cont   = document.getElementById('ped-may-content');
+  const estado = document.getElementById('ped-may-filter')?.value || '';
+  cont.innerHTML = '<div class="loading"><span class="spinner"></span>Cargando pedidos...</div>';
+  try {
+    const url = '/api/odoo/pedidos-mayoristas' + (estado ? `?estado=${estado}` : '');
+    const r   = await fetch(url, { headers: authHeaders() });
+    const orders = await r.json();
+    if (orders.error) throw new Error(orders.error);
+    renderPedidosMay(orders);
+  } catch(e) {
+    cont.innerHTML = `<div style="color:#dc2626;padding:24px;">Error: ${e.message}</div>`;
+  }
+}
+
+function renderPedidosMay(orders) {
+  const cont = document.getElementById('ped-may-content');
+  if (!orders.length) {
+    cont.innerHTML = '<div style="color:#9ca3af;padding:40px;text-align:center;">No hay pedidos mayoristas.</div>';
+    return;
+  }
+  cont.innerHTML = `
+    <div style="background:white;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="background:#f9fafb;border-bottom:1px solid #e5e7eb;">
+          <th style="text-align:left;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Número</th>
+          <th style="text-align:left;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Cliente</th>
+          <th style="text-align:left;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Fecha</th>
+          <th style="text-align:right;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Total</th>
+          <th style="text-align:center;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Estado</th>
+          <th style="text-align:center;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Factura</th>
+          <th style="width:36px;"></th>
+        </tr></thead>
+        <tbody>
+          ${orders.map(o => {
+            const fecha = o.date_order ? new Date(o.date_order).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
+            const inv   = o.invoices?.[0];
+            return `<tr style="border-top:1px solid #f3f4f6;cursor:pointer;" onclick="openPedidoDetalle(${o.id})" onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+              <td style="padding:12px 16px;font-size:13px;font-weight:700;color:#111827;font-family:monospace;">${o.name}</td>
+              <td style="padding:12px 16px;font-size:13px;color:#374151;">${o.partner_id?.[1] || '—'}</td>
+              <td style="padding:12px 16px;font-size:12px;color:#6b7280;">${fecha}</td>
+              <td style="padding:12px 16px;font-size:13px;font-weight:700;color:#059669;text-align:right;">$${Math.round(o.amount_total).toLocaleString('es-UY')}</td>
+              <td style="padding:12px 16px;text-align:center;">
+                <span style="font-size:11px;font-weight:700;color:${ESTADO_COLOR[o.state]||'#6b7280'};background:${ESTADO_COLOR[o.state]||'#6b7280'}18;padding:3px 8px;border-radius:20px;">${ESTADO_LABEL[o.state]||o.state}</span>
+              </td>
+              <td style="padding:12px 16px;text-align:center;">
+                ${inv ? `<span style="font-size:11px;font-weight:700;color:#059669;">${inv.name}</span>` : `<span style="font-size:11px;color:#9ca3af;">${INV_LABEL[o.invoice_status]||'—'}</span>`}
+              </td>
+              <td style="padding:12px 16px;text-align:center;color:#9ca3af;font-size:16px;">›</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function openPedidoDetalle(id) {
+  // Abrir modal de detalle
+  const modal = document.getElementById('pedido-detalle-modal');
+  document.getElementById('pd-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
+  modal.style.display = 'flex';
+  try {
+    const r = await fetch(`/api/odoo/pedido-mayorista/${id}`, { headers: authHeaders() });
+    const o = await r.json();
+    if (o.error) throw new Error(o.error);
+    const fecha = o.date_order ? new Date(o.date_order).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+    document.getElementById('pd-content').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+        <div style="background:#f9fafb;border-radius:8px;padding:12px 14px;">
+          <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">Orden</div>
+          <div style="font-size:16px;font-weight:800;color:#111827;font-family:monospace;">${o.name}</div>
+        </div>
+        <div style="background:#f9fafb;border-radius:8px;padding:12px 14px;">
+          <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">Cliente</div>
+          <div style="font-size:14px;font-weight:700;color:#111827;">${o.partner_id?.[1]||'—'}</div>
+        </div>
+        <div style="background:#f9fafb;border-radius:8px;padding:12px 14px;">
+          <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">Fecha</div>
+          <div style="font-size:13px;color:#374151;">${fecha}</div>
+        </div>
+        <div style="background:#f9fafb;border-radius:8px;padding:12px 14px;">
+          <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">Estado</div>
+          <div style="font-size:13px;font-weight:700;color:${ESTADO_COLOR[o.state]||'#6b7280'};">${ESTADO_LABEL[o.state]||o.state}</div>
+        </div>
+      </div>
+      <!-- Líneas -->
+      <div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Productos</div>
+      <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:14px;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead><tr style="background:#f9fafb;">
+            <th style="text-align:left;padding:8px 12px;font-size:10px;color:#9ca3af;font-weight:700;">Producto</th>
+            <th style="text-align:center;padding:8px 12px;font-size:10px;color:#9ca3af;font-weight:700;">Cant.</th>
+            <th style="text-align:right;padding:8px 12px;font-size:10px;color:#9ca3af;font-weight:700;">Precio</th>
+            <th style="text-align:right;padding:8px 12px;font-size:10px;color:#9ca3af;font-weight:700;">Subtotal</th>
+          </tr></thead>
+          <tbody>
+            ${(o.lines||[]).map(l => `<tr style="border-top:1px solid #f3f4f6;">
+              <td style="padding:8px 12px;font-size:12px;color:#111827;">${l.name}</td>
+              <td style="padding:8px 12px;font-size:12px;text-align:center;">${l.product_uom_qty}</td>
+              <td style="padding:8px 12px;font-size:12px;text-align:right;color:#6b7280;">$${Math.round(l.price_unit).toLocaleString('es-UY')}</td>
+              <td style="padding:8px 12px;font-size:12px;font-weight:700;text-align:right;">$${Math.round(l.price_subtotal).toLocaleString('es-UY')}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+        <div style="padding:10px 12px;border-top:2px solid #f3f4f6;text-align:right;font-size:16px;font-weight:800;color:#059669;">
+          Total: $${Math.round(o.amount_total).toLocaleString('es-UY')}
+        </div>
+      </div>
+      <!-- Facturas y remitos -->
+      ${o.invoices?.length ? `<div style="margin-bottom:10px;">
+        <div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Facturas</div>
+        ${o.invoices.map(inv => `<div style="background:#f0fdf4;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:14px;font-weight:800;color:#059669;font-family:monospace;">${inv.name}</span>
+          <span style="font-size:12px;color:#6b7280;">${inv.invoice_date_due ? 'Vence: '+inv.invoice_date_due : ''}</span>
+          <span style="font-size:12px;font-weight:700;color:#059669;">$${Math.round(inv.amount_total).toLocaleString('es-UY')}</span>
+        </div>`).join('')}
+      </div>` : ''}
+      ${o.pickings?.length ? `<div>
+        <div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Remitos</div>
+        ${o.pickings.map(p => `<div style="background:#eff6ff;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:14px;font-weight:800;color:#2563eb;font-family:monospace;">${p.name}</span>
+          <span style="font-size:11px;font-weight:700;color:#2563eb;">${p.state}</span>
+        </div>`).join('')}
+      </div>` : ''}
+      ${o.note ? `<div style="margin-top:12px;background:#fafafa;border-radius:8px;padding:10px 14px;font-size:12px;color:#6b7280;">${o.note}</div>` : ''}`;
+  } catch(e) {
+    document.getElementById('pd-content').innerHTML = `<div style="color:#dc2626;">Error: ${e.message}</div>`;
+  }
 }
 
 function renderPedidoActual() {
@@ -4855,6 +5126,7 @@ let catalogPinned = {};     // base   → sku_variant pinneado
 let catalogLabels = {};     // key    → nombre personalizado
 let catalogCustomSubs = []; // [{id, macro, nombre}]
 let catalogSubSort = {};    // macro  → [sub nombres en orden]
+let catalogManualProducts = []; // [{id, sku, name, price, stock, image, macro, sub}]
 let catGridUidMap = {};     // subKey → [{uid, base}]
 let catCardMeta = {};       // base   → {name, thumb, subKey}
 
@@ -5196,6 +5468,68 @@ async function deleteCustomSub(id) {
   renderCatalogo();
 }
 
+// ── Productos manuales ────────────────────────────────────────────
+let _manualEditId = null;
+function openManualProduct(id = null) {
+  _manualEditId = id;
+  const mp = id ? catalogManualProducts.find(p => p.id === id) : null;
+  document.getElementById('mp-title').textContent = id ? 'Editar producto' : 'Agregar producto';
+  document.getElementById('mp-id').value     = id || '';
+  document.getElementById('mp-sku').value    = mp?.sku   || '';
+  document.getElementById('mp-name').value   = mp?.name  || '';
+  document.getElementById('mp-price').value  = mp?.price || '';
+  document.getElementById('mp-image').value  = mp?.image || '';
+  document.getElementById('mp-stock').value  = mp?.stock ?? '';
+  // Macro selector
+  const macroSel = document.getElementById('mp-macro');
+  macroSel.innerHTML = CATALOGO_MACRO.map(m => `<option value="${m.nombre}" ${mp?.macro===m.nombre?'selected':''}>${m.nombre}</option>`).join('');
+  populateManualSubSel(mp?.macro || CATALOGO_MACRO[0].nombre, mp?.sub);
+  macroSel.onchange = () => populateManualSubSel(macroSel.value, null);
+  document.getElementById('mp-delete-btn').style.display = id ? 'block' : 'none';
+  document.getElementById('mp-status').textContent = '';
+  document.getElementById('manual-product-modal').style.display = 'flex';
+}
+function populateManualSubSel(macro, currentSub) {
+  const macroObj = CATALOGO_MACRO.find(m => m.nombre === macro);
+  const naturalSubs = macroObj?.subs?.map(s => s.nombre) || [];
+  const customSubs  = catalogCustomSubs.filter(cs => cs.macro === macro).map(cs => cs.nombre);
+  const allSubs = [...new Set([...naturalSubs, ...customSubs])];
+  const sel = document.getElementById('mp-sub');
+  sel.innerHTML = allSubs.map(s => `<option value="${s}" ${s===currentSub?'selected':''}>${s}</option>`).join('');
+}
+async function saveManualProduct() {
+  const id    = document.getElementById('mp-id').value;
+  const sku   = document.getElementById('mp-sku').value.trim();
+  const name  = document.getElementById('mp-name').value.trim();
+  const price = document.getElementById('mp-price').value;
+  const image = document.getElementById('mp-image').value.trim();
+  const stock = document.getElementById('mp-stock').value;
+  const macro = document.getElementById('mp-macro').value;
+  const sub   = document.getElementById('mp-sub').value;
+  if (!name || !macro || !sub) { document.getElementById('mp-status').textContent = 'Completá nombre, macro y sub.'; return; }
+  const body = { sku, name, price, image, macro, sub };
+  if (stock !== '') body.stock = parseFloat(stock);
+  const method = id ? 'PUT' : 'POST';
+  const url    = id ? `/api/catalog/manual-products/${id}` : '/api/catalog/manual-products';
+  const r = await fetch(url, { method, headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const saved = await r.json();
+  if (id) {
+    catalogManualProducts = catalogManualProducts.map(p => p.id === id ? saved : p);
+  } else {
+    catalogManualProducts.push(saved);
+  }
+  document.getElementById('manual-product-modal').style.display = 'none';
+  renderCatalogo();
+}
+async function deleteManualProduct() {
+  const id = document.getElementById('mp-id').value;
+  if (!id || !confirm('¿Eliminar este producto?')) return;
+  await fetch(`/api/catalog/manual-products/${id}`, { method: 'DELETE', headers: authHeaders() });
+  catalogManualProducts = catalogManualProducts.filter(p => p.id !== id);
+  document.getElementById('manual-product-modal').style.display = 'none';
+  renderCatalogo();
+}
+
 // ── Labels editables ──────────────────────────────────────────────
 function editCatLabel(key, el, dark) {
   if (catalogoModo !== 'ver') return;
@@ -5320,21 +5654,23 @@ async function loadCatalogo() {
   }
   // Cargar overrides, orden, pinned, labels, custom subs y orden de subs
   try {
-    const [rOv, rSt, rPn, rLb, rCs, rSs] = await Promise.all([
-      fetch('/api/catalog/overrides',   { headers: authHeaders() }),
-      fetch('/api/catalog/sort',        { headers: authHeaders() }),
-      fetch('/api/catalog/pinned',      { headers: authHeaders() }),
-      fetch('/api/catalog/labels',      { headers: authHeaders() }),
-      fetch('/api/catalog/custom-subs', { headers: authHeaders() }),
-      fetch('/api/catalog/sub-sort',    { headers: authHeaders() })
+    const [rOv, rSt, rPn, rLb, rCs, rSs, rMp] = await Promise.all([
+      fetch('/api/catalog/overrides',        { headers: authHeaders() }),
+      fetch('/api/catalog/sort',             { headers: authHeaders() }),
+      fetch('/api/catalog/pinned',           { headers: authHeaders() }),
+      fetch('/api/catalog/labels',           { headers: authHeaders() }),
+      fetch('/api/catalog/custom-subs',      { headers: authHeaders() }),
+      fetch('/api/catalog/sub-sort',         { headers: authHeaders() }),
+      fetch('/api/catalog/manual-products',  { headers: authHeaders() })
     ]);
-    catalogOverrides     = await rOv.json();
-    catalogSortOverrides = await rSt.json();
-    catalogPinned        = await rPn.json();
-    catalogLabels        = await rLb.json();
-    catalogCustomSubs    = await rCs.json();
-    catalogSubSort       = await rSs.json();
-  } catch(e) { catalogOverrides = {}; catalogSortOverrides = {}; catalogPinned = {}; catalogLabels = {}; catalogCustomSubs = []; catalogSubSort = {}; }
+    catalogOverrides       = await rOv.json();
+    catalogSortOverrides   = await rSt.json();
+    catalogPinned          = await rPn.json();
+    catalogLabels          = await rLb.json();
+    catalogCustomSubs      = await rCs.json();
+    catalogSubSort         = await rSs.json();
+    catalogManualProducts  = await rMp.json();
+  } catch(e) { catalogOverrides = {}; catalogSortOverrides = {}; catalogPinned = {}; catalogLabels = {}; catalogCustomSubs = []; catalogSubSort = {}; catalogManualProducts = []; }
   // Poblar selector con macro-categorías
   const catSel = document.getElementById('catalogo-cat');
   catSel.innerHTML = '<option value="">Todas las categorías</option>' +
@@ -5374,6 +5710,15 @@ function descargarCatalogo() {
         return true;
       });
     }
+  }
+  // Inyectar productos manuales
+  for (const mp of catalogManualProducts) {
+    if (q && !mp.name.toLowerCase().includes(q) && !(mp.sku||'').toLowerCase().includes(q)) continue;
+    if (stockFilter === 'con_stock' && !(mp.stock > 0)) continue;
+    if (stockFilter === 'sin_stock' && mp.stock > 0) continue;
+    const key = mp.macro + '||' + mp.sub;
+    if (!overrideItems[key]) overrideItems[key] = [];
+    overrideItems[key].push({ ...mp, id: mp.id, ml_thumbnail: mp.image || '' });
   }
 
   const STYLE_ORDER = ['nordico','rustico','clasico','moderno','industrial','novelty','led','sal','otro'];
@@ -5533,6 +5878,15 @@ function renderCatalogo() {
       });
     }
   }
+  // Inyectar productos manuales
+  for (const mp of catalogManualProducts) {
+    if (q && !mp.name.toLowerCase().includes(q) && !(mp.sku||'').toLowerCase().includes(q)) continue;
+    if (stockFilter === 'con_stock' && !(mp.stock > 0)) continue;
+    if (stockFilter === 'sin_stock' && mp.stock > 0) continue;
+    const key = mp.macro + '||' + mp.sub;
+    if (!overrideItems[key]) overrideItems[key] = [];
+    overrideItems[key].push({ ...mp, id: mp.id, ml_thumbnail: mp.image || '' });
+  }
 
   // Armar estructura macro → sub → productos
   const macros = CATALOGO_MACRO
@@ -5610,6 +5964,8 @@ function renderCatalogo() {
       ? `<button onclick="resetCatLabel('${nombre}')" style="font-size:10px;color:#6b7280;background:transparent;border:none;cursor:pointer;padding:0 6px;" title="Restaurar nombre original">↺</button>` : '';
     const addBtn = catalogoModo === 'ver'
       ? `<button onclick="openAddCustomSub('${nombre}')" style="font-size:11px;font-weight:700;color:#9ca3af;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 10px;cursor:pointer;" title="Agregar subcategoría">+ Sub</button>` : '';
+    const addProdBtn = catalogoModo === 'ver'
+      ? `<button onclick="openManualProduct()" style="font-size:11px;font-weight:700;color:#fff;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 10px;cursor:pointer;" title="Agregar producto manual">+ Producto</button>` : '';
     const ordenarBtn = catalogoModo === 'ver'
       ? `<button onclick="openSubSortModal('${nombre.replace(/'/g,"\\'")}')" style="font-size:11px;font-weight:700;color:#fff;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:4px 10px;cursor:pointer;">⇅ Ordenar</button>` : '';
     return `<div style="margin:40px 0 16px;border-radius:8px;overflow:hidden;background:#111827;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;">
@@ -5618,7 +5974,7 @@ function renderCatalogo() {
         ${reset}
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
-        ${ordenarBtn}${addBtn}
+        ${ordenarBtn}${addBtn}${addProdBtn}
         <span style="font-size:11px;color:#9ca3af;font-weight:500;">${total} productos</span>
       </div>
     </div>`;
@@ -5793,9 +6149,13 @@ function renderCatalogo() {
                 style="width:44px;height:28px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:4px;font-size:11px;font-weight:700;color:#374151;cursor:pointer;">+</button>` : ''}
             </div>` : '';
 
+          const isManual = variants.some(v => v.manual);
           const editBtn = catalogoModo === 'ver'
-            ? `<button onclick="openCatOverride('${base}','${m.nombre}','${sub.nombre}')"
-                style="position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.9);border:1px solid #e5e7eb;border-radius:5px;padding:3px 6px;font-size:10px;color:#6b7280;cursor:pointer;font-weight:600;z-index:2;" title="Editar">✎ <span style="font-size:9px;">${cardIdx+1}</span></button>`
+            ? isManual
+              ? `<button onclick="openManualProduct('${variants[0].id}')"
+                  style="position:absolute;top:8px;left:8px;background:rgba(59,130,246,0.9);border:none;border-radius:5px;padding:3px 6px;font-size:10px;color:white;cursor:pointer;font-weight:600;z-index:2;" title="Editar producto manual">✎ manual</button>`
+              : `<button onclick="openCatOverride('${base}','${m.nombre}','${sub.nombre}')"
+                  style="position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.9);border:1px solid #e5e7eb;border-radius:5px;padding:3px 6px;font-size:10px;color:#6b7280;cursor:pointer;font-weight:600;z-index:2;" title="Editar">✎ <span style="font-size:9px;">${cardIdx+1}</span></button>`
             : '';
           return `
           <div class="cat-card" style="position:relative;">
@@ -12430,6 +12790,57 @@ showPage = function(page) {
   </div>
 </div>
 
+<!-- Modal producto manual -->
+<div id="manual-product-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;overflow-y:auto;padding:20px 0;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:white;border-radius:16px;width:380px;max-width:95vw;box-shadow:0 24px 60px rgba(0,0,0,0.3);overflow:hidden;">
+    <div style="background:#111827;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+      <span id="mp-title" style="font-size:14px;font-weight:800;color:white;text-transform:uppercase;letter-spacing:0.04em;">Agregar producto</span>
+      <button onclick="document.getElementById('manual-product-modal').style.display='none'" style="background:transparent;border:none;color:#9ca3af;font-size:20px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div style="padding:20px;">
+      <input type="hidden" id="mp-id">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div>
+          <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">SKU</label>
+          <input id="mp-sku" type="text" placeholder="31004" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Stock <span style="font-weight:400;font-style:italic;">(auto si hay SKU)</span></label>
+          <input id="mp-stock" type="number" placeholder="0" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+        </div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Nombre *</label>
+        <input id="mp-name" type="text" placeholder="LAMPARA COLGANTE R2 40CM" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Precio ($)</label>
+        <input id="mp-price" type="number" placeholder="841" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">URL de imagen</label>
+        <input id="mp-image" type="text" placeholder="https://..." style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+        <div>
+          <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Categoría *</label>
+          <select id="mp-macro" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:12px;background:white;"></select>
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Subcategoría *</label>
+          <select id="mp-sub" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:12px;background:white;"></select>
+        </div>
+      </div>
+      <div id="mp-status" style="font-size:11px;color:#dc2626;min-height:14px;margin-bottom:10px;"></div>
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;">
+        <button onclick="saveManualProduct()" style="background:#111827;color:white;border:none;padding:11px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Guardar</button>
+        <button id="mp-delete-btn" onclick="deleteManualProduct()" style="display:none;background:#fee2e2;color:#dc2626;border:none;padding:11px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">✕</button>
+        <button onclick="document.getElementById('manual-product-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 14px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="add-sub-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
   <div style="background:white;border-radius:14px;width:320px;box-shadow:0 20px 50px rgba(0,0,0,0.25);overflow:hidden;">
     <div style="padding:20px 20px 16px;border-bottom:1px solid #f3f4f6;">
@@ -12519,6 +12930,19 @@ showPage = function(page) {
         <button onclick="deleteCatOverride()" style="background:#fee2e2;color:#dc2626;border:none;padding:11px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;" title="Quitar override">✕</button>
         <button onclick="document.getElementById('cat-override-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 14px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal detalle pedido mayorista -->
+<div id="pedido-detalle-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;padding:20px 0;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:white;border-radius:16px;width:620px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,0.3);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 16px;background:#f9fafb;border-bottom:1px solid #f3f4f6;position:sticky;top:0;z-index:1;">
+      <div style="font-size:15px;font-weight:800;color:#111827;">Detalle de pedido</div>
+      <button onclick="document.getElementById('pedido-detalle-modal').style.display='none'" style="background:none;border:none;font-size:22px;color:#9ca3af;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div id="pd-content" style="padding:20px;">
+      <div class="loading"><span class="spinner"></span>Cargando...</div>
     </div>
   </div>
 </div>
