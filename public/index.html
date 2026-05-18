@@ -5073,6 +5073,22 @@ async function saveMoveSubModal() {
   const statusEl = document.getElementById('msub-status');
   const btn      = document.getElementById('msub-save-btn');
   btn.disabled   = true;
+
+  // Crear custom sub en el destino si no existe ni en CATALOGO_MACRO ni como custom sub
+  const macroDestDef = CATALOGO_MACRO.find(m => m.nombre === toMacro);
+  const subExisteEnMacro   = macroDestDef?.subs?.some(s => s.nombre === subNombre);
+  const subExisteCustom    = catalogCustomSubs.some(cs => cs.macro === toMacro && cs.nombre === subNombre);
+  if (!subExisteEnMacro && !subExisteCustom) {
+    statusEl.textContent = 'Creando subcategoría en destino...';
+    const r = await fetch('/api/catalog/custom-subs', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ macro: toMacro, nombre: subNombre })
+    });
+    const newSub = await r.json();
+    catalogCustomSubs.push(newSub);
+  }
+
   let done = 0;
   for (const { base } of entries) {
     statusEl.textContent = `Moviendo ${done + 1} / ${entries.length}...`;
