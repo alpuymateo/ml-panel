@@ -2027,7 +2027,8 @@
         <input type="text" class="search-input" id="os-search" placeholder="Buscar producto o SKU..." style="width:220px;" oninput="renderOsItems()">
         <select class="filter-select" id="os-f-tipo" onchange="renderOsItems()">
           <option value="">Con faltante</option>
-          <option value="todos">Todos (sin filtro)</option>
+          <option value="todos">Todos (con ventas)</option>
+          <option value="absoluto">Todos (incluye sin ventas)</option>
           <option value="reposicion">🚨 Sin stock</option>
           <option value="zafral">🌊 Zafral</option>
           <option value="quiebre">⚠️ Quiebre antes de llegada</option>
@@ -8805,8 +8806,10 @@ function renderOsItems() {
   const skusEnOrden = new Set(_ordenItems.map(i => i.sku));
 
   let items = _osAllItems.filter(i => {
-    if (fTipo === 'todos') {
-      // Sin filtro: mostrar todo lo que tenga alguna venta
+    if (fTipo === 'absoluto') {
+      // Sin ningún filtro — todos los productos
+    } else if (fTipo === 'todos') {
+      // Mostrar todo lo que tenga alguna venta
       if (i.avg_month <= 0 && (i.sold_6m || 0) <= 0) return false;
     } else {
       if (i.gap <= 0 || i.avg_month <= 0 || i.seasonal_factor <= 0) return false;
