@@ -2452,6 +2452,52 @@ app.delete('/api/catalog/sort/:key', requireToken, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Productos manuales ────────────────────────────────────────────
+const CATALOG_MANUAL_FILE = path.join(__dirname, 'data', 'catalog_manual_products.json');
+function loadManualProducts() {
+  try { return fs.existsSync(CATALOG_MANUAL_FILE) ? JSON.parse(fs.readFileSync(CATALOG_MANUAL_FILE, 'utf8')) : []; } catch { return []; }
+}
+function saveManualProducts(data) {
+  fs.writeFileSync(CATALOG_MANUAL_FILE, JSON.stringify(data, null, 2));
+}
+app.get('/api/catalog/manual-products', requireToken, (req, res) => res.json(loadManualProducts()));
+app.post('/api/catalog/manual-products', requireToken, (req, res) => {
+  const { sku, name, price, image, macro, sub } = req.body;
+  if (!name || !macro || !sub) return res.status(400).json({ error: 'Faltan campos requeridos (name, macro, sub)' });
+  // Buscar stock en odooCache por SKU
+  let stock = 0;
+  if (sku && odooCache) {
+    const found = odooCache.find(p => (p.default_code || '').trim() === sku.trim());
+    if (found) stock = found.qty_available || 0;
+  }
+  const products = loadManualProducts();
+  const id = 'manual_' + Date.now();
+  const product = { id, sku: sku || '', name, price: parseFloat(price) || 0, stock, image: image || '', macro, sub, mayorista: true, manual: true };
+  products.push(product);
+  saveManualProducts(products);
+  res.json(product);
+});
+app.put('/api/catalog/manual-products/:id', requireToken, (req, res) => {
+  const products = loadManualProducts();
+  const idx = products.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'No encontrado' });
+  const { sku, name, price, image, macro, sub } = req.body;
+  // Re-buscar stock si cambió el SKU
+  let stock = products[idx].stock;
+  if (sku && sku !== products[idx].sku && odooCache) {
+    const found = odooCache.find(p => (p.default_code || '').trim() === sku.trim());
+    if (found) stock = found.qty_available || 0;
+  }
+  products[idx] = { ...products[idx], sku: sku ?? products[idx].sku, name: name ?? products[idx].name, price: price != null ? parseFloat(price) : products[idx].price, stock, image: image ?? products[idx].image, macro: macro ?? products[idx].macro, sub: sub ?? products[idx].sub };
+  saveManualProducts(products);
+  res.json(products[idx]);
+});
+app.delete('/api/catalog/manual-products/:id', requireToken, (req, res) => {
+  const products = loadManualProducts().filter(p => p.id !== req.params.id);
+  saveManualProducts(products);
+  res.json({ ok: true });
+});
+
 function loadMaterialCache() {
   try { return fs.existsSync(MATERIAL_CACHE_FILE) ? JSON.parse(fs.readFileSync(MATERIAL_CACHE_FILE, 'utf8')) : {}; } catch { return {}; }
 }

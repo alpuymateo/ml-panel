@@ -4888,6 +4888,7 @@ let catalogPinned = {};     // base   → sku_variant pinneado
 let catalogLabels = {};     // key    → nombre personalizado
 let catalogCustomSubs = []; // [{id, macro, nombre}]
 let catalogSubSort = {};    // macro  → [sub nombres en orden]
+let catalogManualProducts = []; // [{id, sku, name, price, stock, image, macro, sub}]
 let catGridUidMap = {};     // subKey → [{uid, base}]
 let catCardMeta = {};       // base   → {name, thumb, subKey}
 
@@ -5229,6 +5230,68 @@ async function deleteCustomSub(id) {
   renderCatalogo();
 }
 
+// ── Productos manuales ────────────────────────────────────────────
+let _manualEditId = null;
+function openManualProduct(id = null) {
+  _manualEditId = id;
+  const mp = id ? catalogManualProducts.find(p => p.id === id) : null;
+  document.getElementById('mp-title').textContent = id ? 'Editar producto' : 'Agregar producto';
+  document.getElementById('mp-id').value     = id || '';
+  document.getElementById('mp-sku').value    = mp?.sku   || '';
+  document.getElementById('mp-name').value   = mp?.name  || '';
+  document.getElementById('mp-price').value  = mp?.price || '';
+  document.getElementById('mp-image').value  = mp?.image || '';
+  document.getElementById('mp-stock').value  = mp?.stock ?? '';
+  // Macro selector
+  const macroSel = document.getElementById('mp-macro');
+  macroSel.innerHTML = CATALOGO_MACRO.map(m => `<option value="${m.nombre}" ${mp?.macro===m.nombre?'selected':''}>${m.nombre}</option>`).join('');
+  populateManualSubSel(mp?.macro || CATALOGO_MACRO[0].nombre, mp?.sub);
+  macroSel.onchange = () => populateManualSubSel(macroSel.value, null);
+  document.getElementById('mp-delete-btn').style.display = id ? 'block' : 'none';
+  document.getElementById('mp-status').textContent = '';
+  document.getElementById('manual-product-modal').style.display = 'flex';
+}
+function populateManualSubSel(macro, currentSub) {
+  const macroObj = CATALOGO_MACRO.find(m => m.nombre === macro);
+  const naturalSubs = macroObj?.subs?.map(s => s.nombre) || [];
+  const customSubs  = catalogCustomSubs.filter(cs => cs.macro === macro).map(cs => cs.nombre);
+  const allSubs = [...new Set([...naturalSubs, ...customSubs])];
+  const sel = document.getElementById('mp-sub');
+  sel.innerHTML = allSubs.map(s => `<option value="${s}" ${s===currentSub?'selected':''}>${s}</option>`).join('');
+}
+async function saveManualProduct() {
+  const id    = document.getElementById('mp-id').value;
+  const sku   = document.getElementById('mp-sku').value.trim();
+  const name  = document.getElementById('mp-name').value.trim();
+  const price = document.getElementById('mp-price').value;
+  const image = document.getElementById('mp-image').value.trim();
+  const stock = document.getElementById('mp-stock').value;
+  const macro = document.getElementById('mp-macro').value;
+  const sub   = document.getElementById('mp-sub').value;
+  if (!name || !macro || !sub) { document.getElementById('mp-status').textContent = 'Completá nombre, macro y sub.'; return; }
+  const body = { sku, name, price, image, macro, sub };
+  if (stock !== '') body.stock = parseFloat(stock);
+  const method = id ? 'PUT' : 'POST';
+  const url    = id ? `/api/catalog/manual-products/${id}` : '/api/catalog/manual-products';
+  const r = await fetch(url, { method, headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const saved = await r.json();
+  if (id) {
+    catalogManualProducts = catalogManualProducts.map(p => p.id === id ? saved : p);
+  } else {
+    catalogManualProducts.push(saved);
+  }
+  document.getElementById('manual-product-modal').style.display = 'none';
+  renderCatalogo();
+}
+async function deleteManualProduct() {
+  const id = document.getElementById('mp-id').value;
+  if (!id || !confirm('¿Eliminar este producto?')) return;
+  await fetch(`/api/catalog/manual-products/${id}`, { method: 'DELETE', headers: authHeaders() });
+  catalogManualProducts = catalogManualProducts.filter(p => p.id !== id);
+  document.getElementById('manual-product-modal').style.display = 'none';
+  renderCatalogo();
+}
+
 // ── Labels editables ──────────────────────────────────────────────
 function editCatLabel(key, el, dark) {
   if (catalogoModo !== 'ver') return;
@@ -5353,21 +5416,23 @@ async function loadCatalogo() {
   }
   // Cargar overrides, orden, pinned, labels, custom subs y orden de subs
   try {
-    const [rOv, rSt, rPn, rLb, rCs, rSs] = await Promise.all([
-      fetch('/api/catalog/overrides',   { headers: authHeaders() }),
-      fetch('/api/catalog/sort',        { headers: authHeaders() }),
-      fetch('/api/catalog/pinned',      { headers: authHeaders() }),
-      fetch('/api/catalog/labels',      { headers: authHeaders() }),
-      fetch('/api/catalog/custom-subs', { headers: authHeaders() }),
-      fetch('/api/catalog/sub-sort',    { headers: authHeaders() })
+    const [rOv, rSt, rPn, rLb, rCs, rSs, rMp] = await Promise.all([
+      fetch('/api/catalog/overrides',        { headers: authHeaders() }),
+      fetch('/api/catalog/sort',             { headers: authHeaders() }),
+      fetch('/api/catalog/pinned',           { headers: authHeaders() }),
+      fetch('/api/catalog/labels',           { headers: authHeaders() }),
+      fetch('/api/catalog/custom-subs',      { headers: authHeaders() }),
+      fetch('/api/catalog/sub-sort',         { headers: authHeaders() }),
+      fetch('/api/catalog/manual-products',  { headers: authHeaders() })
     ]);
-    catalogOverrides     = await rOv.json();
-    catalogSortOverrides = await rSt.json();
-    catalogPinned        = await rPn.json();
-    catalogLabels        = await rLb.json();
-    catalogCustomSubs    = await rCs.json();
-    catalogSubSort       = await rSs.json();
-  } catch(e) { catalogOverrides = {}; catalogSortOverrides = {}; catalogPinned = {}; catalogLabels = {}; catalogCustomSubs = []; catalogSubSort = {}; }
+    catalogOverrides       = await rOv.json();
+    catalogSortOverrides   = await rSt.json();
+    catalogPinned          = await rPn.json();
+    catalogLabels          = await rLb.json();
+    catalogCustomSubs      = await rCs.json();
+    catalogSubSort         = await rSs.json();
+    catalogManualProducts  = await rMp.json();
+  } catch(e) { catalogOverrides = {}; catalogSortOverrides = {}; catalogPinned = {}; catalogLabels = {}; catalogCustomSubs = []; catalogSubSort = {}; catalogManualProducts = []; }
   // Poblar selector con macro-categorías
   const catSel = document.getElementById('catalogo-cat');
   catSel.innerHTML = '<option value="">Todas las categorías</option>' +
@@ -5407,6 +5472,15 @@ function descargarCatalogo() {
         return true;
       });
     }
+  }
+  // Inyectar productos manuales
+  for (const mp of catalogManualProducts) {
+    if (q && !mp.name.toLowerCase().includes(q) && !(mp.sku||'').toLowerCase().includes(q)) continue;
+    if (stockFilter === 'con_stock' && !(mp.stock > 0)) continue;
+    if (stockFilter === 'sin_stock' && mp.stock > 0) continue;
+    const key = mp.macro + '||' + mp.sub;
+    if (!overrideItems[key]) overrideItems[key] = [];
+    overrideItems[key].push({ ...mp, id: mp.id, ml_thumbnail: mp.image || '' });
   }
 
   const STYLE_ORDER = ['nordico','rustico','clasico','moderno','industrial','novelty','led','sal','otro'];
@@ -5566,6 +5640,15 @@ function renderCatalogo() {
       });
     }
   }
+  // Inyectar productos manuales
+  for (const mp of catalogManualProducts) {
+    if (q && !mp.name.toLowerCase().includes(q) && !(mp.sku||'').toLowerCase().includes(q)) continue;
+    if (stockFilter === 'con_stock' && !(mp.stock > 0)) continue;
+    if (stockFilter === 'sin_stock' && mp.stock > 0) continue;
+    const key = mp.macro + '||' + mp.sub;
+    if (!overrideItems[key]) overrideItems[key] = [];
+    overrideItems[key].push({ ...mp, id: mp.id, ml_thumbnail: mp.image || '' });
+  }
 
   // Armar estructura macro → sub → productos
   const macros = CATALOGO_MACRO
@@ -5643,6 +5726,8 @@ function renderCatalogo() {
       ? `<button onclick="resetCatLabel('${nombre}')" style="font-size:10px;color:#6b7280;background:transparent;border:none;cursor:pointer;padding:0 6px;" title="Restaurar nombre original">↺</button>` : '';
     const addBtn = catalogoModo === 'ver'
       ? `<button onclick="openAddCustomSub('${nombre}')" style="font-size:11px;font-weight:700;color:#9ca3af;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 10px;cursor:pointer;" title="Agregar subcategoría">+ Sub</button>` : '';
+    const addProdBtn = catalogoModo === 'ver'
+      ? `<button onclick="openManualProduct()" style="font-size:11px;font-weight:700;color:#fff;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 10px;cursor:pointer;" title="Agregar producto manual">+ Producto</button>` : '';
     const ordenarBtn = catalogoModo === 'ver'
       ? `<button onclick="openSubSortModal('${nombre.replace(/'/g,"\\'")}')" style="font-size:11px;font-weight:700;color:#fff;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:4px 10px;cursor:pointer;">⇅ Ordenar</button>` : '';
     return `<div style="margin:40px 0 16px;border-radius:8px;overflow:hidden;background:#111827;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;">
@@ -5651,7 +5736,7 @@ function renderCatalogo() {
         ${reset}
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
-        ${ordenarBtn}${addBtn}
+        ${ordenarBtn}${addBtn}${addProdBtn}
         <span style="font-size:11px;color:#9ca3af;font-weight:500;">${total} productos</span>
       </div>
     </div>`;
@@ -5826,9 +5911,13 @@ function renderCatalogo() {
                 style="width:44px;height:28px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:4px;font-size:11px;font-weight:700;color:#374151;cursor:pointer;">+</button>` : ''}
             </div>` : '';
 
+          const isManual = variants.some(v => v.manual);
           const editBtn = catalogoModo === 'ver'
-            ? `<button onclick="openCatOverride('${base}','${m.nombre}','${sub.nombre}')"
-                style="position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.9);border:1px solid #e5e7eb;border-radius:5px;padding:3px 6px;font-size:10px;color:#6b7280;cursor:pointer;font-weight:600;z-index:2;" title="Editar">✎ <span style="font-size:9px;">${cardIdx+1}</span></button>`
+            ? isManual
+              ? `<button onclick="openManualProduct('${variants[0].id}')"
+                  style="position:absolute;top:8px;left:8px;background:rgba(59,130,246,0.9);border:none;border-radius:5px;padding:3px 6px;font-size:10px;color:white;cursor:pointer;font-weight:600;z-index:2;" title="Editar producto manual">✎ manual</button>`
+              : `<button onclick="openCatOverride('${base}','${m.nombre}','${sub.nombre}')"
+                  style="position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.9);border:1px solid #e5e7eb;border-radius:5px;padding:3px 6px;font-size:10px;color:#6b7280;cursor:pointer;font-weight:600;z-index:2;" title="Editar">✎ <span style="font-size:9px;">${cardIdx+1}</span></button>`
             : '';
           return `
           <div class="cat-card" style="position:relative;">
@@ -12444,6 +12533,57 @@ showPage = function(page) {
       <button onclick="saveSubSort()" style="background:#111827;color:white;border:none;padding:11px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Guardar</button>
       <button onclick="resetSubSort()" style="background:#fee2e2;color:#dc2626;border:none;padding:11px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;" title="Volver al orden original">↺ Reset</button>
       <button onclick="document.getElementById('sub-sort-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 14px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal producto manual -->
+<div id="manual-product-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;overflow-y:auto;padding:20px 0;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:white;border-radius:16px;width:380px;max-width:95vw;box-shadow:0 24px 60px rgba(0,0,0,0.3);overflow:hidden;">
+    <div style="background:#111827;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+      <span id="mp-title" style="font-size:14px;font-weight:800;color:white;text-transform:uppercase;letter-spacing:0.04em;">Agregar producto</span>
+      <button onclick="document.getElementById('manual-product-modal').style.display='none'" style="background:transparent;border:none;color:#9ca3af;font-size:20px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div style="padding:20px;">
+      <input type="hidden" id="mp-id">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div>
+          <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">SKU</label>
+          <input id="mp-sku" type="text" placeholder="31004" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Stock <span style="font-weight:400;font-style:italic;">(auto si hay SKU)</span></label>
+          <input id="mp-stock" type="number" placeholder="0" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+        </div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Nombre *</label>
+        <input id="mp-name" type="text" placeholder="LAMPARA COLGANTE R2 40CM" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Precio ($)</label>
+        <input id="mp-price" type="number" placeholder="841" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">URL de imagen</label>
+        <input id="mp-image" type="text" placeholder="https://..." style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+        <div>
+          <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Categoría *</label>
+          <select id="mp-macro" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:12px;background:white;"></select>
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Subcategoría *</label>
+          <select id="mp-sub" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:12px;background:white;"></select>
+        </div>
+      </div>
+      <div id="mp-status" style="font-size:11px;color:#dc2626;min-height:14px;margin-bottom:10px;"></div>
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;">
+        <button onclick="saveManualProduct()" style="background:#111827;color:white;border:none;padding:11px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Guardar</button>
+        <button id="mp-delete-btn" onclick="deleteManualProduct()" style="display:none;background:#fee2e2;color:#dc2626;border:none;padding:11px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">✕</button>
+        <button onclick="document.getElementById('manual-product-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 14px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
+      </div>
     </div>
   </div>
 </div>
