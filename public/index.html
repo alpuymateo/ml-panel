@@ -10597,10 +10597,10 @@ async function loadOrdenesCompra() {
         const statusColor = o.status === 'pedida' ? '#d97706' : '#059669';
         const statusLabel = o.status === 'pedida' ? '⏳ Pedida' : '✅ Confirmada';
         const fecha = new Date(o.created_at).toLocaleDateString('es-UY');
-        return `<div style="padding:10px 16px;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center;">
+        return `<div style="padding:10px 16px;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="showPage('ordenes-compra')">
           <div>
-            <div style="font-size:13px;font-weight:600;">${fecha} · ${o.items.length} productos · ${o.total_qty} uds${o.total_cbm ? ' · <b>' + o.total_cbm + ' CBM</b>' : ''}${o.total_fob ? ' · $' + o.total_fob.toLocaleString('es-UY') + ' USD' : ''}</div>
-            <div style="font-size:11px;color:#9ca3af;">${o.notes || ''}</div>
+            <div style="font-size:13px;font-weight:600;">${o.number || fecha} · ${o.items.length} productos · ${o.total_qty} uds${o.total_cbm ? ' · <b>' + o.total_cbm + ' CBM</b>' : ''}${o.total_fob ? ' · $' + o.total_fob.toLocaleString('es-UY') + ' USD' : ''}</div>
+            <div style="font-size:11px;color:#9ca3af;">${o.notes || ''} <span style="color:#3b82f6;">→ Ver detalle</span></div>
           </div>
           <div style="display:flex;gap:6px;align-items:center;">
             <span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;color:${statusColor};background:${statusColor}15;">${statusLabel}</span>
