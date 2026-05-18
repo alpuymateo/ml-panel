@@ -5046,6 +5046,49 @@ async function deleteCatOverride() {
   renderCatalogo();
 }
 
+// ── Mover subcategoría completa ───────────────────────────────────
+function openMoveSubModal(subKey) {
+  const [currentMacro, subNombre] = subKey.split('||');
+  document.getElementById('msub-key').value    = subKey;
+  document.getElementById('msub-nombre').textContent = subNombre;
+  document.getElementById('msub-from').textContent   = currentMacro;
+  // Llenar selector de macros destino (todas menos la actual)
+  const sel = document.getElementById('msub-macro-sel');
+  sel.innerHTML = CATALOGO_MACRO
+    .filter(m => m.nombre !== currentMacro)
+    .map(m => `<option value="${m.nombre}">${m.nombre}</option>`)
+    .join('');
+  document.getElementById('msub-status').textContent = '';
+  document.getElementById('move-sub-modal').style.display = 'flex';
+}
+async function saveMoveSubModal() {
+  const subKey     = document.getElementById('msub-key').value;
+  const toMacro    = document.getElementById('msub-macro-sel').value;
+  const [, subNombre] = subKey.split('||');
+  const entries    = catGridUidMap[subKey] || [];
+  if (!entries.length) {
+    alert('No hay productos visibles en esta subcategoría.');
+    return;
+  }
+  const statusEl = document.getElementById('msub-status');
+  const btn      = document.getElementById('msub-save-btn');
+  btn.disabled   = true;
+  let done = 0;
+  for (const { base } of entries) {
+    statusEl.textContent = `Moviendo ${done + 1} / ${entries.length}...`;
+    await fetch('/api/catalog/override', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sku_base: base, macro: toMacro, sub: subNombre })
+    });
+    catalogOverrides[base] = { macro: toMacro, sub: subNombre };
+    done++;
+  }
+  btn.disabled = false;
+  document.getElementById('move-sub-modal').style.display = 'none';
+  renderCatalogo();
+}
+
 // ── Orden de subcategorías ────────────────────────────────────────
 let _subSortMacro = '';
 let _subSortList  = [];
@@ -5569,12 +5612,14 @@ function renderCatalogo() {
       ? `<button onclick="resetCatSort('${subKey.replace(/'/g,"\\'")}')" style="font-size:10px;font-weight:600;color:#dc2626;background:#fff;border:1px solid #fca5a5;border-radius:5px;padding:3px 8px;cursor:pointer;flex-shrink:0;">↺ Orden</button>` : '';
     const deleteBtn = catalogoModo === 'ver' && customId
       ? `<button onclick="deleteCustomSub('${customId}')" style="font-size:10px;font-weight:600;color:#dc2626;background:#fff;border:1px solid #fca5a5;border-radius:5px;padding:3px 8px;cursor:pointer;flex-shrink:0;" title="Eliminar subcategoría">✕ Eliminar sub</button>` : '';
+    const moverBtn = catalogoModo === 'ver' && subKey
+      ? `<button onclick="openMoveSubModal('${subKey.replace(/'/g,"\\'")}')" style="font-size:10px;font-weight:600;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:3px 8px;cursor:pointer;flex-shrink:0;" title="Mover subcategoría completa a otra categoría">↗ Mover</button>` : '';
     return `<div style="padding:20px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
       <div style="display:flex;align-items:center;gap:6px;min-width:0;">
         <span ondblclick="editCatLabel('${subKey.replace(/'/g,"\\'")}'  ,this,false)"${hint} style="font-size:16px;font-weight:800;color:#111827;text-transform:uppercase;letter-spacing:0.03em;cursor:${catalogoModo==='ver'?'text':'default'};">${label}</span>
         ${resetLabel}
       </div>
-      <div style="display:flex;gap:6px;align-items:center;">${resetSort}${deleteBtn}</div>
+      <div style="display:flex;gap:6px;align-items:center;">${moverBtn}${resetSort}${deleteBtn}</div>
     </div>`;
   };
 
@@ -12218,6 +12263,33 @@ showPage = function(page) {
       <div style="display:grid;grid-template-columns:1fr auto;gap:8px;">
         <button onclick="saveCustomSub()" style="background:#111827;color:white;border:none;padding:11px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Crear</button>
         <button onclick="document.getElementById('add-sub-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 16px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal mover subcategoría completa -->
+<div id="move-sub-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:white;border-radius:16px;width:340px;max-width:95vw;box-shadow:0 24px 60px rgba(0,0,0,0.3);overflow:hidden;">
+    <div style="background:#111827;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-size:14px;font-weight:800;color:white;text-transform:uppercase;letter-spacing:0.04em;">Mover subcategoría</span>
+      <button onclick="document.getElementById('move-sub-modal').style.display='none'" style="background:transparent;border:none;color:#9ca3af;font-size:20px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div style="padding:20px;">
+      <input type="hidden" id="msub-key">
+      <div style="margin-bottom:16px;">
+        <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Subcategoría</div>
+        <div id="msub-nombre" style="font-size:15px;font-weight:800;color:#111827;text-transform:uppercase;"></div>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px;">en <span id="msub-from" style="font-weight:600;"></span></div>
+      </div>
+      <div style="margin-bottom:20px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">Mover a</label>
+        <select id="msub-macro-sel" style="width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;font-weight:600;color:#111827;background:white;"></select>
+      </div>
+      <div id="msub-status" style="font-size:11px;color:#6b7280;min-height:16px;margin-bottom:12px;text-align:center;"></div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;">
+        <button id="msub-save-btn" onclick="saveMoveSubModal()" style="background:#111827;color:white;border:none;padding:11px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Mover todos los productos</button>
+        <button onclick="document.getElementById('move-sub-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 14px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
       </div>
     </div>
   </div>
