@@ -8835,9 +8835,46 @@ function renderOsItems() {
   const allMonths = _osAllMonths || [];
   const last10 = allMonths.slice(-10);
 
+  // Group variants by base SKU (e.g. 48400-BLA-42 → 48400)
+  function getBaseSku(sku) { return (sku||'').replace(/-[A-Z]{2,}(-\d+)?$/, '').replace(/-\d+$/, ''); }
+  const byBase = {};
+  for (const i of items) {
+    const base = getBaseSku(i.sku);
+    if (!byBase[base]) byBase[base] = [];
+    byBase[base].push(i);
+  }
+  // Build grouped list: single items stay as-is, multi-variant items become a parent + children
+  const groupedItems = [];
+  const usedSkus = new Set();
+  for (const i of items) {
+    const base = getBaseSku(i.sku);
+    if (usedSkus.has(base)) continue;
+    usedSkus.add(base);
+    const variants = byBase[base];
+    if (variants.length > 1) {
+      // Create parent item with summed values
+      const parent = {
+        ...variants[0],
+        sku: base,
+        name: variants[0].name,
+        gap: variants.reduce((s,v) => s + v.gap, 0),
+        stock: variants.reduce((s,v) => s + v.stock, 0),
+        available: variants.reduce((s,v) => s + v.available, 0),
+        avg_month: Math.round(variants.reduce((s,v) => s + v.avg_month, 0) * 10) / 10,
+        pedido: variants.reduce((s,v) => s + (v.pedido||0), 0),
+        pedido_orden: [...new Set(variants.flatMap(v => v.pedido_orden||[]))],
+        _variants: variants,
+        _isGroup: true,
+      };
+      groupedItems.push(parent);
+    } else {
+      groupedItems.push(i);
+    }
+  }
+
   let html = '';
   const grouped = fSort === 'categ';
-  const renderItems = items.slice(0, 200);
+  const renderItems = groupedItems.slice(0, 200);
 
   if (grouped) {
     const byCat = {};
@@ -8931,10 +8968,34 @@ function renderOsItems() {
         </div>
       </div>
     </div>`;
+    // Variant sub-rows for grouped items
+    if (i._isGroup && i._variants) {
+      const varId = 'os-vars-' + (i.sku||'').replace(/[^a-z0-9]/gi,'-');
+      itemHtml += `<div id="${varId}" style="display:none;margin:0 16px 8px;border:1px solid #e0e7ff;border-radius:8px;overflow:hidden;">
+        <div style="padding:6px 12px;background:#eff6ff;font-size:11px;font-weight:600;color:#3730a3;">${i._variants.length} colores/variantes</div>`;
+      for (const v of i._variants) {
+        const vColor = (v.sku||'').replace(getBaseSku(v.sku)+'-','');
+        itemHtml += `<div style="padding:6px 12px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;font-size:12px;">
+          <span style="color:#374151;"><b>${vColor || v.sku}</b> <span style="color:#9ca3af;">${v.sku}</span></span>
+          <span>stock: <b style="color:${v.stock<=0?'#dc2626':'#374151'}">${v.stock}</b> · ${v.avg_month}/m · gap: <b style="color:#4361ee;">${v.gap}</b></span>
+        </div>`;
+      }
+      itemHtml += '</div>';
+      // Add click to toggle variants on the main row name
+      itemHtml = itemHtml.replace(
+        `<div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name}</div>`,
+        `<div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name} <span style="font-size:10px;color:#3b82f6;font-weight:400;">(${i._variants.length} colores ▼)</span></div>`
+      );
+      // Make the detail click also toggle variants
+      itemHtml = itemHtml.replace(
+        `const el=document.getElementById('${detId}');el.style.display=el.style.display==='none'?'':'none';`,
+        `const el=document.getElementById('${detId}');el.style.display=el.style.display==='none'?'':'none';const vl=document.getElementById('${varId}');if(vl)vl.style.display=el.style.display;`
+      );
+    }
     return itemHtml;
   }
 
-  const shown = items.length;
+  const shown = groupedItems.length;
   const maxShow = 200;
   if (!items.length) html = '<div style="text-align:center;color:#9ca3af;padding:32px;">Sin productos con estos filtros</div>';
 
