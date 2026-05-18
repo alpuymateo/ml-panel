@@ -757,6 +757,16 @@ async function refreshStockCache(forceRefresh = false) {
         sku: (item.attributes || []).find(a => a.id === 'SELLER_SKU')?.value_name
           || (item.attributes || []).find(a => a.id === 'SELLER_SKU')?.values?.[0]?.name
           || null,
+        dimensions: (() => {
+          const attrs = item.attributes || [];
+          const get = (...ids) => { for (const id of ids) { const a = attrs.find(x => x.id === id); if (a?.value_name) return a.value_name; } return null; };
+          return {
+            height: get('HEIGHT', 'PACKAGE_HEIGHT'),
+            width:  get('WIDTH',  'PACKAGE_WIDTH'),
+            length: get('LENGTH', 'DEPTH', 'PACKAGE_LENGTH'),
+            weight: get('WEIGHT', 'PACKAGE_WEIGHT'),
+          };
+        })(),
         variations: (item.variations || []).map(v => ({
           id: v.id,
           name: (v.attribute_combinations || []).map(a => a.value_name).join(', '),
@@ -2236,6 +2246,201 @@ function upgradeMlThumb(url) {
 let _catalogoCache = null;
 let _catalogoCacheTime = 0;
 const CATALOGO_CACHE_FILE = path.join(__dirname, 'data', 'catalogo_cache.json');
+const MATERIAL_CACHE_FILE = path.join(__dirname, 'data', 'material_cache.json');
+const CATALOG_OVERRIDES_FILE = path.join(__dirname, 'data', 'catalog_overrides.json');
+
+function loadCatalogOverrides() {
+  try { return fs.existsSync(CATALOG_OVERRIDES_FILE) ? JSON.parse(fs.readFileSync(CATALOG_OVERRIDES_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveCatalogOverrides(data) {
+  fs.writeFileSync(CATALOG_OVERRIDES_FILE, JSON.stringify(data, null, 2));
+}
+
+app.get('/api/catalog/overrides', requireToken, (req, res) => res.json(loadCatalogOverrides()));
+
+app.post('/api/catalog/override', requireToken, (req, res) => {
+  const { sku_base, macro, sub } = req.body;
+  if (!sku_base || !macro || !sub) return res.status(400).json({ error: 'sku_base, macro y sub requeridos' });
+  const overrides = loadCatalogOverrides();
+  overrides[sku_base] = { macro, sub };
+  saveCatalogOverrides(overrides);
+  res.json({ ok: true });
+});
+
+app.delete('/api/catalog/override/:sku_base', requireToken, (req, res) => {
+  const overrides = loadCatalogOverrides();
+  delete overrides[req.params.sku_base];
+  saveCatalogOverrides(overrides);
+  res.json({ ok: true });
+});
+
+// ── Orden de subcategorías ────────────────────────────────────────
+const CATALOG_SUB_SORT_FILE = path.join(__dirname, 'data', 'catalog_sub_sort.json');
+function loadCatalogSubSort() {
+  try { return fs.existsSync(CATALOG_SUB_SORT_FILE) ? JSON.parse(fs.readFileSync(CATALOG_SUB_SORT_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveCatalogSubSort(data) {
+  fs.writeFileSync(CATALOG_SUB_SORT_FILE, JSON.stringify(data, null, 2));
+}
+app.get('/api/catalog/sub-sort', requireToken, (req, res) => res.json(loadCatalogSubSort()));
+app.post('/api/catalog/sub-sort', requireToken, (req, res) => {
+  const { macro, order } = req.body;
+  if (!macro || !Array.isArray(order)) return res.status(400).json({ error: 'macro y order requeridos' });
+  const sort = loadCatalogSubSort();
+  sort[macro] = order;
+  saveCatalogSubSort(sort);
+  res.json({ ok: true });
+});
+app.delete('/api/catalog/sub-sort/:macro', requireToken, (req, res) => {
+  const sort = loadCatalogSubSort();
+  delete sort[decodeURIComponent(req.params.macro)];
+  saveCatalogSubSort(sort);
+  res.json({ ok: true });
+});
+
+// ── Subcategorías personalizadas ──────────────────────────────────
+const CATALOG_CUSTOM_SUBS_FILE = path.join(__dirname, 'data', 'catalog_custom_subs.json');
+function loadCustomSubs() {
+  try { return fs.existsSync(CATALOG_CUSTOM_SUBS_FILE) ? JSON.parse(fs.readFileSync(CATALOG_CUSTOM_SUBS_FILE, 'utf8')) : []; } catch { return []; }
+}
+function saveCustomSubs(data) {
+  fs.writeFileSync(CATALOG_CUSTOM_SUBS_FILE, JSON.stringify(data, null, 2));
+}
+app.get('/api/catalog/custom-subs', requireToken, (req, res) => res.json(loadCustomSubs()));
+app.post('/api/catalog/custom-subs', requireToken, (req, res) => {
+  const { macro, nombre } = req.body;
+  if (!macro || !nombre) return res.status(400).json({ error: 'macro y nombre requeridos' });
+  const subs = loadCustomSubs();
+  const id = 'custom_' + Date.now();
+  subs.push({ id, macro, nombre });
+  saveCustomSubs(subs);
+  res.json({ ok: true, id });
+});
+app.delete('/api/catalog/custom-subs/:id', requireToken, (req, res) => {
+  const subs = loadCustomSubs().filter(s => s.id !== req.params.id);
+  saveCustomSubs(subs);
+  res.json({ ok: true });
+});
+
+// ── Labels personalizados de categorías ───────────────────────────
+const CATALOG_LABELS_FILE = path.join(__dirname, 'data', 'catalog_labels.json');
+function loadCatalogLabels() {
+  try { return fs.existsSync(CATALOG_LABELS_FILE) ? JSON.parse(fs.readFileSync(CATALOG_LABELS_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveCatalogLabels(data) {
+  fs.writeFileSync(CATALOG_LABELS_FILE, JSON.stringify(data, null, 2));
+}
+app.get('/api/catalog/labels', requireToken, (req, res) => res.json(loadCatalogLabels()));
+app.post('/api/catalog/labels', requireToken, (req, res) => {
+  const { key, name } = req.body;
+  if (!key || !name) return res.status(400).json({ error: 'key y name requeridos' });
+  const labels = loadCatalogLabels();
+  labels[key] = name;
+  saveCatalogLabels(labels);
+  res.json({ ok: true });
+});
+app.delete('/api/catalog/labels/:key', requireToken, (req, res) => {
+  const labels = loadCatalogLabels();
+  delete labels[decodeURIComponent(req.params.key)];
+  saveCatalogLabels(labels);
+  res.json({ ok: true });
+});
+
+// ── Imagen pinneada por SKU base ──────────────────────────────────
+const CATALOG_PINNED_FILE = path.join(__dirname, 'data', 'catalog_pinned.json');
+function loadCatalogPinned() {
+  try { return fs.existsSync(CATALOG_PINNED_FILE) ? JSON.parse(fs.readFileSync(CATALOG_PINNED_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveCatalogPinned(data) {
+  fs.writeFileSync(CATALOG_PINNED_FILE, JSON.stringify(data, null, 2));
+}
+app.get('/api/catalog/pinned', requireToken, (req, res) => res.json(loadCatalogPinned()));
+app.post('/api/catalog/pinned', requireToken, (req, res) => {
+  const { sku_base, sku_variant } = req.body;
+  if (!sku_base) return res.status(400).json({ error: 'sku_base requerido' });
+  const pinned = loadCatalogPinned();
+  if (sku_variant) pinned[sku_base] = sku_variant;
+  else delete pinned[sku_base];
+  saveCatalogPinned(pinned);
+  res.json({ ok: true });
+});
+
+// ── Orden manual del catálogo ─────────────────────────────────────
+const CATALOG_SORT_FILE = path.join(__dirname, 'data', 'catalog_sort.json');
+function loadCatalogSort() {
+  try { return fs.existsSync(CATALOG_SORT_FILE) ? JSON.parse(fs.readFileSync(CATALOG_SORT_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveCatalogSort(data) {
+  fs.writeFileSync(CATALOG_SORT_FILE, JSON.stringify(data, null, 2));
+}
+
+app.get('/api/catalog/sort', requireToken, (req, res) => res.json(loadCatalogSort()));
+
+app.post('/api/catalog/sort', requireToken, (req, res) => {
+  const { key, order } = req.body;
+  if (!key || !Array.isArray(order)) return res.status(400).json({ error: 'key y order requeridos' });
+  const sort = loadCatalogSort();
+  sort[key] = order;
+  saveCatalogSort(sort);
+  res.json({ ok: true });
+});
+
+app.delete('/api/catalog/sort/:key', requireToken, (req, res) => {
+  const sort = loadCatalogSort();
+  delete sort[decodeURIComponent(req.params.key)];
+  saveCatalogSort(sort);
+  res.json({ ok: true });
+});
+
+function loadMaterialCache() {
+  try { return fs.existsSync(MATERIAL_CACHE_FILE) ? JSON.parse(fs.readFileSync(MATERIAL_CACHE_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveMaterialCache(cache) {
+  try { fs.writeFileSync(MATERIAL_CACHE_FILE, JSON.stringify(cache, null, 2)); } catch(e) {}
+}
+
+// Analiza imagen de un producto con Claude vision y retorna grupo de material
+async function analyzeMaterialGroup(productId, imageUrl, productName) {
+  if (!anthropic || !imageUrl) return 'otro';
+  try {
+    const msg = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 20,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'url', url: imageUrl } },
+          { type: 'text', text: `Analizá esta imagen de producto (${productName}). Respondé SOLO con una de estas palabras según el material principal visible: madera, metal, tela, cristal, sal, plastico, otro` }
+        ]
+      }]
+    });
+    const val = msg.content[0]?.text?.trim().toLowerCase().split(/\s/)[0] || 'otro';
+    const valid = ['madera','metal','tela','cristal','sal','plastico','otro'];
+    return valid.includes(val) ? val : 'otro';
+  } catch(e) {
+    return 'otro';
+  }
+}
+
+// Enriquece productos del catálogo con material_group usando cache + Claude vision
+async function enrichMaterialGroups(categories) {
+  if (!anthropic) return;
+  const cache = loadMaterialCache();
+  let dirty = false;
+  const allProducts = categories.flatMap(c => c.items);
+  const pending = allProducts.filter(p => p.ml_thumbnail && !cache[p.id]);
+  if (pending.length === 0) { allProducts.forEach(p => { if (cache[p.id]) p.material_group = cache[p.id]; }); return; }
+  console.log(`[material] analizando ${pending.length} productos nuevos con Claude vision...`);
+  for (const p of pending) {
+    p.material_group = await analyzeMaterialGroup(p.id, p.ml_thumbnail, p.name);
+    cache[p.id] = p.material_group;
+    dirty = true;
+    await new Promise(r => setTimeout(r, 200)); // evitar rate limit
+  }
+  allProducts.forEach(p => { if (cache[p.id]) p.material_group = cache[p.id]; });
+  if (dirty) saveMaterialCache(cache);
+  console.log('[material] análisis completado');
+}
 
 async function buildCatalogoCache(force = false, onLog) {
   if (!force && _catalogoCache && (Date.now() - _catalogoCacheTime < 3600000)) return _catalogoCache;
@@ -2251,6 +2456,11 @@ async function buildCatalogoCache(force = false, onLog) {
   }
   console.log('[catalogo] construyendo cache...');
   const result = await _buildCatalogoData(force, onLog);
+  // Enriquecer con material_group en background (no bloquea)
+  enrichMaterialGroups(result.categories).then(() => {
+    try { fs.writeFileSync(CATALOGO_CACHE_FILE, JSON.stringify(result)); } catch(e) {}
+    console.log('[catalogo] cache con materiales guardado');
+  }).catch(e => console.error('[material] error:', e.message));
   _catalogoCache = result;
   _catalogoCacheTime = Date.now();
   try { fs.writeFileSync(CATALOGO_CACHE_FILE, JSON.stringify(result)); } catch(e) {}
@@ -2260,12 +2470,38 @@ async function buildCatalogoCache(force = false, onLog) {
 
 // Catalogo se sirve del cache en disco. En Railway nunca conecta a Odoo.
 
+// Importar cache de catálogo desde local → Railway
+app.post('/api/catalog/import-cache', requireToken, (req, res) => {
+  try {
+    const data = req.body;
+    if (!data || !data.categories || !Array.isArray(data.categories)) {
+      return res.status(400).json({ error: 'Formato inválido: se espera { categories, ... }' });
+    }
+    data.importedAt = new Date().toISOString();
+    fs.writeFileSync(CATALOGO_CACHE_FILE, JSON.stringify(data));
+    _catalogoCache = data;
+    _catalogoCacheTime = Date.now();
+    const total = data.categories.reduce((s, c) => s + c.items.length, 0);
+    console.log('[catalogo] cache importado:', total, 'productos,', data.categories.length, 'categorías');
+    res.json({ ok: true, total, categories: data.categories.length, importedAt: data.importedAt });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/odoo/productos', async (req, res) => {
   try {
     if (req.query.refresh === 'true' && !process.env.RAILWAY_ENVIRONMENT) {
       buildCatalogoCache(true).catch(e => console.error('[catalogo] refresh error:', e.message));
     }
-    // Serve from cache if available
+    // Serve from cache if available (intentar cargar desde disco si no está en memoria)
+    if (!_catalogoCache && fs.existsSync(CATALOGO_CACHE_FILE)) {
+      try {
+        _catalogoCache = JSON.parse(fs.readFileSync(CATALOGO_CACHE_FILE, 'utf8'));
+        _catalogoCacheTime = Date.now();
+        console.log('[catalogo] cache cargado desde disco (on-demand)');
+      } catch(e) {}
+    }
     if (_catalogoCache) return res.json(_catalogoCache);
     // No cache yet — serve products from odooCache without sales (fast fallback)
     if (odooCache && odooCache.length > 0) {
@@ -2286,6 +2522,7 @@ app.get('/api/odoo/productos', async (req, res) => {
           sales_by_month: {}, sales_by_channel: { ml:{}, mayorista:{}, local:{} },
           ml_stock: ml?.stock ?? null, ml_price: ml?.price ?? null, ml_status: ml?.status ?? null,
           ml_thumbnail: ml ? upgradeMlThumb(ml.thumbnail) : null,
+          ml_dimensions: ml?.dimensions || null,
           odoo_image: p.image_128 ? 'data:image/png;base64,' + p.image_128 : null,
           incoming: 0, incoming_detail: [], categ: cat, mayorista: p.x_studio_producto_mayorista || false,
         });
@@ -2425,6 +2662,7 @@ async function _buildCatalogoData(forceProducts, onLog) {
         ml_price:     ml ? ml.price     : null,
         ml_status:    ml ? ml.status    : null,
         ml_thumbnail: ml ? upgradeMlThumb(ml.thumbnail) : null,
+        ml_dimensions: ml?.dimensions || null,
         odoo_image: p.image_128 ? `data:image/png;base64,${p.image_128}` : null,
         incoming: incomingBySku[sku.trim()] || 0,
         incoming_detail: incomingDetailBySku[sku.trim()] || [],
@@ -7756,4 +7994,6 @@ app.get('/api/trends/regions', requireToken, async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
   console.log(`Iniciá el flujo OAuth en http://localhost:${PORT}/login`);
+  // Cargar catálogo desde disco al arrancar (para que style_group y material_group estén disponibles)
+  buildCatalogoCache(false).catch(e => console.error('[catalogo] error carga inicial:', e.message));
 });

@@ -4843,6 +4843,451 @@ function mlStockBadge(s) {
 let catalogoView  = 'lista';
 let catalogoModo  = 'ver';
 let catalogoLoaded = false;
+let catalogOverrides = {};
+let catalogSortOverrides = {};
+let catalogPinned = {};     // base   → sku_variant pinneado
+let catalogLabels = {};     // key    → nombre personalizado
+let catalogCustomSubs = []; // [{id, macro, nombre}]
+let catalogSubSort = {};    // macro  → [sub nombres en orden]
+let catGridUidMap = {};     // subKey → [{uid, base}]
+let catCardMeta = {};       // base   → {name, thumb, subKey}
+
+// ── Macro-categorías del catálogo ────────────────────────────────
+const CATALOGO_MACRO = [
+  {
+    nombre: 'ILUMINACIÓN',
+    subs: [
+      { nombre: 'Lámparas de Escritorio', cats: ['PORTATILES'] },
+      { nombre: 'Lámparas de Pie',        cats: ['LAMPARA DE PIE'] },
+      { nombre: 'Apliques y Colgantes',   cats: ['APLIQUES INTERIOR', 'APLIQUES EXTERIOR', 'LAMPARAS COLGANTES'] },
+      { nombre: 'Plafones',               cats: ['PLAFONES CIRCULARES C/MADERA', 'PLAFONES CUADRADOS C/MADERA', 'PLAFONES SIN MADERA'] },
+      { nombre: 'Apliques Exterior',       cats: ['APLIQUES EXTERIOR'] },
+      { nombre: 'Luces Decorativas',      cats: ['ILUMINACION DECORATIVA', 'GENERAL LED'] },
+      { nombre: 'Línea Craft',             cats: ['MDF - LAMPARAS'] },
+      { nombre: 'Línea Craft',            cats: ['MDF - CUADROS Y TRIPTICOS', 'MDF - LINEA CRAFT', 'MDF - MUEBLES CRAFT', 'MDF - VARIOS CRAFT'] },
+      { nombre: 'Lámparas de Sal',        cats: ['LAMPARA DE SAL', 'LAMPARA DE SAL RUSTICA', 'LAMPARA DE SAL TALLADA', 'LAMPARA DE SAL USB', 'ACC. VARIOS LAMPARAS DE SAL', 'VARIOS SAL HIMALAYA'] },
+    ]
+  },
+  {
+    nombre: 'MUEBLES',
+    subs: [
+      { nombre: 'Dormitorio', cats: ['MOBILIARIO DORMITORIO DORIPEL', 'MOBILIARIO DORMITORIO MOVEISIM', 'MOBILIARIO DORMITORIO COMPLETA', 'MOBILIARIO DORMITORIO FELICCI', 'MOBILIARIO DORMITORIO MADESA', 'MOBILIARIO DORMITORIO TREVISUL', 'ORGANIZACION DORMTORIO'] },
+      { nombre: 'Living',     cats: ['MOBILIARIO LIVING COMPLETA', 'MOBILIARIO LIVING MOVEISIM', 'MOBILIARIO LIVING TREVISUL', 'MOBILIARIO LIVING APPUNTO', 'MOBILIARIO LIVING FELLICCI', 'LIVING'] },
+      { nombre: 'Escritorio', cats: ['MOBILIARIO ESCRITORIO MADESA', 'MOBILIARIO ESCRITORIO APPUNTO', 'ESCRITORIO'] },
+      { nombre: 'Comedor',    cats: ['MOBILIARIO COMEDOR MADESA', 'MOBILIARIO COMEDOR FELLICCI'] },
+      { nombre: 'Baño',       cats: ['MOBILIARIO BAÑO FELLICCI', 'MOBILIARIO BAÑO MOVEIS SIM'] },
+      { nombre: 'Colchones',  cats: ['COLCHONES'] },
+    ]
+  },
+  {
+    nombre: 'HOGAR',
+    subs: [
+      { nombre: 'Textil Living',    cats: ['TEXTIL LIVING', 'ALFOMBRAS'] },
+      { nombre: 'Ropa de Cama',     cats: [] },
+      { nombre: 'Cortinas',         cats: [] },
+      { nombre: 'Espejos',          cats: ['ESPEJOS'] },
+      { nombre: 'Soportes TV',      cats: ['SOPORTES TV FIJOS', 'SOPORTE TV MOVILES', 'SOPORTE TV'] },
+      { nombre: 'Cocina',           cats: ['ORG. COCINA Y UTENSILLOS', 'ESCURRIDORES', 'MOPAS'] },
+      { nombre: 'Organización',     cats: ['ORGANIZACION DEL ESPACIO', 'CESTOS Y CANASTOS'] },
+      { nombre: 'Invierno',         cats: ['ROPA DE CAMA Y ALMOHADONES'] },
+      { nombre: 'Decoración',       cats: ['DECORACION EXTERIOR', 'VELAS Y SAHUMERIOS'] },
+    ]
+  },
+  {
+    nombre: 'OUTDOOR & RECREACIÓN',
+    subs: [
+      { nombre: 'Camping y Exterior', cats: ['CAMPING Y EXTERIOR', 'MUEBLES EXTERIOR'] },
+      { nombre: 'Jardín y Patio',     cats: ['TOLDOS'] },
+      { nombre: 'Hamacas',            cats: ['HAMACAS'] },
+      { nombre: 'Escaleras',          cats: ['ESCALERAS'] },
+      { nombre: 'Bicicletas',         cats: ['BICICLETAS ADULTO', 'BICICLETAS INFANTILES', 'ARTICULOS CICLISMO'] },
+      { nombre: 'Deportes',           cats: ['JUEGOS, JUGUETES Y DEPORTES', 'PATINES', 'TIEMPO LIBRE Y RECREACION'] },
+      { nombre: 'Mallas',             cats: ['MALLAS ELECTROSOLDADAS', 'MALLAS'] },
+    ]
+  },
+  {
+    nombre: 'FERRETERÍA',
+    subs: [
+      { nombre: 'Ferretería General', cats: ['VARIOS FERRETERIA'] },
+      { nombre: 'Grifería',           cats: ['LOZA SANITARIA', 'ACCESORIOS BAÑO'] },
+      { nombre: 'Pintura',            cats: ['PINTURA'] },
+      { nombre: 'Mangueras',          cats: ['MANGUERAS'] },
+    ]
+  },
+  {
+    nombre: 'BEBÉS & NIÑOS',
+    subs: [
+      { nombre: 'Bebés',  cats: ['MATERNIDAD Y BEBES'] },
+      { nombre: 'Niños',  cats: ['JUEGOS BEBE Y NIÑOS', 'MUEBLES Y ACCESORIO INFANTILES'] },
+    ]
+  },
+  {
+    nombre: 'OTROS',
+    subs: [
+      { nombre: 'Música',    cats: ['INSTRUMENTOS MUSICALES', 'ACCESORIOS MUSICA'] },
+      { nombre: 'Mascotas',  cats: ['ACCESORIOS MASCOTAS'] },
+      { nombre: 'Varios',    cats: ['ACCESORIOS VARIOS', 'ACCESORIOS VEHICULOS', 'BALANZAS'] },
+    ]
+  },
+];
+
+// ── Popup de variantes ───────────────────────────────────────────
+function openVariantsPopup(uid, variants) {
+  const modal = document.getElementById('variants-popup');
+  const grid = document.getElementById('variants-popup-grid');
+  grid.innerHTML = variants.map((v,i) => `
+    <div onclick="catSelectVariant('${uid}',${i},${JSON.stringify(variants).replace(/"/g,'&quot;')});document.getElementById('variants-popup').style.display='none';"
+      style="cursor:pointer;text-align:center;padding:8px;border-radius:8px;border:1px solid #e5e7eb;background:#fafafa;transition:background .15s;"
+      onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='#fafafa'">
+      <img src="${v.img}" style="width:60px;height:60px;object-fit:contain;mix-blend-mode:multiply;">
+      <div style="font-size:10px;color:#6b7280;margin-top:4px;font-family:monospace;">${v.sku}</div>
+    </div>`).join('');
+  modal.style.display = 'flex';
+}
+
+// ── Override de categoría ─────────────────────────────────────────
+function openCatOverride(skuBase, currentMacro, currentSub) {
+  const meta = catCardMeta[skuBase] || {};
+  const modal = document.getElementById('cat-override-modal');
+  // Info producto
+  const thumb = document.getElementById('co-thumb');
+  if (thumb) { thumb.src = meta.thumb || ''; }
+  const nameEl = document.getElementById('co-name');
+  if (nameEl) nameEl.textContent = meta.name || skuBase;
+  document.getElementById('co-sku').textContent = skuBase;
+  document.getElementById('co-sku-input').value = skuBase;
+  // Posición actual
+  const subKey = currentMacro + '||' + currentSub;
+  const entries = catGridUidMap[subKey] || [];
+  const currentPos = entries.findIndex(x => x.base === skuBase) + 1;
+  document.getElementById('co-pos').value = currentPos || 1;
+  document.getElementById('co-pos-max').textContent = entries.length;
+  // Variantes para elegir imagen
+  const metaVariants = (meta.variants || []);
+  const pinnedSku = catalogPinned[skuBase];
+  const variantPickerEl = document.getElementById('co-variant-picker');
+  if (metaVariants.length > 1) {
+    variantPickerEl.style.display = 'block';
+    variantPickerEl.querySelector('.co-vp-thumbs').innerHTML = metaVariants.map(v => {
+      const img = v.ml_thumbnail || '/api/odoo/imagen/' + v.id;
+      const active = (pinnedSku ? v.sku === pinnedSku : v === metaVariants[0]);
+      return `<div onclick="pinVariant('${skuBase}','${v.sku}')" title="${v.sku}"
+        style="cursor:pointer;border-radius:6px;overflow:hidden;border:2px solid ${active?'#111827':'#e5e7eb'};flex-shrink:0;width:52px;height:52px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;">
+        <img src="${img}" style="width:46px;height:46px;object-fit:contain;mix-blend-mode:multiply;" onerror="this.style.opacity='0.2'">
+      </div>`;
+    }).join('');
+  } else {
+    variantPickerEl.style.display = 'none';
+  }
+  // Macros
+  const macroSel = document.getElementById('co-macro');
+  macroSel.innerHTML = CATALOGO_MACRO.map(m => `<option value="${m.nombre}" ${m.nombre===currentMacro?'selected':''}>${m.nombre}</option>`).join('');
+  populateCatOverrideSubs(currentMacro, currentSub);
+  modal.style.display = 'flex';
+}
+function populateCatOverrideSubs(macro, currentSub) {
+  const m = CATALOGO_MACRO.find(x => x.nombre === macro);
+  const customSubs = catalogCustomSubs.filter(s => s.macro === macro);
+  const subSel = document.getElementById('co-sub');
+  subSel.onchange = null; // evitar bucle
+  const allSubs = [
+    ...(m ? m.subs.map(s => s.nombre) : []),
+    ...customSubs.map(s => s.nombre)
+  ];
+  subSel.innerHTML = allSubs.map(nombre => `<option value="${nombre}" ${nombre===currentSub?'selected':''}>${nombre}</option>`).join('');
+  subSel.onchange = () => {
+    const subKey = document.getElementById('co-macro').value + '||' + subSel.value;
+    const entries = catGridUidMap[subKey] || [];
+    const maxEl = document.getElementById('co-pos-max');
+    if (maxEl) maxEl.textContent = entries.length || '?';
+  };
+  // Actualizar total
+  const subKey = macro + '||' + (subSel.value || '');
+  const entries = catGridUidMap[subKey] || [];
+  const maxEl = document.getElementById('co-pos-max');
+  if (maxEl) maxEl.textContent = entries.length || '?';
+}
+function coPosStep(delta) {
+  const inp = document.getElementById('co-pos');
+  const max = parseInt(document.getElementById('co-pos-max').textContent) || 999;
+  inp.value = Math.max(1, Math.min(max + 1, (parseInt(inp.value) || 1) + delta));
+}
+async function saveCatOverride() {
+  const skuBase = document.getElementById('co-sku-input').value;
+  const macro   = document.getElementById('co-macro').value;
+  const sub     = document.getElementById('co-sub').value;
+  const newPos  = parseInt(document.getElementById('co-pos').value) || null;
+  // Guardar categoría
+  await fetch('/api/catalog/override', { method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify({sku_base:skuBase, macro, sub}) });
+  catalogOverrides[skuBase] = { macro, sub };
+  // Guardar posición en el sort de la subcategoría destino
+  if (newPos) {
+    const subKey    = macro + '||' + sub;
+    const savedOv   = catalogSortOverrides[subKey] ? [...catalogSortOverrides[subKey]] : [];
+    const allBases  = (catGridUidMap[subKey] || []).map(x => x.base);
+    // Merge: productos del sort guardado + los que no estén aún (van al final)
+    const inSaved   = new Set(savedOv);
+    const base      = savedOv.length
+      ? [...savedOv, ...allBases.filter(b => !inSaved.has(b))]
+      : allBases;
+    const filtered = base.filter(b => b !== skuBase);
+    filtered.splice(Math.max(0, newPos - 1), 0, skuBase);
+    await fetch('/api/catalog/sort', { method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify({ key: subKey, order: filtered }) });
+    catalogSortOverrides[subKey] = filtered;
+  }
+  document.getElementById('cat-override-modal').style.display = 'none';
+  renderCatalogo();
+}
+async function deleteCatOverride() {
+  const skuBase = document.getElementById('co-sku-input').value;
+  await fetch('/api/catalog/override/'+encodeURIComponent(skuBase), { method:'DELETE', headers: authHeaders() });
+  delete catalogOverrides[skuBase];
+  document.getElementById('cat-override-modal').style.display = 'none';
+  renderCatalogo();
+}
+
+// ── Mover subcategoría completa ───────────────────────────────────
+function openMoveSubModal(subKey) {
+  const [currentMacro, subNombre] = subKey.split('||');
+  document.getElementById('msub-key').value    = subKey;
+  document.getElementById('msub-nombre').textContent = subNombre;
+  document.getElementById('msub-from').textContent   = currentMacro;
+  // Llenar selector de macros destino (todas menos la actual)
+  const sel = document.getElementById('msub-macro-sel');
+  sel.innerHTML = CATALOGO_MACRO
+    .filter(m => m.nombre !== currentMacro)
+    .map(m => `<option value="${m.nombre}">${m.nombre}</option>`)
+    .join('');
+  document.getElementById('msub-status').textContent = '';
+  document.getElementById('move-sub-modal').style.display = 'flex';
+}
+async function saveMoveSubModal() {
+  const subKey     = document.getElementById('msub-key').value;
+  const toMacro    = document.getElementById('msub-macro-sel').value;
+  const [, subNombre] = subKey.split('||');
+  const entries    = catGridUidMap[subKey] || [];
+  if (!entries.length) {
+    alert('No hay productos visibles en esta subcategoría.');
+    return;
+  }
+  const statusEl = document.getElementById('msub-status');
+  const btn      = document.getElementById('msub-save-btn');
+  btn.disabled   = true;
+
+  // Crear custom sub en el destino si no existe ni en CATALOGO_MACRO ni como custom sub
+  const macroDestDef = CATALOGO_MACRO.find(m => m.nombre === toMacro);
+  const subExisteEnMacro   = macroDestDef?.subs?.some(s => s.nombre === subNombre);
+  const subExisteCustom    = catalogCustomSubs.some(cs => cs.macro === toMacro && cs.nombre === subNombre);
+  if (!subExisteEnMacro && !subExisteCustom) {
+    statusEl.textContent = 'Creando subcategoría en destino...';
+    const r = await fetch('/api/catalog/custom-subs', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ macro: toMacro, nombre: subNombre })
+    });
+    const newSub = await r.json();
+    catalogCustomSubs.push(newSub);
+  }
+
+  let done = 0;
+  for (const { base } of entries) {
+    statusEl.textContent = `Moviendo ${done + 1} / ${entries.length}...`;
+    await fetch('/api/catalog/override', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sku_base: base, macro: toMacro, sub: subNombre })
+    });
+    catalogOverrides[base] = { macro: toMacro, sub: subNombre };
+    done++;
+  }
+  btn.disabled = false;
+  document.getElementById('move-sub-modal').style.display = 'none';
+  renderCatalogo();
+}
+
+// ── Orden de subcategorías ────────────────────────────────────────
+let _subSortMacro = '';
+let _subSortList  = [];
+
+function openSubSortModal(macro) {
+  _subSortMacro = macro;
+  // Construir lista actual de subs para esa macro
+  const m = CATALOGO_MACRO.find(x => x.nombre === macro);
+  const staticSubs = m ? m.subs.map(s => s.nombre) : [];
+  const customSubs = catalogCustomSubs.filter(s => s.macro === macro).map(s => s.nombre);
+  const allSubs    = [...new Set([...staticSubs, ...customSubs])].filter(n => n);
+  const sortOv     = catalogSubSort[macro];
+  if (sortOv) {
+    _subSortList = [
+      ...sortOv.filter(n => allSubs.includes(n)),
+      ...allSubs.filter(n => !sortOv.includes(n))
+    ];
+  } else {
+    _subSortList = [...allSubs];
+  }
+  document.getElementById('sub-sort-macro-label').textContent = catalogLabels[macro] || macro;
+  renderSubSortList();
+  document.getElementById('sub-sort-modal').style.display = 'flex';
+}
+
+function renderSubSortList() {
+  const list = document.getElementById('sub-sort-list');
+  list.innerHTML = _subSortList.map((nombre, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:white;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:6px;">
+      <span style="font-size:11px;font-weight:700;color:#9ca3af;width:18px;text-align:right;flex-shrink:0;">${i+1}</span>
+      <span style="flex:1;font-size:13px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:0.02em;">${catalogLabels[_subSortMacro+'||'+nombre] || nombre}</span>
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <button onclick="subSortMove(${i},-1)" ${i===0?'disabled':''} style="width:26px;height:22px;border:1px solid #e5e7eb;border-radius:4px;background:white;cursor:pointer;font-size:12px;color:#374151;${i===0?'opacity:.3;':''}"">↑</button>
+        <button onclick="subSortMove(${i},1)" ${i===_subSortList.length-1?'disabled':''} style="width:26px;height:22px;border:1px solid #e5e7eb;border-radius:4px;background:white;cursor:pointer;font-size:12px;color:#374151;${i===_subSortList.length-1?'opacity:.3;':''}"">↓</button>
+      </div>
+    </div>`).join('');
+}
+
+function subSortMove(idx, dir) {
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= _subSortList.length) return;
+  [_subSortList[idx], _subSortList[newIdx]] = [_subSortList[newIdx], _subSortList[idx]];
+  renderSubSortList();
+}
+
+async function saveSubSort() {
+  await fetch('/api/catalog/sub-sort', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ macro: _subSortMacro, order: _subSortList })
+  });
+  catalogSubSort[_subSortMacro] = [..._subSortList];
+  document.getElementById('sub-sort-modal').style.display = 'none';
+  renderCatalogo();
+}
+async function resetSubSort() {
+  await fetch('/api/catalog/sub-sort/' + encodeURIComponent(_subSortMacro), { method: 'DELETE', headers: authHeaders() });
+  delete catalogSubSort[_subSortMacro];
+  document.getElementById('sub-sort-modal').style.display = 'none';
+  renderCatalogo();
+}
+
+// ── Subcategorías personalizadas ──────────────────────────────────
+function openAddCustomSub(macro) {
+  document.getElementById('add-sub-macro').value = macro;
+  document.getElementById('add-sub-macro-label').textContent = catalogLabels[macro] || macro;
+  document.getElementById('add-sub-nombre').value = '';
+  document.getElementById('add-sub-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('add-sub-nombre').focus(), 50);
+}
+async function saveCustomSub() {
+  const macro  = document.getElementById('add-sub-macro').value;
+  const nombre = document.getElementById('add-sub-nombre').value.trim();
+  if (!nombre) return;
+  const r = await fetch('/api/catalog/custom-subs', { method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify({macro, nombre}) });
+  const { id } = await r.json();
+  catalogCustomSubs.push({ id, macro, nombre });
+  document.getElementById('add-sub-modal').style.display = 'none';
+  renderCatalogo();
+}
+async function deleteCustomSub(id) {
+  await fetch('/api/catalog/custom-subs/'+id, { method:'DELETE', headers: authHeaders() });
+  catalogCustomSubs = catalogCustomSubs.filter(s => s.id !== id);
+  renderCatalogo();
+}
+
+// ── Labels editables ──────────────────────────────────────────────
+function editCatLabel(key, el, dark) {
+  if (catalogoModo !== 'ver') return;
+  const current = el.textContent;
+  const inp = document.createElement('input');
+  inp.value = current;
+  inp.style.cssText = `font-size:inherit;font-weight:inherit;color:inherit;background:transparent;border:none;border-bottom:2px solid ${dark?'rgba(255,255,255,0.6)':'rgba(0,0,0,0.3)'};outline:none;min-width:180px;width:${Math.max(180, current.length*14)}px;font-family:inherit;letter-spacing:inherit;text-transform:inherit;padding:0;`;
+  el.replaceWith(inp);
+  inp.focus(); inp.select();
+  const restore = () => { inp.replaceWith(el); };
+  const save = async () => {
+    const name = inp.value.trim();
+    if (!name || name === current) { restore(); return; }
+    await fetch('/api/catalog/labels', { method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify({key, name}) });
+    catalogLabels[key] = name;
+    renderCatalogo();
+  };
+  inp.addEventListener('blur', save);
+  inp.addEventListener('keydown', e => { if(e.key==='Enter'){e.preventDefault();inp.blur();} if(e.key==='Escape'){inp.value=current;inp.blur();} });
+}
+async function resetCatLabel(key) {
+  await fetch('/api/catalog/labels/'+encodeURIComponent(key), { method:'DELETE', headers: authHeaders() });
+  delete catalogLabels[key];
+  renderCatalogo();
+}
+
+// ── Imagen pinneada ───────────────────────────────────────────────
+async function pinVariant(skuBase, skuVariant) {
+  await fetch('/api/catalog/pinned', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sku_base: skuBase, sku_variant: skuVariant })
+  });
+  catalogPinned[skuBase] = skuVariant;
+  // Actualizar borde activo en el picker
+  const picker = document.querySelector('.co-vp-thumbs');
+  if (picker) {
+    picker.querySelectorAll('div[onclick]').forEach(d => {
+      d.style.borderColor = d.title === skuVariant ? '#111827' : '#e5e7eb';
+    });
+  }
+  // Actualizar imagen principal del modal
+  const meta = catCardMeta[skuBase];
+  if (meta) {
+    const v = (meta.variants||[]).find(x => x.sku === skuVariant);
+    if (v) {
+      const thumb = document.getElementById('co-thumb');
+      if (thumb) thumb.src = v.ml_thumbnail || '/api/odoo/imagen/' + v.id;
+    }
+  }
+}
+
+// ── Orden manual ──────────────────────────────────────────────────
+async function saveCatSort(subKey) {
+  const entries = catGridUidMap[subKey] || [];
+  const withPos = entries.map(({uid, base}) => {
+    const input = document.getElementById(uid + '_ord');
+    return { base, pos: input ? (parseInt(input.value) || 999) : 999 };
+  });
+  withPos.sort((a, b) => a.pos - b.pos);
+  const order = withPos.map(x => x.base);
+  await fetch('/api/catalog/sort', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: subKey, order })
+  });
+  catalogSortOverrides[subKey] = order;
+  renderCatalogo();
+}
+async function resetCatSort(subKey) {
+  await fetch('/api/catalog/sort/' + encodeURIComponent(subKey), { method: 'DELETE', headers: authHeaders() });
+  delete catalogSortOverrides[subKey];
+  renderCatalogo();
+}
+
+function catSelectVariant(uid, idx, variants) {
+  const v = variants[idx];
+  const main = document.getElementById(uid+'_main');
+  const skuEl = document.getElementById(uid+'_sku');
+  const priceEl = document.getElementById(uid+'_price');
+  const stockEl = document.getElementById(uid+'_stock');
+  const btn = document.getElementById(uid+'_btn');
+  if (main) main.src = v.img;
+  if (skuEl) skuEl.textContent = v.sku || 'S/C';
+  if (priceEl) priceEl.textContent = '$' + Math.round(v.price).toLocaleString('es-UY');
+  if (stockEl) stockEl.innerHTML = v.stock > 10
+    ? '<span style="font-size:10px;font-weight:700;color:#059669;text-transform:uppercase;">● En stock</span>'
+    : v.stock > 0
+    ? `<span style="font-size:10px;font-weight:700;color:#d97706;text-transform:uppercase;">● Stock bajo (${v.stock})</span>`
+    : '<span style="font-size:10px;font-weight:700;color:#dc2626;text-transform:uppercase;">Sin stock</span>';
+  if (btn) btn.setAttribute('onclick', `addToCatPedidoById(${v.id})`);
+  // Actualizar borde activo en miniaturas
+  for (let i = 0; i < variants.length; i++) {
+    const th = document.getElementById(uid+'_th_'+i);
+    if (th) th.classList.toggle('active', i === idx);
+  }
+}
 
 function setCatalogoModo(m) {
   catalogoModo = m;
@@ -4868,14 +5313,27 @@ async function loadCatalogo() {
     document.getElementById('catalogo-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando catálogo...</div>';
     await loadOdoo();
   }
-  // Poblar selector de categorías con solo las que tienen mayoristas
+  // Cargar overrides, orden, pinned, labels, custom subs y orden de subs
+  try {
+    const [rOv, rSt, rPn, rLb, rCs, rSs] = await Promise.all([
+      fetch('/api/catalog/overrides',   { headers: authHeaders() }),
+      fetch('/api/catalog/sort',        { headers: authHeaders() }),
+      fetch('/api/catalog/pinned',      { headers: authHeaders() }),
+      fetch('/api/catalog/labels',      { headers: authHeaders() }),
+      fetch('/api/catalog/custom-subs', { headers: authHeaders() }),
+      fetch('/api/catalog/sub-sort',    { headers: authHeaders() })
+    ]);
+    catalogOverrides     = await rOv.json();
+    catalogSortOverrides = await rSt.json();
+    catalogPinned        = await rPn.json();
+    catalogLabels        = await rLb.json();
+    catalogCustomSubs    = await rCs.json();
+    catalogSubSort       = await rSs.json();
+  } catch(e) { catalogOverrides = {}; catalogSortOverrides = {}; catalogPinned = {}; catalogLabels = {}; catalogCustomSubs = []; catalogSubSort = {}; }
+  // Poblar selector con macro-categorías
   const catSel = document.getElementById('catalogo-cat');
-  const cats = new Set();
-  for (const cat of (odooData?.categories || [])) {
-    if (cat.items.some(p => p.mayorista)) cats.add(cat.name);
-  }
   catSel.innerHTML = '<option value="">Todas las categorías</option>' +
-    [...cats].sort((a,b) => a.localeCompare(b,'es')).map(c => `<option value="${c}">${c}</option>`).join('');
+    CATALOGO_MACRO.map(m => `<option value="${m.nombre}">${m.nombre}</option>`).join('');
   catalogoLoaded = true;
   renderCatalogo();
   const total = (odooData?.categories || []).flatMap(c => c.items).filter(p => p.mayorista).length;
@@ -4884,113 +5342,146 @@ async function loadCatalogo() {
 
 function descargarCatalogo() {
   if (!odooData) return;
-  const q          = (document.getElementById('catalogo-search')?.value || '').toLowerCase();
-  const catFilter  = document.getElementById('catalogo-cat')?.value || '';
+  const q           = (document.getElementById('catalogo-search')?.value || '').toLowerCase();
+  const macroFilter = document.getElementById('catalogo-cat')?.value || '';
   const stockFilter = document.getElementById('catalogo-stock')?.value || 'all';
-  const view       = catalogoView;
+  const fecha       = new Date().toLocaleDateString('es-UY', {day:'2-digit',month:'long',year:'numeric'});
 
-  const bycat = {};
+  // ── Reusar la misma lógica que renderCatalogo ──────────────────
+  const odooBycat = {};
   for (const c of odooData.categories) {
-    if (catFilter && c.name !== catFilter) continue;
     for (const p of c.items) {
       if (!p.mayorista) continue;
       if (q && !p.name.toLowerCase().includes(q) && !(p.sku||'').toLowerCase().includes(q)) continue;
       if (stockFilter === 'con_stock' && !(p.stock > 0)) continue;
       if (stockFilter === 'sin_stock' && p.stock > 0) continue;
-      if (!bycat[c.name]) bycat[c.name] = [];
-      bycat[c.name].push(p);
+      if (!odooBycat[c.name]) odooBycat[c.name] = [];
+      odooBycat[c.name].push(p);
     }
   }
-  const cats = Object.keys(bycat).sort((a,b) => a.localeCompare(b,'es'));
-  if (!cats.length) return alert('No hay productos para descargar.');
+  const overrideItems = {};
+  for (const [skuBase, dest] of Object.entries(catalogOverrides)) {
+    const key = dest.macro + '||' + dest.sub;
+    for (const cat of Object.keys(odooBycat)) {
+      odooBycat[cat] = odooBycat[cat].filter(p => {
+        const base = p.sku ? p.sku.split('-')[0] : '';
+        if (base === skuBase) { if (!overrideItems[key]) overrideItems[key] = []; overrideItems[key].push(p); return false; }
+        return true;
+      });
+    }
+  }
 
-  const totalItems = cats.reduce((s,c) => s + bycat[c].length, 0);
-  const fecha = new Date().toLocaleDateString('es-UY', {day:'2-digit',month:'long',year:'numeric'});
+  const STYLE_ORDER = ['nordico','rustico','clasico','moderno','industrial','novelty','led','sal','otro'];
+  const getStyle = p => {
+    if (p.style_group) return p.style_group;
+    const n = (p.name||'').toLowerCase();
+    if (/nordi|escandinav|bambu|ratan|mimbre|ratán|praga|medellin|medellín|cali|bogot|nórdic/.test(n)) return 'nordico';
+    if (/rustic|colonial|cuerda|cañamo|yute|tejid|madera/.test(n)) return 'rustico';
+    if (/industrial|jaula|galpon|retro|curva|vintage|filament/.test(n)) return 'industrial';
+    if (/astronauta|novedad|novelty|cohete|animal|infantil/.test(n)) return 'novelty';
+    if (/led|smd|plafon|panel|tunis|general led/.test(n)) return 'led';
+    if (/sal\b|himalaya/.test(n)) return 'sal';
+    if (/clasic|clásic|verona|florencia|napoles|napol/.test(n)) return 'clasico';
+    return 'moderno';
+  };
 
-  const productRows = (items) => items.map(p => {
-    const imgSrc = p.ml_thumbnail || (location.origin + '/api/odoo/imagen/' + p.id);
-    const stockTxt = p.stock > 0 ? `<span style="color:#059669;font-weight:700;">${p.stock} u.</span>` : `<span style="color:#dc2626;">Sin stock</span>`;
-    return view === 'lista'
-      ? `<tr>
-          <td style="padding:7px 10px;"><img src="${imgSrc}" style="width:44px;height:44px;object-fit:contain;border-radius:6px;background:#f9fafb;" onerror="this.style.opacity='0'"></td>
-          <td style="padding:7px 10px;font-family:monospace;font-size:11px;color:#7c3aed;font-weight:700;">${p.sku||'—'}</td>
-          <td style="padding:7px 10px;font-size:12px;color:#111827;font-weight:500;">${p.name}</td>
-          <td style="padding:7px 10px;font-size:13px;font-weight:800;color:#059669;text-align:right;white-space:nowrap;">$${Math.round(p.price||0).toLocaleString('es-UY')}</td>
-          <td style="padding:7px 10px;text-align:center;font-size:12px;">${stockTxt}</td>
-        </tr>`
-      : `<div style="background:white;border-radius:14px;border:1px solid #e5e7eb;padding:14px;display:flex;flex-direction:column;gap:8px;break-inside:avoid;position:relative;overflow:hidden;">
-          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#7c3aed,#a78bfa);"></div>
-          <div style="font-family:monospace;font-size:10px;color:#7c3aed;font-weight:700;background:#f5f3ff;padding:2px 6px;border-radius:4px;display:inline-block;width:fit-content;">${p.sku||'S/C'}</div>
-          <img src="${imgSrc}" style="width:100%;height:120px;object-fit:contain;border-radius:8px;background:#f9fafb;" onerror="this.style.opacity='0'">
-          <div style="font-size:11px;font-weight:600;color:#111827;line-height:1.4;">${p.name}</div>
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;">
-            <div style="font-size:17px;font-weight:800;color:#059669;"><span style="font-size:11px;font-weight:500;color:#9ca3af;">$</span>${Math.round(p.price||0).toLocaleString('es-UY')}</div>
-            <div style="font-size:11px;">${stockTxt}</div>
-          </div>
-        </div>`;
-  }).join('');
+  const macros = CATALOGO_MACRO
+    .filter(m => !macroFilter || m.nombre === macroFilter)
+    .map(m => ({
+      ...m,
+      subs: m.subs.map(s => {
+        const subKey  = m.nombre + '||' + s.nombre;
+        const raw     = [...s.cats.flatMap(cat => odooBycat[cat] || []), ...(overrideItems[subKey] || [])];
+        const groups  = {};
+        const order   = [];
+        for (const p of raw) {
+          const base = p.sku ? p.sku.split('-')[0] : ('__'+p.id);
+          if (!groups[base]) { groups[base] = []; order.push(base); }
+          groups[base].push(p);
+        }
+        // Aplicar sort override o auto-sort
+        const sortOv = catalogSortOverrides[subKey];
+        if (sortOv) {
+          order.sort((a,b) => { const ia=sortOv.indexOf(a),ib=sortOv.indexOf(b); if(ia===-1&&ib===-1)return 0; if(ia===-1)return 1; if(ib===-1)return -1; return ia-ib; });
+        } else {
+          const items = order.map(b => groups[b][0]);
+          items.sort((a,b) => { const si=STYLE_ORDER.indexOf(getStyle(a))-STYLE_ORDER.indexOf(getStyle(b)); return si!==0?si:a.name.localeCompare(b.name,'es'); });
+          order.splice(0, order.length, ...items.map(p => p.sku?p.sku.split('-')[0]:('__'+p.id)));
+        }
+        return { ...s, groups, order };
+      }).filter(s => s.order.length > 0)
+    })).filter(m => m.subs.length > 0);
 
-  const catSection = (name) => view === 'lista'
-    ? `<div style="display:flex;align-items:center;gap:12px;margin:24px 0 10px;page-break-inside:avoid;">
-        <div style="height:2px;width:18px;background:linear-gradient(90deg,#7c3aed,#a78bfa);border-radius:2px;flex-shrink:0;"></div>
-        <span style="font-size:12px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap;">${name}</span>
-        <div style="height:2px;flex:1;background:#f3f4f6;border-radius:2px;"></div>
-        <span style="font-size:10px;color:#9ca3af;">${bycat[name].length} productos</span>
+  if (!macros.length) return alert('No hay productos para descargar.');
+  const totalGroups = macros.reduce((s,m) => s + m.subs.reduce((ss,sub) => ss + sub.order.length, 0), 0);
+
+  // ── Generar HTML del PDF ────────────────────────────────────────
+  const stockBadge = (stock) => stock > 10
+    ? `<span style="font-size:9px;font-weight:700;color:#059669;">● En stock</span>`
+    : stock > 0
+    ? `<span style="font-size:9px;font-weight:700;color:#d97706;">● Stock bajo (${stock})</span>`
+    : `<span style="font-size:9px;font-weight:700;color:#dc2626;">Sin stock</span>`;
+
+  const cardHtml = (groups, base) => {
+    const variants = groups[base];
+    const p0       = variants[0];
+    const isGroup  = variants.length > 1;
+    const displayName = isGroup
+      ? p0.name.replace(/[-–]\s*(VER|ROS|AMA|GRI|BLA|NEG|ROJ|AZU|NAR|VIO|BEI|MAR|CRE|TUR|AZL|GRS|PLT|BCO|BLN|BLC|BLQ|BLU|RED|GRN|YEL|BRN|PNK|GLD|SLV)\b.*/i,'').trim()
+      : p0.name;
+    const minPrice = Math.min(...variants.map(v=>v.price||0));
+    const maxPrice = Math.max(...variants.map(v=>v.price||0));
+    const priceHtml = isGroup && minPrice !== maxPrice
+      ? `desde $${Math.round(minPrice).toLocaleString('es-UY')}`
+      : `$${Math.round(p0.price||0).toLocaleString('es-UY')}`;
+    const imgSrc = p0.ml_thumbnail || (location.origin + '/api/odoo/imagen/' + p0.id);
+    const variantDots = isGroup
+      ? `<div style="display:flex;gap:3px;margin-top:4px;">${variants.slice(0,6).map(()=>'<div style="width:6px;height:6px;border-radius:50%;background:#d1d5db;"></div>').join('')}${variants.length>6?`<span style="font-size:8px;color:#9ca3af;">+${variants.length-6}</span>`:''}</div>`
+      : '';
+    return `<div style="background:white;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;break-inside:avoid;display:flex;flex-direction:column;">
+      <div style="background:#f5f5f5;height:140px;display:flex;align-items:center;justify-content:center;">
+        <img src="${imgSrc}" style="max-width:90%;max-height:128px;object-fit:contain;mix-blend-mode:multiply;" onerror="this.style.opacity='0.1'">
       </div>
-      <table style="width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;">
-        <thead><tr style="background:#f9fafb;">
-          <th style="width:52px;border-bottom:1px solid #f3f4f6;"></th>
-          <th style="text-align:left;padding:7px 10px;font-size:10px;color:#9ca3af;font-weight:600;border-bottom:1px solid #f3f4f6;">SKU</th>
-          <th style="text-align:left;padding:7px 10px;font-size:10px;color:#9ca3af;font-weight:600;border-bottom:1px solid #f3f4f6;">PRODUCTO</th>
-          <th style="text-align:right;padding:7px 10px;font-size:10px;color:#9ca3af;font-weight:600;border-bottom:1px solid #f3f4f6;">PRECIO</th>
-          <th style="text-align:center;padding:7px 10px;font-size:10px;color:#9ca3af;font-weight:600;border-bottom:1px solid #f3f4f6;">STOCK</th>
-        </tr></thead>
-        <tbody>${productRows(bycat[name])}</tbody>
-      </table>`
-    : `<div style="display:flex;align-items:center;gap:12px;margin:24px 0 12px;page-break-inside:avoid;">
-        <div style="height:2px;width:18px;background:linear-gradient(90deg,#7c3aed,#a78bfa);border-radius:2px;flex-shrink:0;"></div>
-        <span style="font-size:12px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap;">${name}</span>
-        <div style="height:2px;flex:1;background:#f3f4f6;border-radius:2px;"></div>
-        <span style="font-size:10px;color:#9ca3af;">${bycat[name].length} productos</span>
+      <div style="padding:10px 12px 12px;display:flex;flex-direction:column;flex:1;">
+        <div style="font-size:9px;font-weight:700;color:#9ca3af;letter-spacing:0.08em;margin-bottom:4px;">${p0.sku||'S/C'}${isGroup?` +${variants.length-1}`:''}</div>
+        <div style="font-size:11px;font-weight:700;color:#111827;line-height:1.4;flex:1;">${displayName}</div>
+        ${variantDots}
+        <div style="height:1px;background:#f3f4f6;margin:8px 0;"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:16px;font-weight:900;color:#111827;">${priceHtml}</div>
+          <div>${stockBadge(p0.stock??0)}</div>
+        </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:8px;">
-        ${productRows(bycat[name])}
-      </div>`;
+    </div>`;
+  };
 
   const html = `<!DOCTYPE html><html lang="es"><head>
     <meta charset="UTF-8">
     <title>Catálogo Mayorista</title>
     <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: white; color: #111827; padding: 32px 40px; }
-      @media print {
-        body { padding: 16px 20px; }
-        @page { size: A4; margin: 15mm 15mm; }
-        tr { page-break-inside: avoid; }
-      }
-      .header-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; padding-bottom:16px; border-bottom:2px solid #7c3aed; }
-      .brand { display:flex; align-items:center; gap:12px; }
-      .brand-title { font-size:22px; font-weight:800; color:#111827; }
-      .brand-title span { color:#7c3aed; }
-      .meta { font-size:12px; color:#6b7280; text-align:right; line-height:1.7; }
+      *{box-sizing:border-box;margin:0;padding:0;}
+      body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:white;color:#111827;padding:28px 32px;}
+      @media print{body{padding:12px 16px;}@page{size:A4;margin:12mm 12mm;}}
     </style>
   </head><body>
-    <div class="header-bar">
-      <div class="brand">
-        <div style="width:40px;height:40px;background:linear-gradient(135deg,#7c3aed,#a78bfa);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-size:20px;">🏷</div>
-        <div>
-          <div class="brand-title">Catálogo <span>Mayorista</span></div>
-          <div style="font-size:11px;color:#6b7280;">${totalItems} productos · ${cats.length} categorías</div>
-        </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;padding-bottom:16px;border-bottom:2px solid #111827;">
+      <div>
+        <div style="font-size:22px;font-weight:900;color:#111827;">Catálogo Mayorista</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:3px;">${totalGroups} productos · Vigencia: ${fecha}</div>
       </div>
-      <div class="meta">
-        <div><strong>Vigencia:</strong> ${fecha}</div>
-        ${catFilter ? `<div><strong>Categoría:</strong> ${catFilter}</div>` : ''}
-        ${stockFilter === 'con_stock' ? '<div style="color:#059669;font-weight:600;">Solo con stock disponible</div>' : ''}
-      </div>
+      ${stockFilter==='con_stock'?'<div style="font-size:11px;font-weight:600;color:#059669;background:#f0fdf4;padding:4px 10px;border-radius:6px;">Solo con stock</div>':''}
     </div>
-    ${cats.map(catSection).join('')}
-    <div style="margin-top:32px;padding-top:12px;border-top:1px solid #f3f4f6;font-size:10px;color:#9ca3af;text-align:center;">
+    ${macros.map(m => `
+      <div style="margin:32px 0 16px;border-radius:8px;background:#111827;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;break-before:${m===macros[0]?'avoid':'page'};">
+        <span style="font-size:20px;font-weight:900;color:white;text-transform:uppercase;letter-spacing:-0.01em;">${m.nombre}</span>
+        <span style="font-size:10px;color:#9ca3af;">${m.subs.reduce((s,sub)=>s+sub.order.length,0)} productos</span>
+      </div>
+      ${m.subs.map(sub => `
+        <div style="font-size:14px;font-weight:800;color:#111827;text-transform:uppercase;letter-spacing:0.03em;margin:20px 0 10px;">${sub.nombre}</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:6px;">
+          ${sub.order.map(base => cardHtml(sub.groups, base)).join('')}
+        </div>`).join('')}`).join('')}
+    <div style="margin-top:28px;padding-top:10px;border-top:1px solid #f3f4f6;font-size:9px;color:#9ca3af;text-align:center;">
       Precios en pesos uruguayos · Sujetos a disponibilidad de stock · ${fecha}
     </div>
   </body></html>`;
@@ -5003,105 +5494,335 @@ function descargarCatalogo() {
 
 function renderCatalogo() {
   if (!odooData) return;
-  const q          = (document.getElementById('catalogo-search')?.value || '').toLowerCase();
-  const catFilter  = document.getElementById('catalogo-cat')?.value || '';
+  catGridUidMap = {};
+  catCardMeta   = {};
+  const q           = (document.getElementById('catalogo-search')?.value || '').toLowerCase();
+  const macroFilter = document.getElementById('catalogo-cat')?.value || '';
   const stockFilter = document.getElementById('catalogo-stock')?.value || 'all';
-  const cont = document.getElementById('catalogo-content');
+  const cont        = document.getElementById('catalogo-content');
 
-  // Agrupar por categoría y registrar en mapa
-  const bycat = {};
+  // Construir lookup: nombre_odoo_cat → productos mayoristas
+  const odooBycat = {};
   for (const c of odooData.categories) {
-    if (catFilter && c.name !== catFilter) continue;
     for (const p of c.items) {
       if (!p.mayorista) continue;
       if (q && !p.name.toLowerCase().includes(q) && !(p.sku||'').toLowerCase().includes(q)) continue;
       if (stockFilter === 'con_stock' && !(p.stock > 0)) continue;
       if (stockFilter === 'sin_stock' && p.stock > 0) continue;
-      if (!bycat[c.name]) bycat[c.name] = [];
-      bycat[c.name].push(p);
-      catProductMap[p.id] = p; // registrar para onclick seguro
+      if (!odooBycat[c.name]) odooBycat[c.name] = [];
+      odooBycat[c.name].push(p);
+      catProductMap[p.id] = p;
     }
   }
-  const cats = Object.keys(bycat).sort((a,b) => a.localeCompare(b,'es'));
 
-  if (!cats.length) {
+  // Aplicar overrides: mover productos a macro/sub personalizada
+  const overrideItems = {}; // 'macro||sub' → [productos]
+  for (const [skuBase, dest] of Object.entries(catalogOverrides)) {
+    const key = dest.macro + '||' + dest.sub;
+    // Quitar de odooBycat
+    for (const cat of Object.keys(odooBycat)) {
+      odooBycat[cat] = odooBycat[cat].filter(p => {
+        const base = p.sku ? p.sku.split('-')[0] : '';
+        if (base === skuBase) { if (!overrideItems[key]) overrideItems[key] = []; overrideItems[key].push(p); return false; }
+        return true;
+      });
+    }
+  }
+
+  // Armar estructura macro → sub → productos
+  const macros = CATALOGO_MACRO
+    .filter(m => !macroFilter || m.nombre === macroFilter)
+    .map(m => ({
+      ...m,
+      subs: m.subs.map(s => ({
+        ...s,
+        items: (() => {
+          const key = m.nombre + '||' + s.nombre;
+          const items = [...s.cats.flatMap(cat => odooBycat[cat] || []), ...(overrideItems[key] || [])];
+          const STYLE_ORDER = ['nordico','rustico','clasico','moderno','industrial','novelty','led','sal','otro'];
+          const MAT_ORDER   = ['madera','tela','cristal','metal','plastico','sal','otro'];
+          const getStyle = p => {
+            if (p.style_group) return p.style_group;
+            const n = (p.name||'').toLowerCase();
+            if (/nordi|escandinav|bambu|ratan|mimbre|ratán|praga|medellin|medellín|cali|bogot|nórdic/.test(n)) return 'nordico';
+            if (/rustic|colonial|cuerda|cañamo|yute|tejid|madera/.test(n)) return 'rustico';
+            if (/industrial|jaula|galpon|retro|curva|vintage|filament/.test(n)) return 'industrial';
+            if (/astronauta|novedad|novelty|cohete|animal|infantil/.test(n)) return 'novelty';
+            if (/led|smd|plafon|panel|tunis|general led/.test(n)) return 'led';
+            if (/sal\b|himalaya/.test(n)) return 'sal';
+            if (/clasic|clásic|verona|florencia|napoles|napol/.test(n)) return 'clasico';
+            return 'moderno';
+          };
+          const getMat = p => {
+            if (p.material_group) return p.material_group;
+            const n = (p.name||'').toLowerCase();
+            if (/madera|wood|bambu|ratán|ratan|mimbre/.test(n)) return 'madera';
+            if (/tela|lino|linen|fabric|pantalla/.test(n)) return 'tela';
+            if (/metal|hierro|acero|aluminio/.test(n)) return 'metal';
+            return 'otro';
+          };
+          return items.sort((a, b) => {
+            const si = STYLE_ORDER.indexOf(getStyle(a)) - STYLE_ORDER.indexOf(getStyle(b));
+            if (si !== 0) return si;
+            const mi = MAT_ORDER.indexOf(getMat(a)) - MAT_ORDER.indexOf(getMat(b));
+            if (mi !== 0) return mi;
+            return a.name.localeCompare(b.name,'es');
+          });
+        })()
+      })).filter(s => s.items.length > 0)
+    })).filter(m => m.subs.length > 0);
+
+  // Inyectar subcategorías personalizadas
+  for (const csub of catalogCustomSubs) {
+    if (macroFilter && csub.macro !== macroFilter) continue;
+    let macro = macros.find(m => m.nombre === csub.macro);
+    if (!macro) {
+      // La macro fue filtrada (0 productos estándar) — la agregamos vacía
+      macro = { nombre: csub.macro, subs: [] };
+      macros.push(macro);
+    }
+    const subKey = csub.macro + '||' + csub.nombre;
+    const items = (overrideItems[subKey] || []).filter(p => {
+      if (q && !p.name.toLowerCase().includes(q) && !(p.sku||'').toLowerCase().includes(q)) return false;
+      if (stockFilter === 'con_stock' && !(p.stock > 0)) return false;
+      if (stockFilter === 'sin_stock' && p.stock > 0) return false;
+      return true;
+    });
+    if (items.length > 0 || catalogoModo === 'ver') {
+      macro.subs.push({ nombre: csub.nombre, cats: [], items, isCustom: true, customId: csub.id });
+    }
+  }
+
+  if (!macros.length) {
     cont.innerHTML = '<div style="color:#9ca3af;font-size:14px;padding:40px;text-align:center;">No se encontraron productos.</div>';
     return;
   }
 
-  const catHeader = name => `
-    <div style="display:flex;align-items:center;gap:12px;margin:28px 0 14px;">
-      <div style="height:2px;flex:0 0 18px;background:linear-gradient(90deg,#7c3aed,#a78bfa);border-radius:2px;"></div>
-      <span style="font-size:13px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap;">${name}</span>
-      <div style="height:2px;flex:1;background:#f3f4f6;border-radius:2px;"></div>
-      <span style="font-size:11px;color:#9ca3af;">${bycat[name].length} productos</span>
+  const macroHeader = (nombre, total) => {
+    const label = catalogLabels[nombre] || nombre;
+    const hint  = catalogoModo === 'ver' ? ' title="Doble click para editar"' : '';
+    const reset = catalogoModo === 'ver' && catalogLabels[nombre]
+      ? `<button onclick="resetCatLabel('${nombre}')" style="font-size:10px;color:#6b7280;background:transparent;border:none;cursor:pointer;padding:0 6px;" title="Restaurar nombre original">↺</button>` : '';
+    const addBtn = catalogoModo === 'ver'
+      ? `<button onclick="openAddCustomSub('${nombre}')" style="font-size:11px;font-weight:700;color:#9ca3af;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 10px;cursor:pointer;" title="Agregar subcategoría">+ Sub</button>` : '';
+    const ordenarBtn = catalogoModo === 'ver'
+      ? `<button onclick="openSubSortModal('${nombre.replace(/'/g,"\\'")}')" style="font-size:11px;font-weight:700;color:#fff;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:4px 10px;cursor:pointer;">⇅ Ordenar</button>` : '';
+    return `<div style="margin:40px 0 16px;border-radius:8px;overflow:hidden;background:#111827;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span ondblclick="editCatLabel('${nombre}',this,true)"${hint} style="font-size:24px;font-weight:900;color:#ffffff;letter-spacing:-0.01em;text-transform:uppercase;cursor:${catalogoModo==='ver'?'text':'default'};">${label}</span>
+        ${reset}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        ${ordenarBtn}${addBtn}
+        <span style="font-size:11px;color:#9ca3af;font-weight:500;">${total} productos</span>
+      </div>
     </div>`;
+  };
+
+  const subHeader = (nombre, total, subKey='', customId, subIdx=0) => {
+    const label = catalogLabels[subKey] || nombre;
+    const hint  = catalogoModo === 'ver' ? ' title="Doble click para editar"' : '';
+    const resetLabel = catalogoModo === 'ver' && catalogLabels[subKey]
+      ? `<button onclick="resetCatLabel('${subKey.replace(/'/g,"\\'")}')" style="font-size:10px;color:#9ca3af;background:transparent;border:none;cursor:pointer;padding:0 4px;" title="Restaurar nombre original">↺</button>` : '';
+    const resetSort = catalogoModo === 'ver' && catalogSortOverrides[subKey]
+      ? `<button onclick="resetCatSort('${subKey.replace(/'/g,"\\'")}')" style="font-size:10px;font-weight:600;color:#dc2626;background:#fff;border:1px solid #fca5a5;border-radius:5px;padding:3px 8px;cursor:pointer;flex-shrink:0;">↺ Orden</button>` : '';
+    const deleteBtn = catalogoModo === 'ver' && customId
+      ? `<button onclick="deleteCustomSub('${customId}')" style="font-size:10px;font-weight:600;color:#dc2626;background:#fff;border:1px solid #fca5a5;border-radius:5px;padding:3px 8px;cursor:pointer;flex-shrink:0;" title="Eliminar subcategoría">✕ Eliminar sub</button>` : '';
+    const moverBtn = catalogoModo === 'ver' && subKey
+      ? `<button onclick="openMoveSubModal('${subKey.replace(/'/g,"\\'")}')" style="font-size:10px;font-weight:600;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:3px 8px;cursor:pointer;flex-shrink:0;" title="Mover subcategoría completa a otra categoría">↗ Mover</button>` : '';
+    return `<div style="padding:20px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+        <span ondblclick="editCatLabel('${subKey.replace(/'/g,"\\'")}'  ,this,false)"${hint} style="font-size:16px;font-weight:800;color:#111827;text-transform:uppercase;letter-spacing:0.03em;cursor:${catalogoModo==='ver'?'text':'default'};">${label}</span>
+        ${resetLabel}
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">${moverBtn}${resetSort}${deleteBtn}</div>
+    </div>`;
+  };
+
+  const stockLabel = (stock) => {
+    if (stock > 10) return `<span style="font-size:10px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.05em;">● En stock</span>`;
+    if (stock > 0)  return `<span style="font-size:10px;font-weight:700;color:#d97706;text-transform:uppercase;letter-spacing:0.05em;">● Stock bajo (${stock})</span>`;
+    return `<span style="font-size:10px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:0.05em;">Sin stock</span>`;
+  };
+
+  const dimsLabel = (d) => {
+    if (!d) return '';
+    const parts = [];
+    if (d.length && d.width && d.height) parts.push(`${d.length}×${d.width}×${d.height} cm`);
+    else if (d.height || d.width || d.length) parts.push([d.length,d.width,d.height].filter(Boolean).join('×')+' cm');
+    if (d.weight) parts.push(d.weight);
+    return parts.length ? `<div style="font-size:10px;color:#6b7280;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${parts.join(' · ')}</div>` : '';
+  };
 
   if (catalogoView === 'lista') {
-    cont.innerHTML = cats.map(name => `
-      ${catHeader(name)}
-      <div style="background:white;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden;margin-bottom:8px;">
-        ${bycat[name].map((p,i) => catalogoModo === 'pedir'
-          ? `<div onclick="addToCatPedidoById(${p.id})" id="cat-row-${p.id}"
-              style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f3f4f6;cursor:pointer;${i%2===1?'background:#fafafa':''};active:background:#dcfce7;"
-              ontouchstart="this.style.background='#dcfce7'" ontouchend="this.style.background='${i%2===1?'#fafafa':''}'">
-              <img src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
-                style="width:42px;height:42px;object-fit:contain;border-radius:6px;background:#f9fafb;flex-shrink:0;"
-                onerror="if(this.dataset.fb){this.style.opacity='0';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}">
-              <div style="flex:1;min-width:0;">
-                <div style="font-size:12px;font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
-                <div style="font-size:11px;color:#7c3aed;font-family:monospace;">${p.sku||'—'} · ${catStockBadge(p.stock??0)}</div>
-              </div>
-              <div style="font-size:14px;font-weight:800;color:#059669;white-space:nowrap;flex-shrink:0;">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
-              <div style="background:#059669;color:white;border-radius:8px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;flex-shrink:0;">+</div>
-            </div>`
-          : `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f3f4f6;${i%2===1?'background:#fafafa':''}">
-              <img src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
-                style="width:38px;height:38px;object-fit:contain;border-radius:6px;background:#f9fafb;flex-shrink:0;"
-                onerror="if(this.dataset.fb){this.style.opacity='0';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}">
-              <div style="flex:1;min-width:0;">
-                <div style="font-size:12px;font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
-                <div style="font-size:11px;color:#7c3aed;font-family:monospace;">${p.sku||'—'}</div>
-              </div>
-              <div style="text-align:right;flex-shrink:0;">
-                <div style="font-size:13px;font-weight:800;color:#059669;">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
-                <div style="font-size:11px;">${catStockBadge(p.stock??0)}</div>
-              </div>
-            </div>`
-        ).join('')}
-      </div>`).join('');
-  } else {
-    cont.innerHTML = `
-      <style>
-        .cat-card{background:white;border-radius:16px;border:1px solid #e5e7eb;padding:16px;display:flex;flex-direction:column;gap:8px;transition:transform 0.15s,box-shadow 0.15s;position:relative;overflow:hidden;}
-        .cat-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(124,58,237,0.12);border-color:#c4b5fd;}
-        .cat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#7c3aed,#a78bfa);}
-        .cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;}
-        .cat-card-sku{font-family:monospace;font-size:11px;color:#7c3aed;font-weight:700;background:#f5f3ff;padding:2px 7px;border-radius:5px;display:inline-block;width:fit-content;}
-        .cat-card-name{font-size:12px;font-weight:600;color:#111827;line-height:1.4;flex:1;}
-        .cat-card-price{font-size:18px;font-weight:800;color:#059669;}
-        .cat-card-price span{font-size:12px;font-weight:500;color:#9ca3af;}
-        .cat-card-img{width:100%;height:130px;object-fit:contain;border-radius:8px;background:#f9fafb;display:block;}
-        .cat-card-img-ph{width:100%;height:130px;border-radius:8px;background:linear-gradient(135deg,#f5f3ff,#ede9fe);display:none;align-items:center;justify-content:center;font-size:32px;}
-      </style>
-      ${cats.map(name => `
-        ${catHeader(name)}
-        <div class="cat-grid" style="margin-bottom:8px;">
-          ${bycat[name].map(p => `
-            <div class="cat-card">
-              <div class="cat-card-sku">${p.sku||'S/C'}</div>
-              <img class="cat-card-img" src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
-                onerror="if(this.dataset.fb){this.style.display='none';this.nextElementSibling.style.display='flex';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}" alt="${p.name}">
-              <div class="cat-card-img-ph">📦</div>
-              <div class="cat-card-name">${p.name}</div>
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">
-                <div class="cat-card-price"><span>$</span>${Math.round(p.price||0).toLocaleString('es-UY')}</div>
-                ${catStockBadge(p.stock??0)}
-              </div>
-              ${catalogoModo === 'pedir' ? `<button onclick="addToCatPedidoById(${p.id})"
-                style="width:100%;background:#059669;color:white;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px;min-height:44px;">+ Agregar al pedido</button>` : ''}
-            </div>`).join('')}
+    cont.innerHTML = `<style>
+      .clist-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #f3f4f6;}
+      .clist-row:last-child{border-bottom:none;}
+      .clist-row:hover{background:#fafafa;}
+      .clist-img{width:44px;height:44px;object-fit:contain;background:#f5f5f5;flex-shrink:0;mix-blend-mode:multiply;}
+      .clist-name{font-size:13px;font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .clist-sku{font-size:11px;color:#9ca3af;font-family:monospace;margin-top:1px;}
+      .clist-price{font-size:14px;font-weight:800;color:#111827;white-space:nowrap;}
+    </style>
+    ${macros.map(m => {
+      const total = m.subs.reduce((s,sub)=>s+sub.items.length,0);
+      return `${macroHeader(m.nombre, total)}
+      ${m.subs.map((sub, subIdx) => `
+        ${subHeader(sub.nombre, sub.items.length, m.nombre+'||'+sub.nombre, sub.customId, subIdx)}
+        <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:4px;">
+          ${sub.items.map((p,i) => catalogoModo === 'pedir'
+            ? `<div class="clist-row" onclick="addToCatPedidoById(${p.id})" id="cat-row-${p.id}" style="cursor:pointer;"
+                ontouchstart="this.style.background='#dcfce7'" ontouchend="this.style.background=''">
+                <img class="clist-img" src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
+                  onerror="if(this.dataset.fb){this.style.opacity='0';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}">
+                <div style="flex:1;min-width:0;">
+                  <div class="clist-name">${p.name}</div>
+                  <div class="clist-sku">${p.sku||'—'}</div>
+                  ${dimsLabel(p.ml_dimensions)}
+                </div>
+                ${stockLabel(p.stock??0)}
+                <div class="clist-price">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
+                <div style="background:#111827;color:white;border-radius:6px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0;">+</div>
+              </div>`
+            : `<div class="clist-row">
+                <img class="clist-img" src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
+                  onerror="if(this.dataset.fb){this.style.opacity='0';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}">
+                <div style="flex:1;min-width:0;">
+                  <div class="clist-name">${p.name}</div>
+                  <div class="clist-sku">${p.sku||'—'}</div>
+                  ${dimsLabel(p.ml_dimensions)}
+                </div>
+                ${stockLabel(p.stock??0)}
+                <div class="clist-price">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
+              </div>`
+          ).join('')}
         </div>`).join('')}`;
+    }).join('')}`;
+  } else {
+    cont.innerHTML = `<style>
+      .cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:1px;background:#e0e0e0;}
+      .cat-card{background:#fff;display:flex;flex-direction:column;padding:0 0 16px;cursor:default;}
+      .cat-card-img-wrap{width:100%;height:190px;display:flex;align-items:center;justify-content:center;background:#f5f5f5;margin-bottom:12px;overflow:hidden;}
+      .cat-card-img{max-width:85%;max-height:170px;object-fit:contain;display:block;mix-blend-mode:multiply;}
+      .cat-card-body{padding:0 14px;}
+      .cat-card-sku{font-size:10px;font-weight:600;color:#9ca3af;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:5px;}
+      .cat-card-name{font-size:12px;font-weight:700;color:#111827;line-height:1.45;flex:1;margin-bottom:6px;}
+      .cat-card-dims{font-size:10px;color:#6b7280;margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .cat-card-divider{height:1px;background:#ebebeb;margin-bottom:10px;}
+      .cat-card-price{font-size:19px;font-weight:900;color:#111827;letter-spacing:-0.02em;}
+      .cat-thumb{width:44px;height:44px;object-fit:contain;background:#f5f5f5;border-radius:4px;cursor:pointer;border:2px solid transparent;transition:border-color .15s;}
+      .cat-thumb:hover{border-color:#9ca3af;}
+      .cat-thumb.active{border-color:#111827;}
+    </style>
+    ${macros.map(m => {
+      const total = m.subs.reduce((s,sub)=>s+sub.items.length,0);
+      return `${macroHeader(m.nombre, total)}
+      ${(() => {
+        // Aplicar orden de subcategorías si existe
+        let subs = m.subs;
+        const subSortOv = catalogSubSort[m.nombre];
+        if (subSortOv) {
+          subs = [...subs].sort((a, b) => {
+            const ia = subSortOv.indexOf(a.nombre), ib = subSortOv.indexOf(b.nombre);
+            if (ia === -1 && ib === -1) return 0;
+            if (ia === -1) return 1; if (ib === -1) return -1;
+            return ia - ib;
+          });
+        }
+        return subs;
+      })().map((sub, subIdx) => {
+        const subKey = m.nombre + '||' + sub.nombre;
+        // Agrupar por SKU base (antes del primer guión)
+        const groups = {};
+        const groupOrder = [];
+        for (const p of sub.items) {
+          const base = p.sku ? p.sku.split('-')[0] : ('__'+p.id);
+          if (!groups[base]) { groups[base] = []; groupOrder.push(base); }
+          groups[base].push(p);
+        }
+        // Aplicar orden manual si existe
+        const sortOv = catalogSortOverrides[subKey];
+        if (sortOv) {
+          groupOrder.sort((a, b) => {
+            const ia = sortOv.indexOf(a), ib = sortOv.indexOf(b);
+            if (ia === -1 && ib === -1) return 0;
+            if (ia === -1) return 1;
+            if (ib === -1) return -1;
+            return ia - ib;
+          });
+        }
+        // Guardar mapa uid→base para saveCatSort
+        catGridUidMap[subKey] = groupOrder.map(base => ({ uid: 'cv_' + base.replace(/\W/g,'_'), base }));
+
+        const cards = groupOrder.map((base, cardIdx) => {
+          const variants = groups[base];
+          const pinnedSku = catalogPinned[base];
+          const p0 = (pinnedSku && variants.find(v => v.sku === pinnedSku)) || variants[0];
+          const isGroup = variants.length > 1;
+          const uid = 'cv_' + base.replace(/\W/g,'_');
+
+          // Nombre sin sufijo de color para grupos
+          const displayName = isGroup
+            ? p0.name.replace(/[-–]\s*(VER|ROS|AMA|GRI|BLA|NEG|ROJ|AZU|NAR|VIO|BEI|MAR|CRE|TUR|AZL|GRS|PLT|BCO|BLN|BLC|BLQ|BLU|RED|GRN|YEL|BRN|PNK|GLD|SLV)\b.*/i, '').trim()
+            : p0.name;
+          // Guardar meta para el modal
+          catCardMeta[base] = { name: displayName, thumb: p0.ml_thumbnail || '/api/odoo/imagen/'+p0.id, subKey, variants };
+
+          const minPrice = Math.min(...variants.map(v => v.price||0));
+          const maxPrice = Math.max(...variants.map(v => v.price||0));
+          const priceHtml = isGroup && minPrice !== maxPrice
+            ? `desde $${Math.round(minPrice).toLocaleString('es-UY')}`
+            : `$${Math.round(p0.price||0).toLocaleString('es-UY')}`;
+
+          const variantsData = JSON.stringify(variants.map(v=>({img:v.ml_thumbnail||'/api/odoo/imagen/'+v.id,sku:v.sku||'',stock:v.stock??0,price:v.price||0,id:v.id}))).replace(/"/g,'&quot;');
+          const thumbsHtml = isGroup ? `
+            <div style="display:flex;flex-direction:column;gap:4px;margin-left:6px;flex-shrink:0;">
+              ${variants.slice(0,3).map((v,i) => `
+                <img class="cat-thumb${i===0?' active':''}" id="${uid}_th_${i}"
+                  src="${v.ml_thumbnail || '/api/odoo/imagen/'+v.id}" loading="lazy"
+                  onerror="this.style.opacity='0.2'"
+                  onclick="catSelectVariant('${uid}',${i},${variantsData})"
+                  title="${v.sku||''}">
+              `).join('')}
+              ${variants.length > 3 ? `<button onclick="openVariantsPopup('${uid}',${variantsData})"
+                style="width:44px;height:28px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:4px;font-size:11px;font-weight:700;color:#374151;cursor:pointer;">+</button>` : ''}
+            </div>` : '';
+
+          const editBtn = catalogoModo === 'ver'
+            ? `<button onclick="openCatOverride('${base}','${m.nombre}','${sub.nombre}')"
+                style="position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.9);border:1px solid #e5e7eb;border-radius:5px;padding:3px 6px;font-size:10px;color:#6b7280;cursor:pointer;font-weight:600;z-index:2;" title="Editar">✎ <span style="font-size:9px;">${cardIdx+1}</span></button>`
+            : '';
+          return `
+          <div class="cat-card" style="position:relative;">
+            ${editBtn}
+            <div style="display:flex;padding:12px 12px 0;">
+              <div style="flex:1;min-width:0;height:170px;display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:6px;overflow:hidden;">
+                <img id="${uid}_main" class="cat-card-img" src="${p0.ml_thumbnail || '/api/odoo/imagen/'+p0.id}" loading="lazy"
+                  onerror="if(this.dataset.fb){this.style.opacity='0.15';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p0.id}';}" alt="${displayName}"
+                  style="max-width:90%;max-height:155px;object-fit:contain;mix-blend-mode:multiply;">
+              </div>
+              ${thumbsHtml}
+            </div>
+            <div class="cat-card-body" style="margin-top:10px;">
+              <div class="cat-card-sku" id="${uid}_sku">${p0.sku||'S/C'}</div>
+              <div class="cat-card-name">${displayName}</div>
+              <div class="cat-card-divider"></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                <div class="cat-card-price" id="${uid}_price">${priceHtml}</div>
+                <div id="${uid}_stock">${stockLabel(p0.stock??0)}</div>
+              </div>
+              ${catalogoModo === 'pedir' ? `<button id="${uid}_btn" onclick="addToCatPedidoById(${p0.id})"
+                style="width:100%;background:#111827;color:white;border:none;padding:9px;font-size:12px;font-weight:700;cursor:pointer;margin-top:12px;letter-spacing:0.04em;border-radius:4px;">+ AGREGAR</button>` : ''}
+            </div>
+          </div>`;
+        });
+        return `
+        ${subHeader(sub.nombre, groupOrder.length, subKey, sub.customId, subIdx)}
+        <div class="cat-grid" style="margin-bottom:16px;">
+          ${cards.join('')}
+        </div>`;
+      }).join('')}`;
+    }).join('')}`;
   }
 }
 
@@ -11577,5 +12298,125 @@ showPage = function(page) {
 };
 
 </script>
+
+<!-- Popup variantes -->
+<div id="variants-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:24px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div style="font-size:14px;font-weight:800;color:#111827;">Todas las variantes</div>
+      <button onclick="document.getElementById('variants-popup').style.display='none'" style="background:none;border:none;font-size:18px;color:#9ca3af;cursor:pointer;">✕</button>
+    </div>
+    <div id="variants-popup-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;"></div>
+  </div>
+</div>
+
+<!-- Modal override de categoría -->
+<div id="sub-sort-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:#f9fafb;border-radius:16px;width:380px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.3);overflow:hidden;">
+    <div style="padding:18px 20px 14px;background:white;border-bottom:1px solid #f3f4f6;">
+      <div style="font-size:15px;font-weight:800;color:#111827;">Ordenar subcategorías</div>
+      <div id="sub-sort-macro-label" style="font-size:11px;color:#9ca3af;margin-top:2px;text-transform:uppercase;letter-spacing:0.05em;"></div>
+    </div>
+    <div id="sub-sort-list" style="flex:1;overflow-y:auto;padding:14px 16px;"></div>
+    <div style="padding:14px 16px;background:white;border-top:1px solid #f3f4f6;display:grid;grid-template-columns:1fr auto auto;gap:8px;">
+      <button onclick="saveSubSort()" style="background:#111827;color:white;border:none;padding:11px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Guardar</button>
+      <button onclick="resetSubSort()" style="background:#fee2e2;color:#dc2626;border:none;padding:11px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;" title="Volver al orden original">↺ Reset</button>
+      <button onclick="document.getElementById('sub-sort-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 14px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div id="add-sub-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:white;border-radius:14px;width:320px;box-shadow:0 20px 50px rgba(0,0,0,0.25);overflow:hidden;">
+    <div style="padding:20px 20px 16px;border-bottom:1px solid #f3f4f6;">
+      <div style="font-size:15px;font-weight:800;color:#111827;">Nueva subcategoría</div>
+      <div style="font-size:11px;color:#9ca3af;margin-top:2px;">en <span id="add-sub-macro-label" style="font-weight:600;color:#374151;"></span></div>
+    </div>
+    <div style="padding:18px 20px 20px;">
+      <input type="hidden" id="add-sub-macro">
+      <input type="text" id="add-sub-nombre" placeholder="Nombre de la subcategoría"
+        onkeydown="if(event.key==='Enter')saveCustomSub()"
+        style="width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;outline:none;margin-bottom:14px;">
+      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;">
+        <button onclick="saveCustomSub()" style="background:#111827;color:white;border:none;padding:11px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Crear</button>
+        <button onclick="document.getElementById('add-sub-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 16px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal mover subcategoría completa -->
+<div id="move-sub-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:white;border-radius:16px;width:340px;max-width:95vw;box-shadow:0 24px 60px rgba(0,0,0,0.3);overflow:hidden;">
+    <div style="background:#111827;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-size:14px;font-weight:800;color:white;text-transform:uppercase;letter-spacing:0.04em;">Mover subcategoría</span>
+      <button onclick="document.getElementById('move-sub-modal').style.display='none'" style="background:transparent;border:none;color:#9ca3af;font-size:20px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div style="padding:20px;">
+      <input type="hidden" id="msub-key">
+      <div style="margin-bottom:16px;">
+        <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Subcategoría</div>
+        <div id="msub-nombre" style="font-size:15px;font-weight:800;color:#111827;text-transform:uppercase;"></div>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px;">en <span id="msub-from" style="font-weight:600;"></span></div>
+      </div>
+      <div style="margin-bottom:20px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">Mover a</label>
+        <select id="msub-macro-sel" style="width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;font-weight:600;color:#111827;background:white;"></select>
+      </div>
+      <div id="msub-status" style="font-size:11px;color:#6b7280;min-height:16px;margin-bottom:12px;text-align:center;"></div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;">
+        <button id="msub-save-btn" onclick="saveMoveSubModal()" style="background:#111827;color:white;border:none;padding:11px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Mover todos los productos</button>
+        <button onclick="document.getElementById('move-sub-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 14px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="cat-override-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:white;border-radius:16px;width:360px;max-width:95vw;box-shadow:0 24px 60px rgba(0,0,0,0.3);overflow:hidden;">
+    <!-- Header producto -->
+    <div style="display:flex;align-items:center;gap:14px;padding:18px 20px 16px;background:#f9fafb;border-bottom:1px solid #f3f4f6;">
+      <img id="co-thumb" src="" style="width:62px;height:62px;object-fit:contain;background:white;border-radius:10px;border:1px solid #e5e7eb;flex-shrink:0;" onerror="this.style.opacity='0.3'">
+      <div style="min-width:0;">
+        <div id="co-name" style="font-size:13px;font-weight:700;color:#111827;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+        <div style="font-size:10px;color:#9ca3af;margin-top:3px;font-family:monospace;">SKU: <span id="co-sku"></span></div>
+      </div>
+    </div>
+    <!-- Body -->
+    <div style="padding:18px 20px 20px;">
+      <input type="hidden" id="co-sku-input">
+      <!-- Categoría -->
+      <div style="margin-bottom:14px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">Categoría</label>
+        <select id="co-macro" onchange="populateCatOverrideSubs(this.value,'')"
+          style="width:100%;padding:9px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:white;margin-bottom:6px;"></select>
+        <select id="co-sub" onchange="populateCatOverrideSubs(document.getElementById('co-macro').value, this.value)"
+          style="width:100%;padding:9px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:white;"></select>
+      </div>
+      <!-- Imagen principal (solo grupos con variantes) -->
+      <div id="co-variant-picker" style="display:none;margin-bottom:16px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:8px;">Imagen principal</label>
+        <div class="co-vp-thumbs" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+      </div>
+      <!-- Posición -->
+      <div style="margin-bottom:22px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:8px;">Posición en subcategoría</label>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button onclick="coPosStep(-1)" style="width:38px;height:38px;border:1px solid #e5e7eb;border-radius:8px;background:white;font-size:20px;color:#374151;cursor:pointer;line-height:1;">‹</button>
+          <input type="number" id="co-pos" min="1"
+            style="flex:1;height:38px;border:1px solid #e5e7eb;border-radius:8px;font-size:18px;font-weight:800;text-align:center;color:#111827;background:white;">
+          <button onclick="coPosStep(1)" style="width:38px;height:38px;border:1px solid #e5e7eb;border-radius:8px;background:white;font-size:20px;color:#374151;cursor:pointer;line-height:1;">›</button>
+          <span style="font-size:12px;color:#9ca3af;white-space:nowrap;">de <span id="co-pos-max">0</span></span>
+        </div>
+      </div>
+      <!-- Acciones -->
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;">
+        <button onclick="saveCatOverride()" style="background:#111827;color:white;border:none;padding:11px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Guardar</button>
+        <button onclick="deleteCatOverride()" style="background:#fee2e2;color:#dc2626;border:none;padding:11px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;" title="Quitar override">✕</button>
+        <button onclick="document.getElementById('cat-override-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 14px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
