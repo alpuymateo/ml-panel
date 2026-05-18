@@ -3147,6 +3147,75 @@ app.post('/api/odoo/cotizacion-crear', express.json(), async (req, res) => {
   }
 });
 
+// ── Pedidos mayoristas ────────────────────────────────────────────
+app.get('/api/odoo/pedidos-mayoristas', requireToken, async (req, res) => {
+  try {
+    const uid = await odooAuthStaging();
+    const estado = req.query.estado || '';
+    const domain = [['pricelist_id', '=', 2]]; // MAYORISTA UYU
+    if (estado) domain.push(['state', '=', estado]);
+
+    const orders = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'search_read',
+      [domain],
+      { fields: ['name','partner_id','date_order','amount_total','state','invoice_status','picking_ids'], order: 'date_order desc', limit: 100 },
+    ]);
+
+    // Para cada orden con facturas, buscar los números
+    const allOrderIds = orders.map(o => o.id);
+    let invoiceMap = {};
+    if (allOrderIds.length) {
+      const invoiceLines = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'search_read',
+        [[['invoice_origin', 'in', orders.map(o => o.name)], ['move_type', '=', 'out_invoice']]],
+        { fields: ['name', 'invoice_origin', 'state', 'amount_total', 'invoice_date_due'] },
+      ]);
+      for (const inv of invoiceLines) {
+        if (!invoiceMap[inv.invoice_origin]) invoiceMap[inv.invoice_origin] = [];
+        invoiceMap[inv.invoice_origin].push(inv);
+      }
+    }
+
+    res.json(orders.map(o => ({ ...o, invoices: invoiceMap[o.name] || [] })));
+  } catch (err) {
+    console.error('[pedidos-mayoristas] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/odoo/pedido-mayorista/:id', requireToken, async (req, res) => {
+  try {
+    const uid = await odooAuthStaging();
+    const orderId = parseInt(req.params.id);
+    const [order] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'read',
+      [[orderId]], { fields: ['name','partner_id','date_order','amount_total','state','invoice_status','order_line','picking_ids','note'] },
+    ]);
+    // Líneas
+    const lines = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order.line', 'read',
+      [order.order_line], { fields: ['product_id','name','product_uom_qty','price_unit','price_subtotal','discount'] },
+    ]);
+    // Facturas
+    const invoices = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'search_read',
+      [[['invoice_origin', '=', order.name], ['move_type', '=', 'out_invoice']]],
+      { fields: ['name','state','amount_total','invoice_date_due'] },
+    ]);
+    // Remitos
+    let pickings = [];
+    if (order.picking_ids?.length) {
+      pickings = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'stock.picking', 'read',
+        [order.picking_ids], { fields: ['name','state','scheduled_date'] },
+      ]);
+    }
+    res.json({ ...order, lines, invoices, pickings });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Confirmar orden + crear factura + remito ─────────────────────
 app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res) => {
   try {

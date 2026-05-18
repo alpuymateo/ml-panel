@@ -1194,11 +1194,23 @@
 
     <!-- ── Pedidos Mayoristas ── -->
     <div id="page-pedidos-may" style="display:none">
-      <div class="page-header">
-        <h1>Pedidos Mayoristas</h1>
-        <p id="ped-may-subtitle">Órdenes creadas desde el catálogo</p>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+        <div>
+          <h1 style="font-size:22px;font-weight:800;margin:0;">Pedidos Mayoristas</h1>
+          <p style="font-size:13px;color:#6b7280;margin:4px 0 0;">Órdenes de venta con lista mayorista</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="ped-may-filter" onchange="loadPedidosMay()" style="padding:8px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+            <option value="">Todos</option>
+            <option value="draft">Borrador</option>
+            <option value="sale">Confirmado</option>
+            <option value="done">Hecho</option>
+            <option value="cancel">Cancelado</option>
+          </select>
+          <button onclick="loadPedidosMay()" style="padding:8px 14px;background:#111827;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">↻ Actualizar</button>
+        </div>
       </div>
-      <div id="ped-may-content"><div class="loading">Sin pedidos aún.</div></div>
+      <div id="ped-may-content"><div class="loading"><span class="spinner"></span>Cargando...</div></div>
     </div>
 
     <!-- ══ Oportunidades ══ -->
@@ -4815,7 +4827,142 @@ function updateCatPedidoBar() {
 
 function verPedidoMayorista() {
   showPage('pedidos-may');
-  renderPedidoActual();
+  loadPedidosMay();
+}
+
+// ── Lista de pedidos mayoristas desde Odoo ────────────────────────
+const ESTADO_LABEL = { draft:'Borrador', sent:'Enviado', sale:'Confirmado', done:'Hecho', cancel:'Cancelado' };
+const ESTADO_COLOR = { draft:'#6b7280', sent:'#2563eb', sale:'#059669', done:'#7c3aed', cancel:'#dc2626' };
+const INV_LABEL    = { not_invoiced:'Sin factura', invoiced:'Facturado', to_invoice:'A facturar' };
+
+async function loadPedidosMay() {
+  const cont   = document.getElementById('ped-may-content');
+  const estado = document.getElementById('ped-may-filter')?.value || '';
+  cont.innerHTML = '<div class="loading"><span class="spinner"></span>Cargando pedidos...</div>';
+  try {
+    const url = '/api/odoo/pedidos-mayoristas' + (estado ? `?estado=${estado}` : '');
+    const r   = await fetch(url, { headers: authHeaders() });
+    const orders = await r.json();
+    if (orders.error) throw new Error(orders.error);
+    renderPedidosMay(orders);
+  } catch(e) {
+    cont.innerHTML = `<div style="color:#dc2626;padding:24px;">Error: ${e.message}</div>`;
+  }
+}
+
+function renderPedidosMay(orders) {
+  const cont = document.getElementById('ped-may-content');
+  if (!orders.length) {
+    cont.innerHTML = '<div style="color:#9ca3af;padding:40px;text-align:center;">No hay pedidos mayoristas.</div>';
+    return;
+  }
+  cont.innerHTML = `
+    <div style="background:white;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="background:#f9fafb;border-bottom:1px solid #e5e7eb;">
+          <th style="text-align:left;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Número</th>
+          <th style="text-align:left;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Cliente</th>
+          <th style="text-align:left;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Fecha</th>
+          <th style="text-align:right;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Total</th>
+          <th style="text-align:center;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Estado</th>
+          <th style="text-align:center;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Factura</th>
+          <th style="width:36px;"></th>
+        </tr></thead>
+        <tbody>
+          ${orders.map(o => {
+            const fecha = o.date_order ? new Date(o.date_order).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
+            const inv   = o.invoices?.[0];
+            return `<tr style="border-top:1px solid #f3f4f6;cursor:pointer;" onclick="openPedidoDetalle(${o.id})" onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+              <td style="padding:12px 16px;font-size:13px;font-weight:700;color:#111827;font-family:monospace;">${o.name}</td>
+              <td style="padding:12px 16px;font-size:13px;color:#374151;">${o.partner_id?.[1] || '—'}</td>
+              <td style="padding:12px 16px;font-size:12px;color:#6b7280;">${fecha}</td>
+              <td style="padding:12px 16px;font-size:13px;font-weight:700;color:#059669;text-align:right;">$${Math.round(o.amount_total).toLocaleString('es-UY')}</td>
+              <td style="padding:12px 16px;text-align:center;">
+                <span style="font-size:11px;font-weight:700;color:${ESTADO_COLOR[o.state]||'#6b7280'};background:${ESTADO_COLOR[o.state]||'#6b7280'}18;padding:3px 8px;border-radius:20px;">${ESTADO_LABEL[o.state]||o.state}</span>
+              </td>
+              <td style="padding:12px 16px;text-align:center;">
+                ${inv ? `<span style="font-size:11px;font-weight:700;color:#059669;">${inv.name}</span>` : `<span style="font-size:11px;color:#9ca3af;">${INV_LABEL[o.invoice_status]||'—'}</span>`}
+              </td>
+              <td style="padding:12px 16px;text-align:center;color:#9ca3af;font-size:16px;">›</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function openPedidoDetalle(id) {
+  // Abrir modal de detalle
+  const modal = document.getElementById('pedido-detalle-modal');
+  document.getElementById('pd-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
+  modal.style.display = 'flex';
+  try {
+    const r = await fetch(`/api/odoo/pedido-mayorista/${id}`, { headers: authHeaders() });
+    const o = await r.json();
+    if (o.error) throw new Error(o.error);
+    const fecha = o.date_order ? new Date(o.date_order).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+    document.getElementById('pd-content').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+        <div style="background:#f9fafb;border-radius:8px;padding:12px 14px;">
+          <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">Orden</div>
+          <div style="font-size:16px;font-weight:800;color:#111827;font-family:monospace;">${o.name}</div>
+        </div>
+        <div style="background:#f9fafb;border-radius:8px;padding:12px 14px;">
+          <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">Cliente</div>
+          <div style="font-size:14px;font-weight:700;color:#111827;">${o.partner_id?.[1]||'—'}</div>
+        </div>
+        <div style="background:#f9fafb;border-radius:8px;padding:12px 14px;">
+          <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">Fecha</div>
+          <div style="font-size:13px;color:#374151;">${fecha}</div>
+        </div>
+        <div style="background:#f9fafb;border-radius:8px;padding:12px 14px;">
+          <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">Estado</div>
+          <div style="font-size:13px;font-weight:700;color:${ESTADO_COLOR[o.state]||'#6b7280'};">${ESTADO_LABEL[o.state]||o.state}</div>
+        </div>
+      </div>
+      <!-- Líneas -->
+      <div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Productos</div>
+      <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:14px;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead><tr style="background:#f9fafb;">
+            <th style="text-align:left;padding:8px 12px;font-size:10px;color:#9ca3af;font-weight:700;">Producto</th>
+            <th style="text-align:center;padding:8px 12px;font-size:10px;color:#9ca3af;font-weight:700;">Cant.</th>
+            <th style="text-align:right;padding:8px 12px;font-size:10px;color:#9ca3af;font-weight:700;">Precio</th>
+            <th style="text-align:right;padding:8px 12px;font-size:10px;color:#9ca3af;font-weight:700;">Subtotal</th>
+          </tr></thead>
+          <tbody>
+            ${(o.lines||[]).map(l => `<tr style="border-top:1px solid #f3f4f6;">
+              <td style="padding:8px 12px;font-size:12px;color:#111827;">${l.name}</td>
+              <td style="padding:8px 12px;font-size:12px;text-align:center;">${l.product_uom_qty}</td>
+              <td style="padding:8px 12px;font-size:12px;text-align:right;color:#6b7280;">$${Math.round(l.price_unit).toLocaleString('es-UY')}</td>
+              <td style="padding:8px 12px;font-size:12px;font-weight:700;text-align:right;">$${Math.round(l.price_subtotal).toLocaleString('es-UY')}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+        <div style="padding:10px 12px;border-top:2px solid #f3f4f6;text-align:right;font-size:16px;font-weight:800;color:#059669;">
+          Total: $${Math.round(o.amount_total).toLocaleString('es-UY')}
+        </div>
+      </div>
+      <!-- Facturas y remitos -->
+      ${o.invoices?.length ? `<div style="margin-bottom:10px;">
+        <div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Facturas</div>
+        ${o.invoices.map(inv => `<div style="background:#f0fdf4;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:14px;font-weight:800;color:#059669;font-family:monospace;">${inv.name}</span>
+          <span style="font-size:12px;color:#6b7280;">${inv.invoice_date_due ? 'Vence: '+inv.invoice_date_due : ''}</span>
+          <span style="font-size:12px;font-weight:700;color:#059669;">$${Math.round(inv.amount_total).toLocaleString('es-UY')}</span>
+        </div>`).join('')}
+      </div>` : ''}
+      ${o.pickings?.length ? `<div>
+        <div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Remitos</div>
+        ${o.pickings.map(p => `<div style="background:#eff6ff;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:14px;font-weight:800;color:#2563eb;font-family:monospace;">${p.name}</span>
+          <span style="font-size:11px;font-weight:700;color:#2563eb;">${p.state}</span>
+        </div>`).join('')}
+      </div>` : ''}
+      ${o.note ? `<div style="margin-top:12px;background:#fafafa;border-radius:8px;padding:10px 14px;font-size:12px;color:#6b7280;">${o.note}</div>` : ''}`;
+  } catch(e) {
+    document.getElementById('pd-content').innerHTML = `<div style="color:#dc2626;">Error: ${e.message}</div>`;
+  }
 }
 
 function renderPedidoActual() {
@@ -12763,6 +12910,19 @@ showPage = function(page) {
         <button onclick="deleteCatOverride()" style="background:#fee2e2;color:#dc2626;border:none;padding:11px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;" title="Quitar override">✕</button>
         <button onclick="document.getElementById('cat-override-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 14px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal detalle pedido mayorista -->
+<div id="pedido-detalle-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;padding:20px 0;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:white;border-radius:16px;width:620px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,0.3);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 16px;background:#f9fafb;border-bottom:1px solid #f3f4f6;position:sticky;top:0;z-index:1;">
+      <div style="font-size:15px;font-weight:800;color:#111827;">Detalle de pedido</div>
+      <button onclick="document.getElementById('pedido-detalle-modal').style.display='none'" style="background:none;border:none;font-size:22px;color:#9ca3af;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div id="pd-content" style="padding:20px;">
+      <div class="loading"><span class="spinner"></span>Cargando...</div>
     </div>
   </div>
 </div>
