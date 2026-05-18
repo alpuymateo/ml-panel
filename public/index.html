@@ -8853,8 +8853,11 @@ function renderOsItems() {
     const variants = byBase[base];
     if (variants.length > 1) {
       // Create parent item with summed values
+      const withThumb = variants.find(v => v.ml_thumbnail) || variants[0];
       const parent = {
         ...variants[0],
+        ml_thumbnail: withThumb.ml_thumbnail,
+        id: withThumb.id || variants[0].id,
         sku: base,
         name: variants[0].name,
         gap: variants.reduce((s,v) => s + v.gap, 0),
