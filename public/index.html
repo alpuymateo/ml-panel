@@ -1335,7 +1335,10 @@
             <div style="font-size:12px;color:#6b7280;">Trae datos actualizados de Odoo y los sube a testing/producci&oacute;n</div>
             <div id="sync-last-update" style="font-size:11px;color:#9ca3af;margin-top:4px;"></div>
           </div>
-          <button onclick="syncOdooPush()" id="sync-push-btn" style="padding:10px 20px;background:#4361ee;color:white;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Sincronizar</button>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button onclick="rebuildCatalog()" id="rebuild-catalog-btn" style="padding:10px 16px;background:#059669;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;" title="Actualiza el catálogo desde Odoo (funciona desde Railway)">↻ Actualizar catálogo</button>
+            <button onclick="syncOdooPush()" id="sync-push-btn" style="padding:10px 20px;background:#4361ee;color:white;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Sincronizar</button>
+          </div>
         </div>
         <div id="sync-push-status" style="margin-top:8px;"></div>
       </div>
@@ -3960,6 +3963,45 @@ init();
 
 // ── Gestión de usuarios ───────────────────────────────────────────
 let _syncPollInterval = null;
+
+async function rebuildCatalog() {
+  const btn = document.getElementById('rebuild-catalog-btn');
+  const status = document.getElementById('sync-push-status');
+  btn.disabled = true;
+  btn.textContent = 'Actualizando...';
+  status.innerHTML = '';
+  try {
+    const r = await fetch('/api/catalog/rebuild', { method: 'POST', headers: authHeaders() });
+    const d = await r.json();
+    if (!r.ok) {
+      status.innerHTML = `<div style="font-size:12px;color:#dc2626;">Error: ${d.error}</div>`;
+      btn.disabled = false; btn.textContent = '↻ Actualizar catálogo'; return;
+    }
+    // Polling de progreso
+    const poll = setInterval(async () => {
+      try {
+        const rs = await fetch('/api/odoo/sync-status', { headers: authHeaders() });
+        const ds = await rs.json();
+        const pct = ds.progress || 0;
+        const lastLine = ds.log?.length ? ds.log[ds.log.length - 1].msg : '';
+        status.innerHTML = `<div style="font-size:12px;color:#059669;">↻ ${pct}% — ${lastLine}</div>`;
+        if (ds.status === 'done' || ds.status === 'error') {
+          clearInterval(poll);
+          btn.disabled = false; btn.textContent = '↻ Actualizar catálogo';
+          if (ds.status === 'done') {
+            status.innerHTML = `<div style="font-size:12px;color:#059669;font-weight:700;">✓ Catálogo actualizado — ${ds.productCount} productos</div>`;
+            loadCatalogo();
+          } else {
+            status.innerHTML = `<div style="font-size:12px;color:#dc2626;">Error: ${lastLine}</div>`;
+          }
+        }
+      } catch(e) { clearInterval(poll); btn.disabled = false; btn.textContent = '↻ Actualizar catálogo'; }
+    }, 2000);
+  } catch(e) {
+    status.innerHTML = `<div style="font-size:12px;color:#dc2626;">Error: ${e.message}</div>`;
+    btn.disabled = false; btn.textContent = '↻ Actualizar catálogo';
+  }
+}
 
 async function syncOdooPush() {
   const btn = document.getElementById('sync-push-btn');

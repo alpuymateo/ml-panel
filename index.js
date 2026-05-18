@@ -2170,6 +2170,66 @@ app.post('/api/odoo/sync-push', requireAdmin, async (req, res) => {
   })();
 });
 
+// Rebuild catálogo desde Odoo (sin git push — funciona en Railway)
+app.post('/api/catalog/rebuild', requireAdmin, async (req, res) => {
+  if (_syncStatus === 'running') return res.status(409).json({ error: 'Ya hay una sincronización en curso' });
+  _syncLog = [];
+  _syncStatus = 'running';
+  _syncProgress = 0;
+  res.json({ ok: true, message: 'Rebuild iniciado' });
+  (async () => {
+    try {
+      _syncLog.push({ t: Date.now(), msg: 'Conectando a Odoo...' });
+      const uid = await odooAuth();
+      _syncLog.push({ t: Date.now(), msg: 'Autenticado (uid: ' + uid + ')' });
+      _syncProgress = 10;
+
+      const fieldsAll = ['name', 'default_code', 'list_price', 'standard_price', 'categ_id', 'taxes_id', 'uom_id', 'x_studio_producto_mayorista', 'qty_available', 'image_128'];
+      const fieldsLight = ['name', 'default_code', 'list_price', 'standard_price', 'categ_id', 'taxes_id', 'uom_id', 'x_studio_producto_mayorista', 'qty_available'];
+      const since = odooCacheTime > 0 ? new Date(odooCacheTime).toISOString().replace('T', ' ').slice(0, 19) : null;
+
+      if (since && odooCache?.length > 0) {
+        _syncLog.push({ t: Date.now(), msg: 'Modo incremental desde ' + since });
+        const updated = await odooSearchRead(uid, 'product.product', [['active', '=', true], ['write_date', '>', since]], fieldsLight, {},
+          (total) => { _syncProgress = Math.min(35, 10 + total / 10); }
+        );
+        if (updated.length > 0) {
+          const cacheMap = {};
+          for (const p of odooCache) cacheMap[p.id] = p;
+          for (const p of updated) cacheMap[p.id] = p;
+          odooCache = Object.values(cacheMap);
+          _syncLog.push({ t: Date.now(), msg: updated.length + ' productos actualizados' });
+        }
+        const newProds = await odooSearchRead(uid, 'product.product', [['active', '=', true], ['create_date', '>', since]], fieldsAll, {});
+        const existingIds = new Set(odooCache.map(p => p.id));
+        const reallyNew = newProds.filter(p => !existingIds.has(p.id));
+        if (reallyNew.length > 0) {
+          odooCache.push(...reallyNew);
+          _syncLog.push({ t: Date.now(), msg: reallyNew.length + ' productos nuevos' });
+        }
+      } else {
+        _syncLog.push({ t: Date.now(), msg: 'Carga completa desde Odoo...' });
+        odooCache = await odooSearchRead(uid, 'product.product', [['active', '=', true]], fieldsAll, {},
+          (total) => { _syncLog.push({ t: Date.now(), msg: '  → ' + total + ' productos...' }); _syncProgress = Math.min(50, 10 + total / 200); }
+        );
+      }
+      odooCacheTime = Date.now();
+      saveOdooCacheToDisk();
+      _syncLog.push({ t: Date.now(), msg: 'Odoo cache: ' + odooCache.length + ' productos' });
+      _syncProgress = 60;
+
+      _syncLog.push({ t: Date.now(), msg: 'Construyendo catálogo...' });
+      await buildCatalogoCache(true, (msg) => _syncLog.push({ t: Date.now(), msg: '  ' + msg }));
+      _syncLog.push({ t: Date.now(), msg: 'Catálogo listo: ' + (_catalogoCache?.total || 0) + ' productos' });
+      _syncProgress = 100;
+      _syncStatus = 'done';
+    } catch(e) {
+      _syncLog.push({ t: Date.now(), msg: 'ERROR: ' + e.message });
+      _syncStatus = 'error';
+    }
+  })();
+});
+
 // Polling endpoint para el progreso
 app.get('/api/odoo/sync-status', requireAdmin, (req, res) => {
   const lastUpdate = odooCacheTime ? new Date(odooCacheTime).toISOString() : null;
