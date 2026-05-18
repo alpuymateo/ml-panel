@@ -3147,6 +3147,97 @@ app.post('/api/odoo/cotizacion-crear', express.json(), async (req, res) => {
   }
 });
 
+// ── Confirmar orden + crear factura + remito ─────────────────────
+app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res) => {
+  try {
+    const { partner_id, lineas, notas, forma_pago, dias_vencimiento } = req.body;
+    if (!partner_id) return res.status(400).json({ error: 'Se requiere partner_id' });
+    if (!lineas?.length) return res.status(400).json({ error: 'Se requieren líneas' });
+
+    const uid = await odooAuthStaging();
+
+    // 1. Crear orden de venta
+    const order_lines = lineas.map(l => [0, 0, {
+      product_id:      l.product_id,
+      name:            l.product_name,
+      product_uom_qty: l.cantidad,
+      price_unit:      l.precio,
+      product_uom:     l.uom_id?.[0] || 1,
+      tax_id:          [[6, 0, l.tax_ids || []]],
+      ...(l.descuento ? { discount: l.descuento } : {}),
+    }]);
+
+    const orderId = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'create',
+      [{ partner_id, pricelist_id: 2, date_order: new Date().toISOString().replace('T', ' ').slice(0, 19), note: notas || '', order_line: order_lines }],
+    ]);
+
+    // 2. Confirmar orden
+    await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'action_confirm', [[orderId]],
+    ]);
+
+    // 3. Leer orden confirmada (nombre + pickings)
+    const [order] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'read',
+      [[orderId]], { fields: ['name', 'amount_total', 'picking_ids'] },
+    ]);
+
+    // 4. Crear factura desde la orden
+    const invoiceIds = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', '_create_invoices',
+      [[orderId]], { final: false },
+    ]);
+
+    if (!invoiceIds?.length) return res.status(500).json({ error: 'No se pudo crear la factura' });
+    const invoiceId = invoiceIds[0];
+
+    // 5. Ajustar fecha de vencimiento si es crédito
+    if (forma_pago === 'credito' && dias_vencimiento) {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + parseInt(dias_vencimiento));
+      await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'write',
+        [[invoiceId], { invoice_date_due: dueDate.toISOString().slice(0, 10) }],
+      ]);
+    }
+
+    // 6. Validar/postear la factura
+    await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'action_post', [[invoiceId]],
+    ]);
+
+    // 7. Leer nombre de factura
+    const [invoice] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'read',
+      [[invoiceId]], { fields: ['name', 'amount_total', 'invoice_date_due'] },
+    ]);
+
+    // 8. Leer remito(s)
+    let pickings = [];
+    if (order.picking_ids?.length) {
+      pickings = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'stock.picking', 'read',
+        [order.picking_ids], { fields: ['name', 'state'] },
+      ]);
+    }
+
+    res.json({
+      success:      true,
+      order_id:     orderId,
+      order_name:   order.name,
+      amount_total: order.amount_total,
+      invoice_id:   invoiceId,
+      invoice_name: invoice.name,
+      invoice_due:  invoice.invoice_date_due,
+      pickings:     pickings.map(p => ({ name: p.name, state: p.state })),
+    });
+  } catch (err) {
+    console.error('[cotizacion-confirmar-full] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── WhatsApp webhook (Twilio) ────────────────────────────────────
 const TWILIO_SID   = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;

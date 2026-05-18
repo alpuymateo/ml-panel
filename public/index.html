@@ -1079,20 +1079,42 @@
             <textarea id="cot-notas" rows="2" style="width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;resize:vertical;"></textarea>
           </div>
 
-          <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <!-- Forma de pago -->
+          <div style="background:#f9fafb;border-radius:10px;padding:14px 16px;margin-bottom:14px;">
+            <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Forma de pago</div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
+                <input type="radio" name="cot-forma-pago" value="contado" id="cot-fp-contado" onchange="toggleVencimiento()" style="accent-color:#111827;"> Contado
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
+                <input type="radio" name="cot-forma-pago" value="credito" id="cot-fp-credito" onchange="toggleVencimiento()" checked style="accent-color:#111827;"> Crédito
+              </label>
+              <div id="cot-dias-wrap" style="display:flex;align-items:center;gap:6px;margin-left:8px;">
+                <span style="font-size:13px;color:#6b7280;">Días:</span>
+                <input type="number" id="cot-dias-venc" value="30" min="1" max="365" style="width:60px;padding:5px 8px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;text-align:center;">
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
             <button onclick="goBackStep1()" style="padding:10px 20px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;">← Volver</button>
-            <button onclick="crearCotizacion()" id="cot-btn-crear" style="padding:10px 24px;background:#059669;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;">✅ Crear cotización en Odoo</button>
+            <button onclick="crearCotizacion()" id="cot-btn-crear" style="padding:10px 20px;background:#6b7280;color:white;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;">Guardar borrador</button>
+            <button onclick="confirmarYFacturar()" id="cot-btn-full" style="padding:10px 24px;background:#059669;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:700;">✅ Confirmar y facturar</button>
           </div>
           <div id="cot-step2-error" style="color:#ef4444;font-size:13px;margin-top:12px;display:none;"></div>
         </div>
 
         <!-- Paso 3: resultado -->
-        <div id="cot-step-3" style="display:none;text-align:center;padding:20px 0;">
-          <div style="font-size:56px;margin-bottom:16px;">🎉</div>
-          <h2 style="font-size:20px;font-weight:700;margin-bottom:8px;">¡Cotización creada!</h2>
-          <div id="cot-result-name" style="font-size:28px;font-weight:800;color:#7c3aed;margin-bottom:8px;"></div>
-          <div id="cot-result-total" style="font-size:16px;color:#6b7280;margin-bottom:24px;"></div>
-          <button onclick="closeCotizacionModal()" style="padding:12px 28px;background:#7c3aed;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;">Cerrar</button>
+        <div id="cot-step-3" style="display:none;padding:20px 0;">
+          <div style="text-align:center;margin-bottom:20px;">
+            <div style="font-size:48px;margin-bottom:10px;">✅</div>
+            <h2 id="cot-result-title" style="font-size:18px;font-weight:700;margin-bottom:4px;">¡Listo!</h2>
+            <div id="cot-result-total" style="font-size:14px;color:#6b7280;"></div>
+          </div>
+          <div id="cot-result-cards" style="display:grid;gap:10px;margin-bottom:20px;"></div>
+          <div style="text-align:center;">
+            <button onclick="closeCotizacionModal()" style="padding:12px 28px;background:#111827;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;">Cerrar</button>
+          </div>
         </div>
       </div>
     </div>
@@ -4423,15 +4445,7 @@ async function crearCotizacion() {
     const partner_id = selVal || _cotPartnerId;
     if (!partner_id) throw new Error('Seleccioná o buscá un cliente válido');
 
-    const lineas = cotExtracted.lineas.map((l, i) => ({
-      product_id:   l.product_id,
-      product_name: document.getElementById(`cot-l-name-${i}`)?.value || l.product_name,
-      cantidad:     parseFloat(document.getElementById(`cot-l-qty-${i}`)?.value) || 1,
-      precio:       parseFloat(document.getElementById(`cot-l-price-${i}`)?.value) || 0,
-      uom_id:       l.uom_id,
-      tax_ids:      l.tax_ids,
-    })).filter(l => l.product_id);
-
+    const lineas = getCotLineas();
     if (!lineas.length) throw new Error('No hay líneas con productos válidos');
 
     const res = await fetch('/api/odoo/cotizacion-crear', {
@@ -4444,13 +4458,76 @@ async function crearCotizacion() {
 
     document.getElementById('cot-step-2').style.display = 'none';
     document.getElementById('cot-step-3').style.display = '';
-    document.getElementById('cot-result-name').textContent = data.order_name;
+    document.getElementById('cot-result-title').textContent = '¡Borrador creado!';
     document.getElementById('cot-result-total').textContent = 'Total: $' + data.amount_total.toLocaleString('es-UY', { minimumFractionDigits: 2 });
+    document.getElementById('cot-result-cards').innerHTML = resultCard('Orden', data.order_name, '#7c3aed');
   } catch (e) {
     errEl.textContent = 'Error: ' + e.message;
     errEl.style.display = '';
   } finally {
-    btn.textContent = '✅ Crear cotización en Odoo';
+    btn.textContent = 'Guardar borrador';
+    btn.disabled = false;
+  }
+}
+
+function toggleVencimiento() {
+  const esCred = document.getElementById('cot-fp-credito').checked;
+  document.getElementById('cot-dias-wrap').style.display = esCred ? 'flex' : 'none';
+}
+
+function resultCard(label, value, color = '#111827') {
+  return `<div style="background:#f9fafb;border-radius:10px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-size:12px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;">${label}</span>
+    <span style="font-size:18px;font-weight:800;color:${color};">${value}</span>
+  </div>`;
+}
+
+function getCotLineas() {
+  return (cotExtracted?.lineas || []).map((l, i) => ({
+    product_id:   l.product_id,
+    product_name: document.getElementById(`cot-l-name-${i}`)?.value || l.product_name,
+    cantidad:     parseFloat(document.getElementById(`cot-l-qty-${i}`)?.value) || 1,
+    precio:       parseFloat(document.getElementById(`cot-l-price-${i}`)?.value) || 0,
+    uom_id:       l.uom_id,
+    tax_ids:      l.tax_ids,
+  })).filter(l => l.product_id);
+}
+
+async function confirmarYFacturar() {
+  const btn   = document.getElementById('cot-btn-full');
+  const errEl = document.getElementById('cot-step2-error');
+  errEl.style.display = 'none';
+  btn.textContent = '⏳ Procesando...';
+  btn.disabled = true;
+  try {
+    const selVal = parseInt(document.getElementById('cot-partner-select').value);
+    const partner_id = selVal || _cotPartnerId;
+    if (!partner_id) throw new Error('Seleccioná o buscá un cliente válido');
+    const lineas = getCotLineas();
+    if (!lineas.length) throw new Error('No hay líneas con productos válidos');
+    const forma_pago      = document.getElementById('cot-fp-credito').checked ? 'credito' : 'contado';
+    const dias_vencimiento = parseInt(document.getElementById('cot-dias-venc').value) || 30;
+    const res = await fetch('/api/odoo/cotizacion-confirmar-full', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ partner_id, lineas, notas: document.getElementById('cot-notas').value, forma_pago, dias_vencimiento }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    document.getElementById('cot-step-2').style.display = 'none';
+    document.getElementById('cot-step-3').style.display = '';
+    document.getElementById('cot-result-title').textContent = '¡Confirmado y facturado!';
+    document.getElementById('cot-result-total').textContent = 'Total: $' + data.amount_total.toLocaleString('es-UY', { minimumFractionDigits: 2 });
+    const due = data.invoice_due ? ` · vence ${data.invoice_due}` : '';
+    document.getElementById('cot-result-cards').innerHTML =
+      resultCard('Orden de venta', data.order_name, '#7c3aed') +
+      resultCard('Factura' + due, data.invoice_name, '#059669') +
+      (data.pickings?.length ? data.pickings.map(p => resultCard('Remito', p.name, '#2563eb')).join('') : '');
+  } catch (e) {
+    errEl.textContent = 'Error: ' + e.message;
+    errEl.style.display = '';
+  } finally {
+    btn.textContent = '✅ Confirmar y facturar';
     btn.disabled = false;
   }
 }
