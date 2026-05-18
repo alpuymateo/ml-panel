@@ -10637,11 +10637,18 @@ function agregarAOrden(sku, qty, name) {
 }
 
 function addToOrden(sku, name, sugQty, origen, thumb) {
+  // If no thumb, try to find from grouped parent or _osAllItems
+  if (!thumb) {
+    const base = (sku||'').match(/^(\d+)/)?.[1] || sku;
+    const parent = (_osAllItems||[]).find(i => i.sku === sku || i.sku === base);
+    if (parent?.ml_thumbnail) thumb = parent.ml_thumbnail;
+  }
   const existing = _ordenItems.find(i => i.sku === sku);
   if (existing) {
     existing.qty = sugQty;
+    if (thumb && !existing.thumb) existing.thumb = thumb;
   } else {
-    _ordenItems.push({ sku, name: name.trim(), qty: sugQty, origen, thumb });
+    _ordenItems.push({ sku, name: name.trim(), qty: sugQty, origen, thumb: thumb || '' });
   }
   renderOrdenCart();
   saveOrdenDraft();
