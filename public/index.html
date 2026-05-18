@@ -9676,7 +9676,7 @@ function renderOsItems() {
         </div>
         <div style="flex-shrink:0;text-align:center;">
           ${isPedido ? `<div style="background:#3b82f6;color:white;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:700;margin-bottom:4px;text-align:center;line-height:1.3;">PEDIDO ${i.pedido} uds<br><span style="font-weight:400;font-size:9px;opacity:0.85;">${(i.pedido_orden||[]).join(' · ')}</span></div>` : ''}
-          <button class="os-pedir-btn" data-sku="${(i.sku||'').replace(/"/g,'&quot;')}" data-name="${i.name.replace(/"/g,'&quot;').slice(0,40)}" data-gap="${i.gap}" data-origen="${i.origen}" data-thumb="${(i.ml_thumbnail||'').replace(/"/g,'')}" style="padding:8px 14px;background:${isPedido ? '#6b7280' : '#dc2626'};color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">+ Pedir</button>
+          <button class="os-pedir-btn" data-sku="${(i.sku||'').replace(/"/g,'&quot;')}" data-name="${i.name.replace(/"/g,'&quot;').slice(0,40)}" data-gap="${i.gap}" data-origen="${i.origen}" data-thumb="${(i.ml_thumbnail||'').replace(/"/g,'')}" data-isgroup="${i._isGroup||false}" data-variants-json="${i._isGroup ? encodeURIComponent(JSON.stringify((i._variants||[]).filter(v=>v.gap>0).map(v=>({s:v.sku,n:(v.name||'').slice(0,30),g:v.gap})))) : ''}" style="padding:8px 14px;background:${isPedido ? '#6b7280' : '#dc2626'};color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">+ Pedir</button>
         </div>
       </div>
       <div id="${detId}" style="display:none;margin-top:8px;padding:12px;background:#fafafa;border-radius:8px;border:1px solid #e5e7eb;">
@@ -9738,7 +9738,15 @@ function renderOsItems() {
   content.querySelectorAll('.os-pedir-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      addToOrden(btn.dataset.sku, btn.dataset.name, parseInt(btn.dataset.gap)||0, btn.dataset.origen, btn.dataset.thumb);
+      if (btn.dataset.isgroup === 'true' && btn.dataset.variantsJson) {
+        // Add each variant separately
+        try {
+          const variants = JSON.parse(decodeURIComponent(btn.dataset.variantsJson));
+          variants.forEach(v => addToOrden(v.s, v.n, v.g, btn.dataset.origen, btn.dataset.thumb));
+        } catch {}
+      } else {
+        addToOrden(btn.dataset.sku, btn.dataset.name, parseInt(btn.dataset.gap)||0, btn.dataset.origen, btn.dataset.thumb);
+      }
     });
   });
   setTimeout(markOrdenButtons, 100);
