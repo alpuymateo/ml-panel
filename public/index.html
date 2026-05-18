@@ -9559,6 +9559,7 @@ function renderOsItems() {
   const last10 = allMonths.slice(-10);
 
   // Group variants by base SKU (e.g. 48400-BLA-42 → 48400, 13201-NEG → 13201)
+  _osGroupedVariants = {}; // Reset
   function getBaseSku(sku) { const m = (sku||'').match(/^(\d+)/); return m ? m[1] : sku || ''; }
   const byBase = {};
   for (const i of items) {
