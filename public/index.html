@@ -5022,10 +5022,14 @@ async function saveCatOverride() {
   catalogOverrides[skuBase] = { macro, sub };
   // Guardar posición en el sort de la subcategoría destino
   if (newPos) {
-    const subKey = macro + '||' + sub;
-    const base   = catalogSortOverrides[subKey]
-      ? [...catalogSortOverrides[subKey]]
-      : (catGridUidMap[subKey] || []).map(x => x.base);
+    const subKey    = macro + '||' + sub;
+    const savedOv   = catalogSortOverrides[subKey] ? [...catalogSortOverrides[subKey]] : [];
+    const allBases  = (catGridUidMap[subKey] || []).map(x => x.base);
+    // Merge: productos del sort guardado + los que no estén aún (van al final)
+    const inSaved   = new Set(savedOv);
+    const base      = savedOv.length
+      ? [...savedOv, ...allBases.filter(b => !inSaved.has(b))]
+      : allBases;
     const filtered = base.filter(b => b !== skuBase);
     filtered.splice(Math.max(0, newPos - 1), 0, skuBase);
     await fetch('/api/catalog/sort', { method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify({ key: subKey, order: filtered }) });
@@ -5431,6 +5435,8 @@ function descargarCatalogo() {
 
 function renderCatalogo() {
   if (!odooData) return;
+  catGridUidMap = {};
+  catCardMeta   = {};
   const q           = (document.getElementById('catalogo-search')?.value || '').toLowerCase();
   const macroFilter = document.getElementById('catalogo-cat')?.value || '';
   const stockFilter = document.getElementById('catalogo-stock')?.value || 'all';
