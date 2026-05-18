@@ -8835,8 +8835,8 @@ function renderOsItems() {
   const allMonths = _osAllMonths || [];
   const last10 = allMonths.slice(-10);
 
-  // Group variants by base SKU (e.g. 48400-BLA-42 → 48400)
-  function getBaseSku(sku) { return (sku||'').replace(/-[A-Z]{2,}(-\d+)?$/, '').replace(/-\d+$/, ''); }
+  // Group variants by base SKU (e.g. 48400-BLA-42 → 48400, 13201-NEG → 13201)
+  function getBaseSku(sku) { const m = (sku||'').match(/^(\d+)/); return m ? m[1] : sku || ''; }
   const byBase = {};
   for (const i of items) {
     const base = getBaseSku(i.sku);
@@ -8974,10 +8974,14 @@ function renderOsItems() {
       itemHtml += `<div id="${varId}" style="display:none;margin:0 16px 8px;border:1px solid #e0e7ff;border-radius:8px;overflow:hidden;">
         <div style="padding:6px 12px;background:#eff6ff;font-size:11px;font-weight:600;color:#3730a3;">${i._variants.length} colores/variantes</div>`;
       for (const v of i._variants) {
-        const vColor = (v.sku||'').replace(getBaseSku(v.sku)+'-','');
+        const vLabel = (v.sku||'').replace(getBaseSku(v.sku)+'-','');
         itemHtml += `<div style="padding:6px 12px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;font-size:12px;">
-          <span style="color:#374151;"><b>${vColor || v.sku}</b> <span style="color:#9ca3af;">${v.sku}</span></span>
-          <span>stock: <b style="color:${v.stock<=0?'#dc2626':'#374151'}">${v.stock}</b> · ${v.avg_month}/m · gap: <b style="color:#4361ee;">${v.gap}</b></span>
+          <span style="color:#374151;"><b>${vLabel}</b> <span style="color:#9ca3af;font-size:10px;">${v.sku}</span></span>
+          <span style="display:flex;gap:12px;">
+            <span>stock: <b style="color:${v.stock<=0?'#dc2626':'#059669'}">${v.stock}</b></span>
+            <span style="color:#6b7280;">${v.avg_month}/m</span>
+            <span>gap: <b style="color:${v.gap>0?'#dc2626':'#059669'}">${v.gap}</b></span>
+          </span>
         </div>`;
       }
       itemHtml += '</div>';
