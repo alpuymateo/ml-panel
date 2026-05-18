@@ -9555,7 +9555,7 @@ function renderOsItems() {
 
   document.getElementById('os-count').textContent = items.length + ' productos';
 
-  const c = _osConfig;
+  const c = _osConfig || { lead_days_china:120, lead_days_brasil:30, growth_pct:30, china:{label:'—'}, brasil:{label:'—'} };
   const allMonths = _osAllMonths || [];
   const last10 = allMonths.slice(-10);
 
