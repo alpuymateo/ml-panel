@@ -1063,9 +1063,10 @@
 
           <div style="margin-bottom:6px;">
             <label style="font-size:12px;font-weight:600;color:#6b7280;">LÍNEAS DE PRODUCTOS</label>
-            <div style="display:grid;grid-template-columns:90px 1fr 80px 100px 36px;gap:8px;margin-top:6px;padding:0 2px;">
+            <div style="display:grid;grid-template-columns:90px 1fr 90px 70px 100px 36px;gap:8px;margin-top:6px;padding:0 2px;">
               <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;">SKU</span>
               <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;">Nombre</span>
+              <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;">Color</span>
               <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;text-align:center;">Cant.</span>
               <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;text-align:right;">Precio</span>
               <span></span>
@@ -4296,7 +4297,7 @@ function renderStep2(data) {
   // Líneas
   const lineasEl = document.getElementById('cot-lineas');
   lineasEl.innerHTML = data.lineas.map((l, i) => `
-    <div style="display:grid;grid-template-columns:90px 1fr 80px 100px 36px;gap:8px;align-items:start;margin-bottom:8px;">
+    <div style="display:grid;grid-template-columns:90px 1fr 90px 70px 100px 36px;gap:8px;align-items:start;margin-bottom:8px;">
       <input value="${l.sku}" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:monospace;margin-top:1px;" disabled>
       ${l.found
         ? `<input value="${l.product_name || ''}" id="cot-l-name-${i}" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;">`
@@ -4308,6 +4309,7 @@ function renderStep2(data) {
             <div id="cot-l-drop-${i}" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid #e5e7eb;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:100;max-height:180px;overflow-y:auto;"></div>
            </div>`
       }
+      <input type="text" value="${l.color||''}" id="cot-l-color-${i}" placeholder="NEG, BLA..." style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:monospace;">
       <input type="number" value="${l.cantidad}" id="cot-l-qty-${i}" min="1" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;text-align:center;">
       <input type="number" value="${l.precio}" id="cot-l-price-${i}" step="0.01" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;text-align:right;">
       <button onclick="removeCotLinea(${i})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;cursor:pointer;font-size:16px;padding:4px 8px;margin-top:1px;">✕</button>
