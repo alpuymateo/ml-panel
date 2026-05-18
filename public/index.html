@@ -2536,7 +2536,6 @@ function showPage(page) {
     odooMLLoaded = true;
   }
   if (page === 'catalogo' && !catalogoLoaded) {
-    document.getElementById('catalogo-stock').value = 'con_stock';
     loadCatalogo();
   }
   if (page === 'ml-estrategia') { loadEstrategia(); }
