@@ -3252,14 +3252,28 @@ app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res)
       [[orderId]], { fields: ['name', 'amount_total', 'picking_ids'] },
     ]);
 
-    // 4. Crear factura desde la orden
-    const invoiceIds = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', '_create_invoices',
-      [[orderId]], { final: false },
+    // 4. Crear factura desde la orden via wizard (sale.advance.payment.inv)
+    const ctx = { active_model: 'sale.order', active_ids: [orderId], active_id: orderId };
+    const wizardId = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.advance.payment.inv', 'create',
+      [{ advance_payment_method: 'delivered' }],
+      { context: ctx },
+    ]);
+    await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.advance.payment.inv', 'create_invoices',
+      [[wizardId]],
+      { context: ctx },
     ]);
 
-    if (!invoiceIds?.length) return res.status(500).json({ error: 'No se pudo crear la factura' });
-    const invoiceId = invoiceIds[0];
+    // Buscar la factura recién creada
+    const createdInvoices = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'search_read',
+      [[['invoice_origin', '=', order.name], ['move_type', '=', 'out_invoice']]],
+      { fields: ['id', 'name', 'state', 'amount_total', 'invoice_date_due'] },
+    ]);
+
+    if (!createdInvoices?.length) return res.status(500).json({ error: 'No se pudo crear la factura' });
+    const invoiceId = createdInvoices[0].id;
 
     // 5. Ajustar fecha de vencimiento si es crédito
     if (forma_pago === 'credito' && dias_vencimiento) {
@@ -3276,7 +3290,7 @@ app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res)
       ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'action_post', [[invoiceId]],
     ]);
 
-    // 7. Leer nombre de factura
+    // 7. Leer factura actualizada (tras action_post el nombre cambia de BORR/... a FACT/...)
     const [invoice] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
       ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'read',
       [[invoiceId]], { fields: ['name', 'amount_total', 'invoice_date_due'] },
