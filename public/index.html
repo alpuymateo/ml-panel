@@ -5842,15 +5842,49 @@ function descargarCatalogo() {
       *{box-sizing:border-box;margin:0;padding:0;}
       body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:white;color:#111827;}
       @media print{
-        @page{size:A4 landscape;margin:10mm 12mm;}
-        .cover-page{background:#e8e8e8 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-        .macro-header{background:#111827 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+        @page{size:A4 landscape;margin:6mm 6mm;}
+        .cover-page,.macro-footer,.macro-header{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+        .cover-page{background:#e8e8e8 !important;}
+        .macro-header{background:#111827 !important;}
         .macro-header span{color:white !important;}
+        .macro-footer{background:#111827 !important;}
+        .macro-footer *{color:white !important;}
       }
       .cover-page{
         width:100%;height:100vh;
         background:#e8e8e8;
         display:flex;align-items:center;justify-content:center;
+      }
+      .page-section{
+        break-before:page;
+        page-break-before:always;
+        border:2.5px solid #d1d5db;
+        border-radius:14px;
+        overflow:hidden;
+        display:flex;
+        flex-direction:column;
+        min-height:calc(100vh - 12px);
+      }
+      .page-content{
+        padding:22px 24px 16px;
+        flex:1;
+      }
+      .macro-footer{
+        background:#111827;
+        padding:11px 28px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        gap:48px;
+        margin-top:auto;
+      }
+      .macro-footer span{
+        color:white;
+        font-size:12px;
+        font-weight:600;
+        display:flex;
+        align-items:center;
+        gap:7px;
       }
     </style>
   </head><body>
@@ -5869,22 +5903,26 @@ function descargarCatalogo() {
         </div>
       </div>
     </div>
-    <!-- CATÁLOGO: cada macro arranca en nueva hoja, portada no genera hoja extra -->
-    ${macros.map((m, mi) => `
-      <div style="padding:20px 28px 0;${mi > 0 ? 'break-before:page;page-break-before:always;' : 'break-before:page;page-break-before:always;'}">
-        <div class="macro-header" style="border-radius:8px;background:#111827;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-          <span style="font-size:18px;font-weight:900;color:white;text-transform:uppercase;letter-spacing:-0.01em;">${m.nombre}</span>
-          <span style="font-size:10px;color:#9ca3af;">${m.subs.reduce((s,sub)=>s+sub.order.length,0)} productos</span>
+    <!-- CATÁLOGO: cada macro en su propia página con marco y footer -->
+    ${macros.map(m => `
+      <div class="page-section">
+        <div class="page-content">
+          <div class="macro-header" style="border-radius:8px;background:#111827;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <span style="font-size:17px;font-weight:900;color:white;text-transform:uppercase;letter-spacing:-0.01em;">${m.nombre}</span>
+            <span style="font-size:10px;color:#9ca3af;">${m.subs.reduce((s,sub)=>s+sub.order.length,0)} productos · ${fecha}</span>
+          </div>
+          ${m.subs.map(sub => `
+            <div style="font-size:11px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:0.04em;margin:12px 0 7px;padding-left:2px;">${sub.nombre}</div>
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:4px;">
+              ${sub.order.map(base => cardHtml(sub.groups, base)).join('')}
+            </div>`).join('')}
         </div>
-        ${m.subs.map(sub => `
-          <div style="font-size:12px;font-weight:800;color:#111827;text-transform:uppercase;letter-spacing:0.03em;margin:14px 0 8px;">${sub.nombre}</div>
-          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:4px;">
-            ${sub.order.map(base => cardHtml(sub.groups, base)).join('')}
-          </div>`).join('')}
+        <div class="macro-footer">
+          <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Arenal Grande 2125, Montevideo</span>
+          <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.41 2 2 0 0 1 3.6 1.21h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.71 2.81a2 2 0 0 1-.45 2.11L7.91 8.81A16 16 0 0 0 15.19 16l.96-.96a2 2 0 0 1 2.11-.45c.91.35 1.85.58 2.81.71A2 2 0 0 1 22 16.92z"/></svg>099 500 477</span>
+          <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>MA Importaciones SAS</span>
+        </div>
       </div>`).join('')}
-    <div style="padding:10px 28px 20px;border-top:1px solid #f3f4f6;font-size:9px;color:#9ca3af;text-align:center;margin-top:16px;">
-      Precios en pesos uruguayos · Sujetos a disponibilidad de stock · ${fecha}
-    </div>
   </body></html>`;
 
   const win = window.open('', '_blank');
