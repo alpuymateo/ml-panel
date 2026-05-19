@@ -3285,15 +3285,21 @@ app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res)
       ]);
     }
 
-    // 6. Validar/postear la factura
-    await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'action_post', [[invoiceId]],
-    ]);
+    // 6. Intentar postear la factura (puede fallar si Odoo llama a DGI y no responde en staging)
+    let invoicePosted = false;
+    try {
+      await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'action_post', [[invoiceId]],
+      ]);
+      invoicePosted = true;
+    } catch (postErr) {
+      console.warn('[cotizacion-confirmar-full] action_post falló (posiblemente DGI staging):', postErr.message);
+    }
 
-    // 7. Leer factura actualizada (tras action_post el nombre cambia de BORR/... a FACT/...)
+    // 7. Leer factura (si se posteó el nombre cambia a FACT/..., si no queda como borrador)
     const [invoice] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
       ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'read',
-      [[invoiceId]], { fields: ['name', 'amount_total', 'invoice_date_due'] },
+      [[invoiceId]], { fields: ['name', 'amount_total', 'invoice_date_due', 'state'] },
     ]);
 
     // 8. Leer remito(s)
@@ -3306,14 +3312,16 @@ app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res)
     }
 
     res.json({
-      success:      true,
-      order_id:     orderId,
-      order_name:   order.name,
-      amount_total: order.amount_total,
-      invoice_id:   invoiceId,
-      invoice_name: invoice.name,
-      invoice_due:  invoice.invoice_date_due,
-      pickings:     pickings.map(p => ({ name: p.name, state: p.state })),
+      success:        true,
+      order_id:       orderId,
+      order_name:     order.name,
+      amount_total:   order.amount_total,
+      invoice_id:     invoiceId,
+      invoice_name:   invoice.name,
+      invoice_due:    invoice.invoice_date_due,
+      invoice_state:  invoice.state,
+      invoice_posted: invoicePosted,
+      pickings:       pickings.map(p => ({ name: p.name, state: p.state })),
     });
   } catch (err) {
     console.error('[cotizacion-confirmar-full] error:', err.message);
