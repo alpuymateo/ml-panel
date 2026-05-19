@@ -5772,6 +5772,9 @@ function descargarCatalogo() {
     ? `<span style="font-size:9px;font-weight:700;color:#d97706;">● Stock bajo (${stock})</span>`
     : `<span style="font-size:9px;font-weight:700;color:#dc2626;">Sin stock</span>`;
 
+  const COLOR_NAME = {BLA:'Blanco',BCO:'Blanco',BLN:'Blanco',BLC:'Blanco',BLQ:'Blanco',BLU:'Blanco',NEG:'Negro',VER:'Verde',ROJ:'Rojo',RED:'Rojo',AZU:'Azul',AZL:'Azul',AMA:'Amarillo',YEL:'Amarillo',GRI:'Gris',GRS:'Gris',ROS:'Rosado',PNK:'Rosado',NAR:'Naranja',VIO:'Violeta',MAR:'Marrón',BEI:'Beige',CRE:'Crema',TUR:'Turquesa',PLT:'Plateado',SLV:'Plateado',GLD:'Dorado',BRN:'Marrón',GRN:'Verde',GLD:'Dorado'};
+  const colorLabel = sku => { const c=(sku||'').split('-').pop().toUpperCase(); return COLOR_NAME[c]||c; };
+
   const cardHtml = (groups, base) => {
     const variants = groups[base];
     const p0       = variants[0];
@@ -5784,21 +5787,48 @@ function descargarCatalogo() {
     const priceHtml = isGroup && minPrice !== maxPrice
       ? `desde $${Math.round(minPrice).toLocaleString('es-UY')}`
       : `$${Math.round(p0.price||0).toLocaleString('es-UY')}`;
-    const imgSrc = p0.ml_thumbnail || (location.origin + '/api/odoo/imagen/' + p0.id);
-    const variantDots = isGroup
-      ? `<div style="display:flex;gap:3px;margin-top:4px;">${variants.slice(0,6).map(()=>'<div style="width:6px;height:6px;border-radius:50%;background:#d1d5db;"></div>').join('')}${variants.length>6?`<span style="font-size:8px;color:#9ca3af;">+${variants.length-6}</span>`:''}</div>`
-      : '';
-    return `<div style="background:white;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;break-inside:avoid;display:flex;flex-direction:column;">
-      <div style="background:#f5f5f5;height:140px;display:flex;align-items:center;justify-content:center;">
+
+    // Imagen principal (producto sin variantes) o grilla de variantes
+    let imgSection;
+    if (!isGroup) {
+      const imgSrc = p0.ml_thumbnail || (location.origin + '/api/odoo/imagen/' + p0.id);
+      imgSection = `<div style="background:#f5f5f5;height:140px;display:flex;align-items:center;justify-content:center;">
         <img src="${imgSrc}" style="max-width:90%;max-height:128px;object-fit:contain;mix-blend-mode:multiply;" onerror="this.style.opacity='0.1'">
-      </div>
-      <div style="padding:10px 12px 12px;display:flex;flex-direction:column;flex:1;">
-        <div style="font-size:9px;font-weight:700;color:#9ca3af;letter-spacing:0.08em;margin-bottom:4px;">${p0.sku||'S/C'}${isGroup?` +${variants.length-1}`:''}</div>
-        <div style="font-size:11px;font-weight:700;color:#111827;line-height:1.4;flex:1;">${displayName}</div>
-        ${variantDots}
-        <div style="height:1px;background:#f3f4f6;margin:8px 0;"></div>
+      </div>`;
+    } else {
+      // Grilla de fotos de cada variante (máx 6, 3 columnas)
+      const cols = variants.length <= 4 ? 2 : 3;
+      const shown = variants.slice(0, 6);
+      const extra = variants.length > 6 ? variants.length - 6 : 0;
+      imgSection = `<div style="background:#f5f5f5;padding:6px;display:grid;grid-template-columns:repeat(${cols},1fr);gap:4px;">
+        ${shown.map(v => {
+          const src = v.ml_thumbnail || (location.origin + '/api/odoo/imagen/' + v.id);
+          const lbl = colorLabel(v.sku);
+          return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <div style="background:white;border-radius:6px;width:100%;height:${cols===2?'68px':'52px'};display:flex;align-items:center;justify-content:center;">
+              <img src="${src}" style="max-width:90%;max-height:${cols===2?'60px':'46px'};object-fit:contain;mix-blend-mode:multiply;" onerror="this.style.opacity='0.1'">
+            </div>
+            <span style="font-size:7px;color:#6b7280;text-align:center;line-height:1.2;">${lbl}</span>
+          </div>`;
+        }).join('')}
+        ${extra ? `<div style="display:flex;align-items:center;justify-content:center;font-size:9px;color:#9ca3af;font-weight:700;">+${extra}</div>` : ''}
+      </div>`;
+    }
+
+    // Lista de colores debajo del nombre (solo si hay variantes)
+    const coloresList = isGroup
+      ? `<div style="font-size:8px;color:#6b7280;margin-top:3px;line-height:1.4;">${variants.map(v=>colorLabel(v.sku)).join(' · ')}</div>`
+      : '';
+
+    return `<div style="background:white;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;break-inside:avoid;display:flex;flex-direction:column;">
+      ${imgSection}
+      <div style="padding:8px 10px 10px;display:flex;flex-direction:column;flex:1;">
+        <div style="font-size:8px;font-weight:700;color:#9ca3af;letter-spacing:0.08em;margin-bottom:3px;">${p0.sku?.split('-')[0]||'S/C'}${isGroup?` · ${variants.length} colores`:''}</div>
+        <div style="font-size:10px;font-weight:700;color:#111827;line-height:1.3;flex:1;">${displayName}</div>
+        ${coloresList}
+        <div style="height:1px;background:#f3f4f6;margin:6px 0;"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div style="font-size:16px;font-weight:900;color:#111827;">${priceHtml}</div>
+          <div style="font-size:14px;font-weight:900;color:#111827;">${priceHtml}</div>
           <div>${stockBadge(p0.stock??0)}</div>
         </div>
       </div>
