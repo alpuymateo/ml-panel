@@ -5765,14 +5765,48 @@ function descargarCatalogo() {
   if (!macros.length) return alert('No hay productos para descargar.');
   const totalGroups = macros.reduce((s,m) => s + m.subs.reduce((ss,sub) => ss + sub.order.length, 0), 0);
 
-  // ── Generar HTML del PDF ────────────────────────────────────────
+  // ── Pre-paginación: dividir contenido en hojas físicas ──────────
+  // Unidades: px a 96dpi (el CSS con mm maneja el escalado de impresión)
+  // A4 landscape = 297×210mm. Con @page margin 0 y padding interno: ~272×185mm de contenido
+  const PAGE_H    = Math.round(185 * 3.7795); // ≈ 699px contenido util
+  const FOOTER_H  = 48;
+  const PAD_TOP   = 18;
+  const MACRO_HDR = 50; // header negro + margin
+  const SUB_HDR   = 32; // título sub + margin
+  const CARD_H    = 196;
+  const CARD_GAP  = 8;
+  const ROW_H     = CARD_H + CARD_GAP;
+  const COLS      = 5;
+  const AVAIL     = PAGE_H - FOOTER_H - PAD_TOP;
+
+  // Divide cada macro en páginas
+  const allPages = [];
+  for (const m of macros) {
+    let usedH = MACRO_HDR;
+    let pg = { macroNombre: m.nombre, isFirst: true, items: [] };
+    const flush = () => { allPages.push(pg); pg = { macroNombre: m.nombre, isFirst: false, items: [] }; usedH = 0; };
+    for (const sub of m.subs) {
+      if (usedH + SUB_HDR > AVAIL) flush();
+      pg.items.push({ type: 'sub', name: sub.nombre });
+      usedH += SUB_HDR;
+      for (let i = 0; i < sub.order.length; i += COLS) {
+        const rowBases = sub.order.slice(i, i + COLS);
+        if (usedH + ROW_H > AVAIL) flush();
+        pg.items.push({ type: 'row', bases: rowBases, groups: sub.groups });
+        usedH += ROW_H;
+      }
+    }
+    if (pg.items.length) allPages.push(pg);
+  }
+
+  // ── Helpers de render ───────────────────────────────────────────
   const stockBadge = (stock) => stock > 10
     ? `<span style="font-size:9px;font-weight:700;color:#059669;">● En stock</span>`
     : stock > 0
     ? `<span style="font-size:9px;font-weight:700;color:#d97706;">● Stock bajo (${stock})</span>`
     : `<span style="font-size:9px;font-weight:700;color:#dc2626;">Sin stock</span>`;
 
-  const COLOR_NAME = {BLA:'Blanco',BCO:'Blanco',BLN:'Blanco',BLC:'Blanco',BLQ:'Blanco',BLU:'Blanco',NEG:'Negro',VER:'Verde',ROJ:'Rojo',RED:'Rojo',AZU:'Azul',AZL:'Azul',AMA:'Amarillo',YEL:'Amarillo',GRI:'Gris',GRS:'Gris',ROS:'Rosado',PNK:'Rosado',NAR:'Naranja',VIO:'Violeta',MAR:'Marrón',BEI:'Beige',CRE:'Crema',TUR:'Turquesa',PLT:'Plateado',SLV:'Plateado',GLD:'Dorado',BRN:'Marrón',GRN:'Verde',GLD:'Dorado'};
+  const COLOR_NAME = {BLA:'Blanco',BCO:'Blanco',BLN:'Blanco',BLC:'Blanco',BLQ:'Blanco',BLU:'Blanco',NEG:'Negro',VER:'Verde',ROJ:'Rojo',RED:'Rojo',AZU:'Azul',AZL:'Azul',AMA:'Amarillo',YEL:'Amarillo',GRI:'Gris',GRS:'Gris',ROS:'Rosado',PNK:'Rosado',NAR:'Naranja',VIO:'Violeta',MAR:'Marrón',BEI:'Beige',CRE:'Crema',TUR:'Turquesa',PLT:'Plateado',SLV:'Plateado',GLD:'Dorado',BRN:'Marrón',GRN:'Verde'};
   const colorLabel = sku => { const c=(sku||'').split('-').pop().toUpperCase(); return COLOR_NAME[c]||c; };
 
   const cardHtml = (groups, base) => {
@@ -5788,52 +5822,77 @@ function descargarCatalogo() {
       ? `desde $${Math.round(minPrice).toLocaleString('es-UY')}`
       : `$${Math.round(p0.price||0).toLocaleString('es-UY')}`;
 
-    // Imagen principal (producto sin variantes) o grilla de variantes
     let imgSection;
     if (!isGroup) {
       const imgSrc = p0.ml_thumbnail || (location.origin + '/api/odoo/imagen/' + p0.id);
-      imgSection = `<div style="background:#f5f5f5;height:140px;display:flex;align-items:center;justify-content:center;">
-        <img src="${imgSrc}" style="max-width:90%;max-height:128px;object-fit:contain;mix-blend-mode:multiply;" onerror="this.style.opacity='0.1'">
+      imgSection = `<div style="background:#f5f5f5;height:108px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <img src="${imgSrc}" style="max-width:90%;max-height:98px;object-fit:contain;mix-blend-mode:multiply;" onerror="this.style.opacity='0.1'">
       </div>`;
     } else {
-      // Grilla de fotos de cada variante (máx 6, 3 columnas)
       const cols = variants.length <= 4 ? 2 : 3;
       const shown = variants.slice(0, 6);
       const extra = variants.length > 6 ? variants.length - 6 : 0;
-      imgSection = `<div style="background:#f5f5f5;padding:6px;display:grid;grid-template-columns:repeat(${cols},1fr);gap:4px;">
+      const imgH = cols === 2 ? 42 : 34;
+      imgSection = `<div style="background:#f5f5f5;padding:5px;display:grid;grid-template-columns:repeat(${cols},1fr);gap:3px;flex-shrink:0;">
         ${shown.map(v => {
           const src = v.ml_thumbnail || (location.origin + '/api/odoo/imagen/' + v.id);
-          const lbl = colorLabel(v.sku);
-          return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-            <div style="background:white;border-radius:6px;width:100%;height:${cols===2?'68px':'52px'};display:flex;align-items:center;justify-content:center;">
-              <img src="${src}" style="max-width:90%;max-height:${cols===2?'60px':'46px'};object-fit:contain;mix-blend-mode:multiply;" onerror="this.style.opacity='0.1'">
+          return `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+            <div style="background:white;border-radius:4px;width:100%;height:${imgH}px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <img src="${src}" style="max-width:88%;max-height:${imgH-4}px;object-fit:contain;mix-blend-mode:multiply;" onerror="this.style.opacity='0.1'">
             </div>
-            <span style="font-size:7px;color:#6b7280;text-align:center;line-height:1.2;">${lbl}</span>
+            <span style="font-size:6px;color:#6b7280;text-align:center;line-height:1.1;">${colorLabel(v.sku)}</span>
           </div>`;
         }).join('')}
-        ${extra ? `<div style="display:flex;align-items:center;justify-content:center;font-size:9px;color:#9ca3af;font-weight:700;">+${extra}</div>` : ''}
+        ${extra ? `<div style="display:flex;align-items:center;justify-content:center;font-size:8px;color:#9ca3af;">+${extra}</div>` : ''}
       </div>`;
     }
 
-    // Lista de colores debajo del nombre (solo si hay variantes)
     const coloresList = isGroup
-      ? `<div style="font-size:8px;color:#6b7280;margin-top:3px;line-height:1.4;">${variants.map(v=>colorLabel(v.sku)).join(' · ')}</div>`
+      ? `<div style="font-size:7px;color:#6b7280;margin-top:2px;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${variants.map(v=>colorLabel(v.sku)).join(' · ')}</div>`
       : '';
 
-    return `<div style="background:white;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;break-inside:avoid;display:flex;flex-direction:column;">
+    return `<div style="background:white;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;height:${CARD_H}px;display:flex;flex-direction:column;">
       ${imgSection}
-      <div style="padding:8px 10px 10px;display:flex;flex-direction:column;flex:1;">
-        <div style="font-size:8px;font-weight:700;color:#9ca3af;letter-spacing:0.08em;margin-bottom:3px;">${p0.sku?.split('-')[0]||'S/C'}${isGroup?` · ${variants.length} colores`:''}</div>
-        <div style="font-size:10px;font-weight:700;color:#111827;line-height:1.3;flex:1;">${displayName}</div>
+      <div style="padding:6px 8px 7px;display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
+        <div style="font-size:7px;font-weight:700;color:#9ca3af;letter-spacing:0.06em;margin-bottom:2px;flex-shrink:0;">${p0.sku?.split('-')[0]||'S/C'}${isGroup?` · ${variants.length} col.`:''}</div>
+        <div style="font-size:9px;font-weight:700;color:#111827;line-height:1.25;overflow:hidden;">${displayName}</div>
         ${coloresList}
-        <div style="height:1px;background:#f3f4f6;margin:6px 0;"></div>
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div style="font-size:14px;font-weight:900;color:#111827;">${priceHtml}</div>
+        <div style="height:1px;background:#f3f4f6;margin:4px 0;flex-shrink:0;margin-top:auto;"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+          <div style="font-size:13px;font-weight:900;color:#111827;">${priceHtml}</div>
           <div>${stockBadge(p0.stock??0)}</div>
         </div>
       </div>
     </div>`;
   };
+
+  // ── Footer HTML (reutilizable en cada hoja) ─────────────────────
+  const footerHtml = `<div style="background:#111827;padding:10px 28px;display:flex;align-items:center;justify-content:center;gap:48px;flex-shrink:0;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+    <span style="color:white;font-size:11px;font-weight:600;display:flex;align-items:center;gap:7px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Arenal Grande 2125, Montevideo</span>
+    <span style="color:white;font-size:11px;font-weight:600;display:flex;align-items:center;gap:7px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.41 2 2 0 0 1 3.6 1.21h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.71 2.81a2 2 0 0 1-.45 2.11L7.91 8.81A16 16 0 0 0 15.19 16l.96-.96a2 2 0 0 1 2.11-.45c.91.35 1.85.58 2.81.71A2 2 0 0 1 22 16.92z"/></svg>099 500 477</span>
+    <span style="color:white;font-size:11px;font-weight:600;display:flex;align-items:center;gap:7px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>MA Importaciones SAS</span>
+  </div>`;
+
+  // ── Renderizar páginas pre-paginadas ────────────────────────────
+  const renderPage = (pg, isVeryFirst) => `
+    <div style="width:272mm;height:185mm;border:2.5px solid #d1d5db;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;${isVeryFirst?'':'break-before:page;page-break-before:always;'}-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+      <div style="padding:${PAD_TOP}px 20px 0;flex:1;overflow:hidden;display:flex;flex-direction:column;">
+        ${pg.isFirst
+          ? `<div style="border-radius:7px;background:#111827;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-shrink:0;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+               <span style="font-size:16px;font-weight:900;color:white;text-transform:uppercase;letter-spacing:-0.01em;">${pg.macroNombre}</span>
+               <span style="font-size:9px;color:#9ca3af;">${fecha}</span>
+             </div>`
+          : `<div style="font-size:9px;color:#9ca3af;font-style:italic;margin-bottom:10px;flex-shrink:0;">↪ ${pg.macroNombre}</div>`
+        }
+        ${pg.items.map(item => item.type === 'sub'
+          ? `<div style="font-size:10px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:0.04em;margin:8px 0 6px;flex-shrink:0;">${item.name}</div>`
+          : `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:8px;flex-shrink:0;">
+               ${item.bases.map(base => cardHtml(item.groups, base)).join('')}
+             </div>`
+        ).join('')}
+      </div>
+      ${footerHtml}
+    </div>`;
 
   const html = `<!DOCTYPE html><html lang="es"><head>
     <meta charset="UTF-8">
@@ -5841,88 +5900,25 @@ function descargarCatalogo() {
     <style>
       *{box-sizing:border-box;margin:0;padding:0;}
       body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:white;color:#111827;}
-      @media print{
-        @page{size:A4 landscape;margin:6mm 6mm;}
-        .cover-page,.macro-footer,.macro-header{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-        .cover-page{background:#e8e8e8 !important;}
-        .macro-header{background:#111827 !important;}
-        .macro-header span{color:white !important;}
-        .macro-footer{background:#111827 !important;}
-        .macro-footer *{color:white !important;}
-      }
-      .cover-page{
-        width:100%;height:100vh;
-        background:#e8e8e8;
-        display:flex;align-items:center;justify-content:center;
-      }
-      .page-section{
-        break-before:page;
-        page-break-before:always;
-        border:2.5px solid #d1d5db;
-        border-radius:14px;
-        overflow:hidden;
-        display:flex;
-        flex-direction:column;
-        min-height:calc(100vh - 12px);
-      }
-      .page-content{
-        padding:22px 24px 16px;
-        flex:1;
-      }
-      .macro-footer{
-        background:#111827;
-        padding:11px 28px;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        gap:48px;
-        margin-top:auto;
-      }
-      .macro-footer span{
-        color:white;
-        font-size:12px;
-        font-weight:600;
-        display:flex;
-        align-items:center;
-        gap:7px;
-      }
+      @media print{@page{size:A4 landscape;margin:0;}body{margin:12mm 12mm;}*{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
     </style>
   </head><body>
     <!-- PORTADA -->
-    <div class="cover-page">
+    <div style="width:272mm;height:185mm;background:#e8e8e8;display:flex;align-items:center;justify-content:center;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
       <div style="display:flex;align-items:center;gap:40px;">
-        <div style="border:4px solid #555;border-radius:14px;padding:18px 28px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:160px;">
+        <div style="border:4px solid #555;border-radius:14px;padding:18px 28px;display:flex;flex-direction:column;align-items:center;">
           <span style="font-size:90px;font-weight:900;color:#555;line-height:1;">20</span>
           <span style="font-size:90px;font-weight:900;color:#555;line-height:1;">26</span>
         </div>
         <div style="width:4px;height:200px;background:#555;border-radius:2px;"></div>
-        <div style="display:flex;flex-direction:column;justify-content:center;gap:6px;">
+        <div style="display:flex;flex-direction:column;gap:6px;">
           <div style="font-size:88px;font-weight:900;color:#555;line-height:1;text-transform:uppercase;letter-spacing:-0.02em;">CATALOGO</div>
           <div style="font-size:88px;font-weight:900;color:#555;line-height:1;text-transform:uppercase;letter-spacing:-0.02em;">MAYORISTA</div>
           <div style="font-size:22px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.08em;margin-top:8px;">MA IMPORTACIONES SAS</div>
         </div>
       </div>
     </div>
-    <!-- CATÁLOGO: cada macro en su propia página con marco y footer -->
-    ${macros.map(m => `
-      <div class="page-section">
-        <div class="page-content">
-          <div class="macro-header" style="border-radius:8px;background:#111827;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-            <span style="font-size:17px;font-weight:900;color:white;text-transform:uppercase;letter-spacing:-0.01em;">${m.nombre}</span>
-            <span style="font-size:10px;color:#9ca3af;">${m.subs.reduce((s,sub)=>s+sub.order.length,0)} productos · ${fecha}</span>
-          </div>
-          ${m.subs.map(sub => `
-            <div style="font-size:11px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:0.04em;margin:12px 0 7px;padding-left:2px;">${sub.nombre}</div>
-            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:4px;">
-              ${sub.order.map(base => cardHtml(sub.groups, base)).join('')}
-            </div>`).join('')}
-        </div>
-        <div class="macro-footer">
-          <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Arenal Grande 2125, Montevideo</span>
-          <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.41 2 2 0 0 1 3.6 1.21h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.71 2.81a2 2 0 0 1-.45 2.11L7.91 8.81A16 16 0 0 0 15.19 16l.96-.96a2 2 0 0 1 2.11-.45c.91.35 1.85.58 2.81.71A2 2 0 0 1 22 16.92z"/></svg>099 500 477</span>
-          <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>MA Importaciones SAS</span>
-        </div>
-      </div>`).join('')}
+    ${allPages.map((pg, i) => renderPage(pg, false)).join('')}
   </body></html>`;
 
   const win = window.open('', '_blank');
