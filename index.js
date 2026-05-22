@@ -2031,6 +2031,22 @@ app.get('/api/dashboard-stock', requireToken, async (req, res) => {
   }
 });
 
+// ── SKUs ocultos en orden sugerida ──
+const HIDDEN_SKUS_FILE = path.join(__dirname, 'data', 'hidden_skus.json');
+function loadHiddenSkus() { try { return fs.existsSync(HIDDEN_SKUS_FILE) ? JSON.parse(fs.readFileSync(HIDDEN_SKUS_FILE, 'utf8')) : []; } catch { return []; } }
+function saveHiddenSkus(list) { fs.writeFileSync(HIDDEN_SKUS_FILE, JSON.stringify(list)); }
+
+app.get('/api/hidden-skus', requireToken, (req, res) => res.json(loadHiddenSkus()));
+app.post('/api/hidden-skus', requireToken, (req, res) => {
+  const { sku, action } = req.body;
+  if (!sku) return res.status(400).json({ error: 'SKU requerido' });
+  let list = loadHiddenSkus();
+  if (action === 'hide' && !list.includes(sku)) list.push(sku);
+  if (action === 'show') list = list.filter(s => s !== sku);
+  saveHiddenSkus(list);
+  res.json({ ok: true, count: list.length });
+});
+
 // Odoo: Railway NUNCA conecta a Odoo. Solo se sincroniza localmente y se pushea el cache.
 // En Railway se lee siempre del cache en disco.
 
