@@ -9975,6 +9975,12 @@ async function ocultarSku(sku) {
   renderOsItems();
 }
 
+async function desocultarSku(sku) {
+  _hiddenSkus.delete(sku);
+  await fetch('/api/hidden-skus', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ sku, action: 'show' }) });
+  renderOsItems();
+}
+
 function renderOsItems() {
   const content = document.getElementById('os-content');
   if (!_osAllItems.length) return;
@@ -10129,7 +10135,7 @@ function renderOsItems() {
       <div style="display:flex;gap:10px;align-items:center;cursor:pointer;" onclick="const el=document.getElementById('${detId}');el.style.display=el.style.display==='none'?'':'none';">
         ${thumb}
         <div style="flex:1;min-width:0;">
-          <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name}</div>
+          <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name} ${_hiddenSkus.has(i.sku) ? '<span onclick="event.stopPropagation();desocultarSku(\''+i.sku+'\')" style="font-size:9px;color:#059669;cursor:pointer;font-weight:400;">mostrar</span>' : '<span onclick="event.stopPropagation();ocultarSku(\''+i.sku+'\')" style="font-size:9px;color:#9ca3af;cursor:pointer;font-weight:400;">ocultar</span>'}</div>
           <div style="font-size:10px;color:#9ca3af;">${i.sku} · ${i.categ || ''} · <span style="padding:1px 5px;border-radius:4px;font-size:9px;font-weight:600;background:${i.origen==='Brasil'?'#dcfce7':'#fef3c7'};color:${i.origen==='Brasil'?'#166534':'#92400e'};">${i.origen} ${i.lead_days}d</span> → ${i.target_label} · <span style="padding:1px 4px;border-radius:3px;font-weight:700;font-size:9px;background:${abcColor}15;color:${abcColor};">${i.abc}</span><span style="padding:1px 4px;border-radius:3px;font-weight:700;font-size:9px;background:${xyzColor}15;color:${xyzColor};margin-left:2px;">${i.xyz||''}</span> ${i.months_with_sales||0}/6m · máx ${i.max_month||0} ${tags.join(' ')}</div>
         </div>
         <div style="text-align:right;flex-shrink:0;">
@@ -10433,7 +10439,6 @@ async function loadOrdenSugerida() {
               </div>
               <div style="text-align:right;flex-shrink:0;font-weight:800;font-size:16px;color:#4361ee;min-width:40px;">${sugQty}</div>
               <button onclick="event.stopPropagation();agregarAOrden('${i.sku.replace(/'/g,"\\'")}',${sugQty},'${i.name.replace(/['"]/g,"\\'")}')" style="padding:6px 12px;background:#dc2626;color:white;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">+ Pedir</button>
-              <button onclick="event.stopPropagation();ocultarSku('${i.sku.replace(/'/g,"\\'")}');" style="padding:6px 8px;background:none;border:1px solid #e5e7eb;border-radius:6px;font-size:10px;color:#9ca3af;cursor:pointer;flex-shrink:0;" title="Ocultar">✕</button>
             </div>
             <div id="${detId}" style="display:none;margin-top:8px;padding:10px;background:#fff;border-radius:8px;border:1px solid #fee2e2;">
               <div style="font-size:11px;color:#475569;margin-bottom:8px;">${razon}</div>
