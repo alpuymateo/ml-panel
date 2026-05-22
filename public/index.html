@@ -8798,15 +8798,21 @@ let _hiddenSkus = new Set();
 let _osConfig = null;
 let _osZafral = [];
 
-async function ocultarSku(sku) {
+function ocultarSku(sku) {
   _hiddenSkus.add(sku);
-  await fetch('/api/hidden-skus', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ sku, action: 'hide' }) });
-  renderOsItems();
+  // Remove from DOM immediately without full re-render
+  const el = document.querySelector('[data-sku="'+sku+'"]');
+  if (el) el.style.display = 'none';
+  // Save in background
+  fetch('/api/hidden-skus', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ sku, action: 'hide' }) });
+  // Update count
+  const countEl = document.getElementById('os-count');
+  if (countEl) { const n = parseInt(countEl.textContent) || 0; countEl.textContent = (n-1) + ' productos'; }
 }
 
-async function desocultarSku(sku) {
+function desocultarSku(sku) {
   _hiddenSkus.delete(sku);
-  await fetch('/api/hidden-skus', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ sku, action: 'show' }) });
+  fetch('/api/hidden-skus', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ sku, action: 'show' }) });
   renderOsItems();
 }
 
