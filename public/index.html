@@ -5884,7 +5884,7 @@ function descargarCatalogo() {
 
   // ── Renderizar páginas pre-paginadas ────────────────────────────
   const renderPage = (pg, isVeryFirst) => `
-    <div style="width:100%;height:190mm;border:2.5px solid #d1d5db;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-sizing:border-box;${isVeryFirst?'':'break-before:page;page-break-before:always;'}-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+    <div class="pdf-page" style="border:2.5px solid #d1d5db;border-radius:14px;${isVeryFirst?'':'break-before:page;page-break-before:always;'}">
       <div style="padding:${PAD_TOP}px 20px 0;flex:1;overflow:hidden;display:flex;flex-direction:column;">
         ${pg.isFirst
           ? `<div style="border-radius:7px;background:#111827;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-shrink:0;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
@@ -5908,12 +5908,18 @@ function descargarCatalogo() {
     <title>Catálogo Mayorista 2026</title>
     <style>
       *{box-sizing:border-box;margin:0;padding:0;}
-      body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:white;color:#111827;}
-      @media print{@page{size:A4 landscape;margin:10mm;}body{margin:0;}*{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
+      html,body{width:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:white;color:#111827;}
+      .pdf-page{width:277mm;height:190mm;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;}
+      .pdf-cover{width:277mm;height:190mm;margin:0 auto;display:flex;align-items:center;justify-content:center;background:#e8e8e8;}
+      @media print{
+        @page{size:A4 landscape;margin:10mm;}
+        html,body{margin:0;padding:0;}
+        *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+      }
     </style>
   </head><body>
     <!-- PORTADA -->
-    <div style="width:100%;height:190mm;background:#e8e8e8;display:flex;align-items:center;justify-content:center;-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box;">
+    <div class="pdf-cover">
       <div style="display:flex;align-items:center;gap:40px;">
         <div style="border:4px solid #555;border-radius:14px;padding:18px 28px;display:flex;flex-direction:column;align-items:center;">
           <span style="font-size:90px;font-weight:900;color:#555;line-height:1;">20</span>
