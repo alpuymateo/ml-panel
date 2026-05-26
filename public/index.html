@@ -4340,7 +4340,7 @@ function renderStep2(data) {
   const lineasEl = document.getElementById('cot-lineas');
   lineasEl.innerHTML = data.lineas.map((l, i) => `
     <div style="display:grid;grid-template-columns:90px 1fr 90px 70px 100px 36px;gap:8px;align-items:start;margin-bottom:8px;">
-      <input value="${l.sku}" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:monospace;margin-top:1px;" disabled>
+      <input id="cot-l-sku-${i}" value="${l.sku}" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:monospace;margin-top:1px;" onchange="onCotSkuChange(${i}, this.value.trim())" onkeydown="if(event.key==='Enter'){this.blur();}" title="Editá el SKU y presioná Enter para buscar el producto">
       ${l.found
         ? `<input value="${l.product_name || ''}" id="cot-l-name-${i}" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;">`
         : `<div style="position:relative;">
@@ -4410,6 +4410,28 @@ function searchCotProduct(i, q) {
     });
   });
   drop.style.display = '';
+}
+
+function onCotSkuChange(i, val) {
+  if (!val || !odooData) return;
+  const skuBase = val.split('-')[0].toLowerCase();
+  let found = null;
+  for (const cat of odooData.categories) {
+    for (const p of cat.items) {
+      if (p.sku.toLowerCase() === val.toLowerCase() || p.sku.toLowerCase().split('-')[0] === skuBase) {
+        found = p; break;
+      }
+    }
+    if (found) break;
+  }
+  saveCotFormState();
+  if (found) {
+    selectCotProduct(i, found.id, found.name, found.price, found.sku, found.uom_id, found.tax_ids);
+  } else {
+    cotExtracted.lineas[i].sku = val;
+    const skuEl = document.getElementById(`cot-l-sku-${i}`);
+    if (skuEl) { skuEl.style.borderColor = '#fca5a5'; skuEl.style.background = '#fff1f2'; }
+  }
 }
 
 function selectCotProduct(i, productId, name, price, sku, uomId, taxIds) {
