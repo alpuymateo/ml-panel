@@ -3242,11 +3242,11 @@ app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res)
     if (!partner_id) return res.status(400).json({ error: 'Se requiere partner_id' });
     if (!lineas?.length) return res.status(400).json({ error: 'Se requieren líneas' });
 
-    // Auth
+    // Auth con Odoo producción (el mismo que funciona para el catálogo)
     let uid;
-    try { uid = await odooAuthStaging(); }
-    catch (e) { return res.status(502).json({ error: `[auth staging] ${e.message}` }); }
-    if (!uid) return res.status(502).json({ error: '[auth staging] Odoo no devolvió UID (credenciales incorrectas)' });
+    try { uid = await odooAuth(); }
+    catch (e) { return res.status(502).json({ error: `[auth] ${e.message}` }); }
+    if (!uid) return res.status(502).json({ error: '[auth] Odoo no devolvió UID' });
 
     // Crear cotización (borrador) — NO se confirma ni factura desde acá
     const order_lines = lineas.map(l => [0, 0, {
@@ -3267,8 +3267,8 @@ app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res)
 
     let orderId;
     try {
-      orderId = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'create',
+      orderId = await odooCall('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_DB, uid, ODOO_API_KEY, 'sale.order', 'create',
         [{ partner_id, pricelist_id: 2, date_order: new Date().toISOString().replace('T', ' ').slice(0, 19), note: notaCompleta, order_line: order_lines }],
       ]);
     } catch(e) { return res.status(502).json({ error: `[crear orden] ${e.message}` }); }
@@ -3276,8 +3276,8 @@ app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res)
     // Leer nombre asignado
     let order;
     try {
-      [order] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'read',
+      [order] = await odooCall('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_DB, uid, ODOO_API_KEY, 'sale.order', 'read',
         [[orderId]], { fields: ['name', 'amount_total'] },
       ]);
     } catch(e) { return res.status(502).json({ error: `[leer orden] ${e.message}` }); }
