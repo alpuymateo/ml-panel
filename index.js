@@ -3271,30 +3271,42 @@ app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res)
     } catch(e) { return res.status(502).json({ error: `[confirmar orden] ${e.message}` }); }
 
     // 3. Leer orden confirmada (nombre + pickings)
-    const [order] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'read',
-      [[orderId]], { fields: ['name', 'amount_total', 'picking_ids'] },
-    ]);
+    let order;
+    try {
+      [order] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'read',
+        [[orderId]], { fields: ['name', 'amount_total', 'picking_ids'] },
+      ]);
+    } catch(e) { return res.status(502).json({ error: `[leer orden] ${e.message}` }); }
 
     // 4. Crear factura desde la orden via wizard (sale.advance.payment.inv)
     const ctx = { active_model: 'sale.order', active_ids: [orderId], active_id: orderId };
-    const wizardId = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.advance.payment.inv', 'create',
-      [{ advance_payment_method: 'delivered' }],
-      { context: ctx },
-    ]);
-    await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.advance.payment.inv', 'create_invoices',
-      [[wizardId]],
-      { context: ctx },
-    ]);
+    let wizardId;
+    try {
+      wizardId = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.advance.payment.inv', 'create',
+        [{ advance_payment_method: 'delivered' }],
+        { context: ctx },
+      ]);
+    } catch(e) { return res.status(502).json({ error: `[crear wizard factura] ${e.message}` }); }
+
+    try {
+      await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.advance.payment.inv', 'create_invoices',
+        [[wizardId]],
+        { context: ctx },
+      ]);
+    } catch(e) { return res.status(502).json({ error: `[create_invoices] ${e.message}` }); }
 
     // Buscar la factura recién creada
-    const createdInvoices = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'search_read',
-      [[['invoice_origin', '=', order.name], ['move_type', '=', 'out_invoice']]],
-      { fields: ['id', 'name', 'state', 'amount_total', 'invoice_date_due'] },
-    ]);
+    let createdInvoices;
+    try {
+      createdInvoices = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'search_read',
+        [[['invoice_origin', '=', order.name], ['move_type', '=', 'out_invoice']]],
+        { fields: ['id', 'name', 'state', 'amount_total', 'invoice_date_due'] },
+      ]);
+    } catch(e) { return res.status(502).json({ error: `[buscar factura] ${e.message}` }); }
 
     if (!createdInvoices?.length) return res.status(500).json({ error: 'No se pudo crear la factura' });
     const invoiceId = createdInvoices[0].id;
@@ -3303,10 +3315,12 @@ app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res)
     if (forma_pago === 'credito' && dias_vencimiento) {
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + parseInt(dias_vencimiento));
-      await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'write',
-        [[invoiceId], { invoice_date_due: dueDate.toISOString().slice(0, 10) }],
-      ]);
+      try {
+        await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+          ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'write',
+          [[invoiceId], { invoice_date_due: dueDate.toISOString().slice(0, 10) }],
+        ]);
+      } catch(e) { console.warn('[cotizacion-confirmar-full] write due date falló:', e.message); }
     }
 
     // 6. Intentar postear la factura (puede fallar si Odoo llama a DGI y no responde en staging)
@@ -3321,18 +3335,23 @@ app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res)
     }
 
     // 7. Leer factura (si se posteó el nombre cambia a FACT/..., si no queda como borrador)
-    const [invoice] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'read',
-      [[invoiceId]], { fields: ['name', 'amount_total', 'invoice_date_due', 'state'] },
-    ]);
+    let invoice;
+    try {
+      [invoice] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'read',
+        [[invoiceId]], { fields: ['name', 'amount_total', 'invoice_date_due', 'state'] },
+      ]);
+    } catch(e) { return res.status(502).json({ error: `[leer factura] ${e.message}` }); }
 
     // 8. Leer remito(s)
     let pickings = [];
     if (order.picking_ids?.length) {
-      pickings = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'stock.picking', 'read',
-        [order.picking_ids], { fields: ['name', 'state'] },
-      ]);
+      try {
+        pickings = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+          ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'stock.picking', 'read',
+          [order.picking_ids], { fields: ['name', 'state'] },
+        ]);
+      } catch(e) { console.warn('[cotizacion-confirmar-full] leer remitos falló:', e.message); }
     }
 
     res.json({
