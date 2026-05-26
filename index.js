@@ -3239,7 +3239,10 @@ app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res)
     if (!partner_id) return res.status(400).json({ error: 'Se requiere partner_id' });
     if (!lineas?.length) return res.status(400).json({ error: 'Se requieren líneas' });
 
-    const uid = await odooAuthStaging();
+    let uid;
+    try { uid = await odooAuthStaging(); }
+    catch (e) { return res.status(502).json({ error: `[auth staging] ${e.message}` }); }
+    if (!uid) return res.status(502).json({ error: '[auth staging] Odoo no devolvió UID (credenciales incorrectas)' });
 
     // 1. Crear orden de venta
     const order_lines = lineas.map(l => [0, 0, {
@@ -3252,15 +3255,20 @@ app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res)
       ...(l.descuento ? { discount: l.descuento } : {}),
     }]);
 
-    const orderId = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'create',
-      [{ partner_id, pricelist_id: 2, date_order: new Date().toISOString().replace('T', ' ').slice(0, 19), note: notas || '', order_line: order_lines }],
-    ]);
+    let orderId;
+    try {
+      orderId = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'create',
+        [{ partner_id, pricelist_id: 2, date_order: new Date().toISOString().replace('T', ' ').slice(0, 19), note: notas || '', order_line: order_lines }],
+      ]);
+    } catch(e) { return res.status(502).json({ error: `[crear orden] ${e.message}` }); }
 
     // 2. Confirmar orden
-    await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'action_confirm', [[orderId]],
-    ]);
+    try {
+      await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'action_confirm', [[orderId]],
+      ]);
+    } catch(e) { return res.status(502).json({ error: `[confirmar orden] ${e.message}` }); }
 
     // 3. Leer orden confirmada (nombre + pickings)
     const [order] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
