@@ -1363,7 +1363,7 @@
           <h1>Usuarios</h1>
           <p>Gestión de acceso al panel</p>
         </div>
-        <button class="btn-refresh" onclick="showUserForm()" style="background:#4361ee;color:white;border:none;">+ Nuevo usuario</button>
+        <button class="btn-refresh" onclick="loadUsersPage()" style="background:#f3f4f6;color:#374151;border:none;">↻ Actualizar</button>
       </div>
       <div class="table-card">
         <div id="users-table-content"><div class="loading"><span class="spinner"></span>Cargando...</div></div>
@@ -1382,36 +1382,53 @@
         <div id="sync-push-status" style="margin-top:8px;"></div>
       </div>
 
-      <!-- Emails autorizados Google -->
+      <!-- Invitaciones -->
       <div class="card" style="margin-bottom:16px;">
-        <div style="font-size:14px;font-weight:700;margin-bottom:8px;">Emails autorizados (Google Login)</div>
-        <div id="allowed-emails-list" style="margin-bottom:8px;"></div>
-        <div style="display:flex;gap:8px;">
-          <input type="email" id="new-allowed-email" placeholder="email@ejemplo.com" style="flex:1;padding:8px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;" onkeydown="if(event.key==='Enter')addAllowedEmail()">
-          <button onclick="addAllowedEmail()" style="padding:8px 14px;background:#059669;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">+ Agregar</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-size:14px;font-weight:700;">Invitaciones de registro</div>
+          <button onclick="openInviteForm()" style="padding:6px 14px;background:#4361ee;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">+ Nueva invitación</button>
+        </div>
+        <div id="invites-list"><div style="color:#9ca3af;font-size:12px;">Cargando...</div></div>
+      </div>
+
+      <!-- Modal nueva invitación -->
+      <div id="invite-modal" style="display:none;position:fixed;inset:0;background:#0006;z-index:1001;align-items:center;justify-content:center;">
+        <div style="background:white;border-radius:16px;padding:24px;width:100%;max-width:400px;margin:16px;">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;">Nueva invitación</h3>
+          <div style="margin-bottom:12px;">
+            <label style="font-size:12px;color:#6b7280;font-weight:600;">Etiqueta (opcional)</label>
+            <input id="invite-label" type="text" placeholder="Ej: Para Pedro López"
+              style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
+          </div>
+          <div style="margin-bottom:20px;">
+            <label style="font-size:12px;color:#6b7280;font-weight:600;">Validez</label>
+            <select id="invite-hours" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
+              <option value="24">24 horas</option>
+              <option value="48" selected>48 horas</option>
+              <option value="168">7 días</option>
+              <option value="720">30 días</option>
+            </select>
+          </div>
+          <div id="invite-result" style="display:none;margin-bottom:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;">
+            <div style="font-size:12px;color:#059669;font-weight:600;margin-bottom:6px;">Link generado — copiá y enviá</div>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input id="invite-link-input" type="text" readonly style="flex:1;padding:6px 8px;border:1px solid #bbf7d0;border-radius:6px;font-size:11px;background:white;font-family:monospace;">
+              <button onclick="copyInviteLink()" style="padding:6px 12px;background:#059669;color:white;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">Copiar</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button onclick="closeInviteForm()" style="padding:8px 16px;border:1px solid #e5e7eb;border-radius:8px;background:white;cursor:pointer;font-size:14px;">Cerrar</button>
+            <button onclick="createInvite()" id="invite-gen-btn" style="padding:8px 20px;background:#4361ee;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;">Generar</button>
+          </div>
         </div>
       </div>
 
       <!-- Modal usuario -->
       <div id="user-modal" style="display:none;position:fixed;inset:0;background:#0006;z-index:1000;align-items:center;justify-content:center;">
-        <div style="background:white;border-radius:16px;padding:24px;width:100%;max-width:420px;margin:16px;">
-          <h3 id="user-modal-title" style="font-size:16px;font-weight:700;margin-bottom:16px;">Nuevo usuario</h3>
+        <div style="background:white;border-radius:16px;padding:24px;width:100%;max-width:380px;margin:16px;">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">Editar usuario</h3>
           <input type="hidden" id="edit-user-id">
-          <div style="margin-bottom:12px;">
-            <label style="font-size:12px;color:#6b7280;font-weight:600;">Nombre completo</label>
-            <input id="edit-user-name" type="text" placeholder="Ej: Juan García"
-              style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
-          </div>
-          <div style="margin-bottom:12px;">
-            <label style="font-size:12px;color:#6b7280;font-weight:600;">Usuario</label>
-            <input id="edit-user-username" type="text" placeholder="Ej: juan"
-              style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
-          </div>
-          <div style="margin-bottom:12px;">
-            <label style="font-size:12px;color:#6b7280;font-weight:600;">Contraseña <span id="pass-hint" style="color:#9ca3af;">(dejar vacío para no cambiar)</span></label>
-            <input id="edit-user-password" type="password" placeholder="••••••••"
-              style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
-          </div>
+          <div id="edit-user-info" style="font-size:13px;color:#6b7280;margin-bottom:16px;"></div>
           <div style="margin-bottom:20px;">
             <label style="font-size:12px;color:#6b7280;font-weight:600;">Rol</label>
             <select id="edit-user-role" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
@@ -4123,32 +4140,91 @@ async function pollSyncStatus() {
   } catch(e) {}
 }
 
-async function loadAllowedEmails() {
+// ── Invitaciones ─────────────────────────────────────────────────
+function openInviteForm() {
+  document.getElementById('invite-modal').style.display = 'flex';
+  document.getElementById('invite-result').style.display = 'none';
+  document.getElementById('invite-label').value = '';
+  document.getElementById('invite-hours').value = '48';
+}
+function closeInviteForm() {
+  document.getElementById('invite-modal').style.display = 'none';
+  loadInvites();
+}
+function copyInviteLink() {
+  const input = document.getElementById('invite-link-input');
+  input.select();
+  document.execCommand('copy');
+  const btn = input.nextElementSibling;
+  btn.textContent = '¡Copiado!';
+  setTimeout(() => btn.textContent = 'Copiar', 2000);
+}
+async function createInvite() {
+  const label = document.getElementById('invite-label').value.trim();
+  const hours = parseInt(document.getElementById('invite-hours').value);
+  const btn = document.getElementById('invite-gen-btn');
+  btn.disabled = true; btn.textContent = 'Generando...';
   try {
-    const res = await fetch('/api/auth/allowed-emails', { headers: authHeaders() });
-    const emails = await res.json();
-    const el = document.getElementById('allowed-emails-list');
-    if (!emails.length) { el.innerHTML = '<div style="color:#9ca3af;font-size:12px;">Sin emails autorizados</div>'; return; }
-    el.innerHTML = emails.map(e => `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f3f4f6;">
-      <span style="font-size:13px;">${e}</span>
-      <button onclick="removeAllowedEmail('${e}')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:12px;">✕</button>
-    </div>`).join('');
-  } catch(e) {}
+    const res = await fetch('/api/invites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ label: label || undefined, hours }),
+    });
+    const data = await res.json();
+    if (!res.ok) return alert(data.error);
+    const link = window.location.origin + '/invite/' + data.token;
+    document.getElementById('invite-link-input').value = link;
+    document.getElementById('invite-result').style.display = 'block';
+  } catch(e) { alert('Error al generar invitación'); }
+  finally { btn.disabled = false; btn.textContent = 'Generar'; }
 }
-
-async function addAllowedEmail() {
-  const input = document.getElementById('new-allowed-email');
-  const email = input.value.trim();
-  if (!email) return;
-  await fetch('/api/auth/allowed-emails', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ email, action: 'add' }) });
-  input.value = '';
-  loadAllowedEmails();
+async function loadInvites() {
+  const el = document.getElementById('invites-list');
+  if (!el) return;
+  try {
+    const res = await fetch('/api/invites', { headers: authHeaders() });
+    const invites = await res.json();
+    if (!invites.length) {
+      el.innerHTML = '<div style="color:#9ca3af;font-size:12px;padding:8px 0;">Sin invitaciones generadas.</div>';
+      return;
+    }
+    const now = Date.now();
+    el.innerHTML = invites.map(inv => {
+      const expired = new Date(inv.expires_at).getTime() < now;
+      const used = !!inv.used_by_email;
+      const statusColor = used ? '#9ca3af' : expired ? '#dc2626' : '#059669';
+      const statusBg = used ? '#f3f4f6' : expired ? '#fee2e2' : '#f0fdf4';
+      const statusText = used ? 'Usada' : expired ? 'Vencida' : 'Activa';
+      const link = window.location.origin + '/invite/' + inv.token;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6;gap:8px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;">${esc(inv.label || '—')}</div>
+          <div style="font-size:11px;color:#9ca3af;margin-top:1px;">
+            ${used ? 'Usada por ' + esc(inv.used_by_name || inv.used_by_email) : 'Vence: ' + new Date(inv.expires_at).toLocaleString('es-UY')}
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="color:${statusColor};background:${statusBg};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;">${statusText}</span>
+          ${!used ? `<button onclick="copyInviteLinkById('${esc(inv.token)}')" style="padding:4px 10px;background:#e0e7ff;border:none;border-radius:6px;font-size:12px;color:#4361ee;cursor:pointer;font-weight:600;">Copiar</button>` : ''}
+          ${!used ? `<button onclick="revokeInvite('${esc(inv.token)}')" style="padding:4px 8px;background:#fee2e2;border:none;border-radius:6px;font-size:12px;color:#dc2626;cursor:pointer;font-weight:600;">✕</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { el.innerHTML = '<div style="color:#dc2626;font-size:12px;">Error al cargar invitaciones</div>'; }
 }
-
-async function removeAllowedEmail(email) {
-  if (!confirm('Quitar ' + email + '?')) return;
-  await fetch('/api/auth/allowed-emails', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ email, action: 'remove' }) });
-  loadAllowedEmails();
+function copyInviteLinkById(token) {
+  const link = window.location.origin + '/invite/' + token;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(link);
+  } else {
+    const t = document.createElement('textarea'); t.value = link;
+    document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t);
+  }
+}
+async function revokeInvite(token) {
+  if (!confirm('¿Revocar esta invitación?')) return;
+  await fetch('/api/invites/' + token, { method: 'DELETE', headers: authHeaders() });
+  loadInvites();
 }
 
 async function loadLastSyncInfo() {
@@ -4171,7 +4247,7 @@ async function loadLastSyncInfo() {
 }
 
 async function loadUsersPage() {
-  loadAllowedEmails();
+  loadInvites();
   loadLastSyncInfo();
   document.getElementById('users-table-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
   const res   = await fetch('/api/users', { headers: authHeaders() });
@@ -4181,54 +4257,40 @@ async function loadUsersPage() {
     return;
   }
   const rows = users.map(u => `<tr>
-    <td style="font-weight:600;">${u.name}</td>
-    <td style="font-family:monospace;color:#6b7280;">${u.username}</td>
+    <td style="font-weight:600;">${esc(u.name || '—')}</td>
+    <td style="font-size:12px;color:#6b7280;">${esc(u.email)}</td>
     <td><span style="background:${u.role==='admin'?'#ede9fe':'#f3f4f6'};color:${u.role==='admin'?'#5b21b6':'#374151'};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;">${u.role==='admin'?'Admin':'Usuario'}</span></td>
-    <td style="font-size:12px;color:#9ca3af;">${u.createdAt ? new Date(u.createdAt).toLocaleDateString('es-UY') : '—'}</td>
+    <td style="font-size:12px;color:#9ca3af;">${u.created_at ? new Date(u.created_at).toLocaleDateString('es-UY') : '—'}</td>
     <td style="display:flex;gap:6px;">
-      <button onclick='editUser(${JSON.stringify(u).replace(/'/g,"&#39;")})' style="background:#e0e7ff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;color:#4361ee;font-size:12px;font-weight:700;">Editar</button>
-      ${u.id !== currentUser?.id ? `<button onclick="deleteUser('${u.id}','${u.name}')" style="background:#fee2e2;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;color:#ef4444;font-size:12px;font-weight:700;">✕</button>` : ''}
+      <button onclick='showUserForm(${JSON.stringify(u).replace(/'/g,"&#39;")})' style="background:#e0e7ff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;color:#4361ee;font-size:12px;font-weight:700;">Editar</button>
+      ${u.id !== currentUser?.id ? `<button onclick="deleteUser('${u.id}','${esc(u.name||u.email)}')" style="background:#fee2e2;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;color:#ef4444;font-size:12px;font-weight:700;">✕</button>` : ''}
     </td>
   </tr>`).join('');
   document.getElementById('users-table-content').innerHTML = `<table>
     <thead><tr>
-      <th>Nombre</th><th>Usuario</th><th>Rol</th><th>Creado</th><th>Acciones</th>
+      <th>Nombre</th><th>Email</th><th>Rol</th><th>Creado</th><th>Acciones</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }
 
 function showUserForm(data) {
-  document.getElementById('user-modal-title').textContent = data ? 'Editar usuario' : 'Nuevo usuario';
-  document.getElementById('edit-user-id').value       = data?.id       || '';
-  document.getElementById('edit-user-name').value     = data?.name     || '';
-  document.getElementById('edit-user-username').value = data?.username || '';
-  document.getElementById('edit-user-password').value = '';
-  document.getElementById('edit-user-role').value     = data?.role     || 'user';
-  document.getElementById('edit-user-username').disabled = !!data;
-  document.getElementById('pass-hint').style.display  = data ? '' : 'none';
+  document.getElementById('edit-user-id').value  = data?.id   || '';
+  document.getElementById('edit-user-role').value = data?.role || 'user';
+  document.getElementById('edit-user-info').textContent = data ? (data.name || data.email || '') : '';
   document.getElementById('user-modal').style.display = 'flex';
 }
-function editUser(data) { showUserForm(data); }
 function closeUserForm() {
   document.getElementById('user-modal').style.display = 'none';
-  document.getElementById('edit-user-username').disabled = false;
 }
 async function saveUser() {
-  const id       = document.getElementById('edit-user-id').value;
-  const name     = document.getElementById('edit-user-name').value.trim();
-  const username = document.getElementById('edit-user-username').value.trim();
-  const password = document.getElementById('edit-user-password').value;
-  const role     = document.getElementById('edit-user-role').value;
-  if (!name) return alert('Ingresá el nombre.');
-  if (!id && !username) return alert('Ingresá un usuario.');
-  if (!id && !password) return alert('Ingresá una contraseña.');
-  const body = id ? { name, role, ...(password ? { password } : {}) }
-                  : { name, username, password, role };
-  const res = await fetch(id ? `/api/users/${id}` : '/api/users', {
-    method: id ? 'PUT' : 'POST',
+  const id   = document.getElementById('edit-user-id').value;
+  const role = document.getElementById('edit-user-role').value;
+  if (!id) return;
+  const res = await fetch(`/api/users/${id}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ role }),
   });
   if (!res.ok) { const e = await res.json(); return alert(e.error); }
   closeUserForm();
