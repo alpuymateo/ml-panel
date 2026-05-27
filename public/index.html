@@ -303,9 +303,9 @@
   <div class="login-card">
     <div class="login-logo">🛒</div>
     <h1>ML Panel</h1>
-    <p>Ingresá con tu usuario y contraseña</p>
+    <p>Ingresá con tu email y contraseña</p>
     <div id="login-error" style="display:none;background:#fee2e2;color:#991b1b;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
-    <input id="login-username" type="text" placeholder="Usuario" autocomplete="username"
+    <input id="login-username" type="email" placeholder="Email" autocomplete="email"
       style="display:block;width:100%;padding:12px 14px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;font-family:Inter,sans-serif;margin-bottom:10px;box-sizing:border-box;"
       onkeydown="if(event.key==='Enter')doLogin()">
     <input id="login-password" type="password" placeholder="Contraseña" autocomplete="current-password"
@@ -3913,15 +3913,15 @@ function authHeaders() {
 }
 
 async function doLogin() {
-  const username = document.getElementById('login-username').value.trim();
+  const email    = document.getElementById('login-username').value.trim();
   const password = document.getElementById('login-password').value;
   const errEl    = document.getElementById('login-error');
   errEl.style.display = 'none';
-  if (!username || !password) { errEl.textContent = 'Ingresá usuario y contraseña.'; errEl.style.display = ''; return; }
+  if (!email || !password) { errEl.textContent = 'Ingresá email y contraseña.'; errEl.style.display = ''; return; }
   try {
     const res = await fetch('/api/auth/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Error al ingresar'; errEl.style.display = ''; return; }
@@ -3948,9 +3948,9 @@ async function doLogout() {
 async function afterUserLogin() {
   // Actualizar UI del sidebar con datos del usuario
   const u = currentUser;
-  document.getElementById('user-name').textContent = u.name || u.username;
+  document.getElementById('user-name').textContent = u.name || u.email;
   document.getElementById('user-role').textContent = u.role === 'admin' ? 'Administrador' : 'Usuario';
-  document.getElementById('user-avatar').textContent = (u.name || u.username).charAt(0).toUpperCase();
+  document.getElementById('user-avatar').textContent = (u.name || u.email).charAt(0).toUpperCase();
 
   // Mostrar sección admin si corresponde
   if (u.role === 'admin') {
