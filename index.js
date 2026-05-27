@@ -87,7 +87,20 @@ app.get('/api/db-test', async (req, res) => {
 
 // Security headers
 app.use(helmet({
-  contentSecurityPolicy: false, // disabled because of inline scripts in index.html
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net"],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "fonts.googleapis.com"],
+      fontSrc: ["'self'", "fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: ["'self'", "cdn.jsdelivr.net"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      frameAncestors: ["'none'"],
+    },
+  },
   crossOriginEmbedderPolicy: false,
 }));
 
