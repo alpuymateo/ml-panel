@@ -14,6 +14,38 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { Pool } = require('pg');
+
+// ── PostgreSQL ────────────────────────────────────────────────────
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_URL?.includes('railway') ? { rejectUnauthorized: false } : false });
+
+async function initDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      google_id TEXT UNIQUE,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT,
+      picture TEXT,
+      role TEXT NOT NULL DEFAULT 'user',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS allowed_emails (
+      email TEXT PRIMARY KEY,
+      added_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+  // Seed email por defecto si la tabla está vacía
+  await pool.query(`INSERT INTO allowed_emails (email) VALUES ('alpuy.mateo@gmail.com') ON CONFLICT DO NOTHING`);
+  console.log('[db] Tablas inicializadas');
+}
+initDb().catch(e => console.error('[db] Error inicializando tablas:', e.message));
 
 const app = express();
 const SERVER_START = new Date().toISOString();
@@ -58,34 +90,21 @@ app.use(generalLimiter);
 app.use(express.json({ limit: '25mb' }));
 const PORT = process.env.PORT || 3000;
 
-// ── Sesiones (persistidas en disco) ──
-const SESSIONS_FILE = path.join(__dirname, 'data', 'sessions.json');
-const sessions = new Map();
-
-// Cargar sesiones de disco al arrancar
-try {
-  if (fs.existsSync(SESSIONS_FILE)) {
-    const saved = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'));
-    for (const [k, v] of Object.entries(saved)) {
-      if (v.expiresAt > Date.now()) sessions.set(k, v);
-    }
-    console.log(`[sessions] ${sessions.size} sesiones cargadas de disco`);
-  }
-} catch {}
-
-function saveSessions() {
-  try {
-    const obj = {};
-    for (const [k, v] of sessions) obj[k] = v;
-    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(obj), 'utf8');
-  } catch {}
+// ── Sesiones (PostgreSQL) ──
+async function createSession(userId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
+  await pool.query('INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3)', [token, userId, expiresAt]);
+  return token;
 }
 
-function getSession(token) {
-  const s = sessions.get(token);
-  if (!s) return null;
-  if (s.expiresAt < Date.now()) { sessions.delete(token); saveSessions(); return null; }
-  return s;
+async function getSession(token) {
+  if (!token) return null;
+  const r = await pool.query(
+    'SELECT s.user_id, u.id, u.email, u.name, u.picture, u.role FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.token = $1 AND s.expires_at > NOW()',
+    [token]
+  );
+  return r.rows[0] || null;
 }
 
 const { CLIENT_ID, CLIENT_SECRET, REDIRECT_URI, ANTHROPIC_API_KEY } = process.env;
@@ -329,11 +348,12 @@ app.get('/callback', async (req, res) => {
   }
 });
 
-function requireToken(req, res, next) {
-  // Verificar sesión de usuario
-  const sessionTok = req.headers['x-session-token'] || req.query._token;
-  if (sessionTok && !getSession(sessionTok)) {
-    return res.status(401).json({ error: 'Sesión inválida' });
+async function requireToken(req, res, next) {
+  const sessionTok = req.headers['x-session-token'];
+  if (sessionTok) {
+    const session = await getSession(sessionTok).catch(() => null);
+    if (!session) return res.status(401).json({ error: 'Sesión inválida' });
+    req.user = session;
   }
   if (!tokenData?.access_token) {
     const isHtml = req.headers.accept?.includes('text/html');
@@ -3437,92 +3457,37 @@ Respondé ÚNICAMENTE con JSON válido, sin texto adicional:
   }
 });
 
-// ── Usuarios y sesiones ──────────────────────────────────────────
-const USERS_FILE = path.join(__dirname, 'data', 'users.json');
-
-function hashPassword(password, salt) {
-  return crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-}
-function loadUsers() {
+// ── Usuarios y sesiones (PostgreSQL) ─────────────────────────────
+async function requireUser(req, res, next) {
+  const token = req.headers['x-session-token'];
+  if (!token) return res.status(401).json({ error: 'Sesión inválida' });
   try {
-    if (fs.existsSync(USERS_FILE)) return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-  } catch(e) {}
-  return [];
-}
-function saveUsers(data) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(data, null, 2), 'utf8');
-}
-
-// Crear admin por defecto si no hay usuarios
-(function ensureAdmin() {
-  const users = loadUsers();
-  if (!users.length) {
-    const salt = crypto.randomBytes(16).toString('hex');
-    users.push({
-      id:       crypto.randomUUID(),
-      username: 'admin',
-      name:     'Administrador',
-      role:     'admin',
-      salt,
-      hash:     hashPassword(process.env.ADMIN_PASSWORD || 'admin123', salt),
-      createdAt: new Date().toISOString(),
-    });
-    saveUsers(users);
-    if (process.env.ADMIN_PASSWORD) {
-      console.log('[usuarios] Usuario admin creado con ADMIN_PASSWORD del entorno.');
-    } else {
-      console.warn('[usuarios] ⚠ ADMIN_PASSWORD no configurado — usando contraseña por defecto. Configurá la variable de entorno ADMIN_PASSWORD en Railway.');
-    }
+    const session = await getSession(token);
+    if (!session) return res.status(401).json({ error: 'Sesión inválida o expirada' });
+    req.user = session;
+    next();
+  } catch (e) {
+    res.status(500).json({ error: 'Error de autenticación' });
   }
-})();
-
-function createSession(userId) {
-  const token = crypto.randomBytes(32).toString('hex');
-  sessions.set(token, { userId, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
-  saveSessions();
-  return token;
 }
-function requireUser(req, res, next) {
-  const token = req.headers['x-session-token'] || req.query._token;
-  const session = token ? getSession(token) : null;
-  if (!session) return res.status(401).json({ error: 'Sesión inválida' });
-  const users = loadUsers();
-  const user = users.find(u => u.id === session.userId);
-  if (!user) return res.status(401).json({ error: 'Usuario no encontrado' });
-  req.user = user;
-  next();
-}
-function requireAdmin(req, res, next) {
-  requireUser(req, res, () => {
-    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Sin permiso' });
+async function requireAdmin(req, res, next) {
+  await requireUser(req, res, () => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Sin permiso de administrador' });
     next();
   });
 }
 
-// POST /api/auth/login
-app.post('/api/auth/login', (req, res) => {
-  const { username, password } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'Faltan credenciales' });
-  const users = loadUsers();
-  const user  = users.find(u => u.username === username);
-  if (!user) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
-  const h = hashPassword(password, user.salt);
-  if (h !== user.hash) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
-  const token = createSession(user.id);
-  res.json({ token, user: { id: user.id, username: user.username, name: user.name, role: user.role } });
-});
-
 // POST /api/auth/logout
-app.post('/api/auth/logout', (req, res) => {
+app.post('/api/auth/logout', async (req, res) => {
   const token = req.headers['x-session-token'];
-  if (token) sessions.delete(token);
+  if (token) await pool.query('DELETE FROM sessions WHERE token = $1', [token]).catch(() => {});
   res.json({ ok: true });
 });
 
 // GET /api/auth/me
 app.get('/api/auth/me', requireUser, (req, res) => {
-  const { id, username, name, role, email } = req.user;
-  res.json({ id, username, name, role, email });
+  const { id, name, role, email, picture } = req.user;
+  res.json({ id, name, role, email, picture });
 });
 
 // ── Google OAuth ──
@@ -3558,128 +3523,88 @@ app.get('/auth/google/callback', async (req, res) => {
     });
     const { access_token } = tokenRes.data;
 
-    // Get user info
+    // Get user info from Google
     const userRes = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
       headers: { Authorization: `Bearer ${access_token}` },
     });
-    const { email, name, picture } = userRes.data;
+    const { id: googleId, email, name, picture } = userRes.data;
 
-    // Check if email is authorized
-    const users = loadUsers();
-    let user = users.find(u => u.email === email);
+    // Verificar si el email está autorizado
+    const allowedRes = await pool.query('SELECT 1 FROM allowed_emails WHERE email = $1', [email]);
+    const existingUser = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
 
-    if (!user) {
-      // Check allowed emails list
-      const ALLOWED_FILE = path.join(__dirname, 'data', 'allowed_emails.json');
-      let allowed = [];
-      try { allowed = fs.existsSync(ALLOWED_FILE) ? JSON.parse(fs.readFileSync(ALLOWED_FILE, 'utf8')) : []; } catch {}
-
-      if (!allowed.includes(email)) {
-        return res.send('<html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;"><div style="text-align:center;"><h2>Acceso denegado</h2><p>' + email + ' no está autorizado.</p><a href="/">Volver</a></div></body></html>');
-      }
-
-      // Create user automatically
-      const salt = crypto.randomBytes(16).toString('hex');
-      user = {
-        id: crypto.randomUUID(),
-        username: email.split('@')[0],
-        name: name || email,
-        email,
-        picture,
-        role: 'user',
-        salt,
-        hash: hashPassword(crypto.randomBytes(32).toString('hex'), salt), // random password
-        createdAt: new Date().toISOString(),
-        googleAuth: true,
-      };
-      users.push(user);
-      saveUsers(users);
-      console.log('[auth] nuevo usuario Google:', email);
-    } else {
-      // Update name/picture
-      if (name && !user.name) user.name = name;
-      if (picture) user.picture = picture;
-      user.email = email;
-      user.googleAuth = true;
-      saveUsers(users);
+    if (!existingUser.rows.length && !allowedRes.rows.length) {
+      return res.send(`<html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f9fafb;"><div style="text-align:center;background:white;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.1);"><h2 style="color:#dc2626;">Acceso denegado</h2><p style="color:#6b7280;">${esc(email)} no está autorizado.</p><a href="/" style="color:#1d4ed8;">Volver</a></div></body></html>`);
     }
 
-    // Create session
-    const sessionTok = createSession(user.id);
+    // Primer usuario siempre es admin
+    const countRes = await pool.query('SELECT COUNT(*) FROM users');
+    const isFirst = parseInt(countRes.rows[0].count) === 0;
+
+    // Crear o actualizar usuario en DB
+    const upsertRes = await pool.query(`
+      INSERT INTO users (google_id, email, name, picture, role)
+      VALUES ($1, $2, $3, $4, COALESCE((SELECT role FROM users WHERE email = $2), $5))
+      ON CONFLICT (email) DO UPDATE SET google_id = $1, name = $3, picture = $4
+      RETURNING *
+    `, [googleId, email, name || email, picture, isFirst ? 'admin' : 'user']);
+
+    const user = upsertRes.rows[0];
+    console.log('[auth] login Google:', email, '- rol:', user.role);
+
+    // Crear sesión en DB
+    const sessionTok = await createSession(user.id);
     res.send(`<html><body><script>
       localStorage.setItem('session_token', '${sessionTok}');
       window.location.href = '/';
     </script></body></html>`);
   } catch (e) {
     console.error('[auth] Google OAuth error:', e.message);
-    res.status(500).send('Error de autenticación: ' + e.message);
+    res.status(500).send('Error de autenticación: ' + esc(e.message));
   }
 });
 
-// API para gestionar emails autorizados (admin)
-const ALLOWED_EMAILS_FILE = path.join(__dirname, 'data', 'allowed_emails.json');
-function loadAllowedEmails() { try { return fs.existsSync(ALLOWED_EMAILS_FILE) ? JSON.parse(fs.readFileSync(ALLOWED_EMAILS_FILE, 'utf8')) : ['alpuy.mateo@gmail.com']; } catch { return ['alpuy.mateo@gmail.com']; } }
-function saveAllowedEmails(list) { fs.writeFileSync(ALLOWED_EMAILS_FILE, JSON.stringify(list, null, 2)); }
-
-// Initialize file if not exists
-if (!fs.existsSync(ALLOWED_EMAILS_FILE)) saveAllowedEmails(['alpuy.mateo@gmail.com']);
-
-app.get('/api/auth/allowed-emails', requireAdmin, (req, res) => {
-  res.json(loadAllowedEmails());
+// ── Emails autorizados (admin) ────────────────────────────────────
+app.get('/api/auth/allowed-emails', requireAdmin, async (req, res) => {
+  const r = await pool.query('SELECT email FROM allowed_emails ORDER BY added_at');
+  res.json(r.rows.map(r => r.email));
 });
 
-app.post('/api/auth/allowed-emails', requireAdmin, (req, res) => {
+app.post('/api/auth/allowed-emails', requireAdmin, express.json(), async (req, res) => {
   const { email, action } = req.body;
   if (!email) return res.status(400).json({ error: 'Email requerido' });
-  let list = loadAllowedEmails();
-  if (action === 'add' && !list.includes(email)) list.push(email);
-  if (action === 'remove') list = list.filter(e => e !== email);
-  saveAllowedEmails(list);
-  res.json({ ok: true, emails: list });
-});
-
-// GET /api/users  (admin)
-app.get('/api/users', requireAdmin, (req, res) => {
-  res.json(loadUsers().map(({ id, username, name, role, createdAt }) => ({ id, username, name, role, createdAt })));
-});
-
-// POST /api/users  (admin)
-app.post('/api/users', requireAdmin, (req, res) => {
-  const { username, name, password, role } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'username y password son requeridos' });
-  const users = loadUsers();
-  if (users.find(u => u.username === username)) return res.status(409).json({ error: 'El usuario ya existe' });
-  const salt = crypto.randomBytes(16).toString('hex');
-  const user = { id: crypto.randomUUID(), username, name: name || username, role: role || 'user', salt, hash: hashPassword(password, salt), createdAt: new Date().toISOString() };
-  users.push(user);
-  saveUsers(users);
-  res.json({ id: user.id, username: user.username, name: user.name, role: user.role });
-});
-
-// PUT /api/users/:id  (admin — cambia nombre, rol o password)
-app.put('/api/users/:id', requireAdmin, (req, res) => {
-  const users = loadUsers();
-  const idx   = users.findIndex(u => u.id === req.params.id);
-  if (idx < 0) return res.status(404).json({ error: 'Usuario no encontrado' });
-  const { name, role, password } = req.body || {};
-  if (name)     users[idx].name = name;
-  if (role)     users[idx].role = role;
-  if (password) {
-    const salt = crypto.randomBytes(16).toString('hex');
-    users[idx].salt = salt;
-    users[idx].hash = hashPassword(password, salt);
+  if (action === 'add') {
+    await pool.query('INSERT INTO allowed_emails (email) VALUES ($1) ON CONFLICT DO NOTHING', [email]);
+  } else if (action === 'remove') {
+    await pool.query('DELETE FROM allowed_emails WHERE email = $1', [email]);
   }
-  saveUsers(users);
-  res.json({ id: users[idx].id, username: users[idx].username, name: users[idx].name, role: users[idx].role });
+  const r = await pool.query('SELECT email FROM allowed_emails ORDER BY added_at');
+  res.json({ ok: true, emails: r.rows.map(r => r.email) });
 });
 
-// DELETE /api/users/:id  (admin)
-app.delete('/api/users/:id', requireAdmin, (req, res) => {
-  const users = loadUsers();
-  if (users.find(u => u.id === req.params.id)?.role === 'admin' &&
-      users.filter(u => u.role === 'admin').length === 1)
+// ── Usuarios (admin) ──────────────────────────────────────────────
+app.get('/api/users', requireAdmin, async (req, res) => {
+  const r = await pool.query('SELECT id, email, name, picture, role, created_at FROM users ORDER BY created_at');
+  res.json(r.rows);
+});
+
+// PUT /api/users/:id — solo cambia el rol
+app.put('/api/users/:id', requireAdmin, express.json(), async (req, res) => {
+  const { role } = req.body || {};
+  if (!role) return res.status(400).json({ error: 'role requerido' });
+  const r = await pool.query('UPDATE users SET role = $1 WHERE id = $2 RETURNING id, email, name, role', [role, req.params.id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'Usuario no encontrado' });
+  res.json(r.rows[0]);
+});
+
+// DELETE /api/users/:id
+app.delete('/api/users/:id', requireAdmin, async (req, res) => {
+  const admins = await pool.query("SELECT id FROM users WHERE role = 'admin'");
+  const target = await pool.query('SELECT role FROM users WHERE id = $1', [req.params.id]);
+  if (!target.rows.length) return res.status(404).json({ error: 'Usuario no encontrado' });
+  if (target.rows[0].role === 'admin' && admins.rows.length === 1)
     return res.status(400).json({ error: 'No podés eliminar el único admin' });
-  saveUsers(users.filter(u => u.id !== req.params.id));
+  await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
   res.json({ ok: true });
 });
 
