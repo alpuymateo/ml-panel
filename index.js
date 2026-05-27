@@ -51,6 +51,7 @@ async function initDb() {
 initDb().catch(e => console.error('[db] Error inicializando tablas:', e.message));
 
 const app = express();
+app.set('trust proxy', 1); // Railway runs behind a proxy
 const SERVER_START = new Date().toISOString();
 const DEPLOY_COMMIT = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0,7) || 'local';
 
@@ -1738,6 +1739,7 @@ const ODOO_API_KEY = process.env.ODOO_API_KEY;
 const ODOO_STAGING_HOST    = process.env.ODOO_STAGING_HOST || ODOO_HOST;
 const ODOO_STAGING_DB      = process.env.ODOO_STAGING_DB || ODOO_DB;
 const ODOO_STAGING_API_KEY = process.env.ODOO_STAGING_API_KEY || ODOO_API_KEY;
+const ODOO_STAGING_USER    = process.env.ODOO_STAGING_USER || ODOO_USER;
 
 console.log(`[odoo] producción: ${ODOO_HOST} / ${ODOO_DB}`);
 console.log(`[odoo] staging: ${ODOO_STAGING_HOST} / ${ODOO_STAGING_DB}`);
@@ -1780,7 +1782,7 @@ async function odooAuth() {
   return odooCall('/xmlrpc/2/common', 'authenticate', [ODOO_DB, ODOO_USER, ODOO_API_KEY, {}]);
 }
 async function odooAuthStaging() {
-  return odooCallStaging('/xmlrpc/2/common', 'authenticate', [ODOO_STAGING_DB, ODOO_USER, ODOO_STAGING_API_KEY, {}]);
+  return odooCallStaging('/xmlrpc/2/common', 'authenticate', [ODOO_STAGING_DB, ODOO_STAGING_USER, ODOO_STAGING_API_KEY, {}]);
 }
 
 // API endpoint to tell frontend which DB is connected
@@ -3482,16 +3484,21 @@ async function requireAdmin(req, res, next) {
 
 // POST /api/auth/login (email + contraseña — solo para usuarios registrados con invite)
 app.post('/api/auth/login', express.json(), async (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email || !password) return res.status(400).json({ error: 'Faltan credenciales' });
-  const r = await pool.query('SELECT * FROM users WHERE email = $1 AND password_hash IS NOT NULL', [email]);
-  if (!r.rows.length) return res.status(401).json({ error: 'Email o contraseña incorrectos' });
-  const user = r.rows[0];
-  const [salt, hash] = user.password_hash.split(':');
-  const check = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-  if (check !== hash) return res.status(401).json({ error: 'Email o contraseña incorrectos' });
-  const token = await createSession(user.id);
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: 'Faltan credenciales' });
+    const r = await pool.query('SELECT * FROM users WHERE email = $1 AND password_hash IS NOT NULL', [email]);
+    if (!r.rows.length) return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+    const user = r.rows[0];
+    const [salt, hash] = user.password_hash.split(':');
+    const check = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+    if (check !== hash) return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+    const token = await createSession(user.id);
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  } catch(e) {
+    console.error('[login] Error:', e.message);
+    res.status(500).json({ error: 'Error interno: ' + e.message });
+  }
 });
 
 // POST /api/auth/logout
