@@ -28,6 +28,7 @@ async function initDb() {
       name TEXT,
       picture TEXT,
       role TEXT NOT NULL DEFAULT 'user',
+      password_hash TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE TABLE IF NOT EXISTS sessions (
@@ -36,13 +37,15 @@ async function initDb() {
       expires_at TIMESTAMPTZ NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
-    CREATE TABLE IF NOT EXISTS allowed_emails (
-      email TEXT PRIMARY KEY,
-      added_at TIMESTAMPTZ DEFAULT NOW()
+    CREATE TABLE IF NOT EXISTS invites (
+      token TEXT PRIMARY KEY,
+      created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      label TEXT,
+      used_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
-  // Seed email por defecto si la tabla está vacía
-  await pool.query(`INSERT INTO allowed_emails (email) VALUES ('alpuy.mateo@gmail.com') ON CONFLICT DO NOTHING`);
   console.log('[db] Tablas inicializadas');
 }
 initDb().catch(e => console.error('[db] Error inicializando tablas:', e.message));
@@ -3477,6 +3480,20 @@ async function requireAdmin(req, res, next) {
   });
 }
 
+// POST /api/auth/login (email + contraseña — solo para usuarios registrados con invite)
+app.post('/api/auth/login', express.json(), async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'Faltan credenciales' });
+  const r = await pool.query('SELECT * FROM users WHERE email = $1 AND password_hash IS NOT NULL', [email]);
+  if (!r.rows.length) return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+  const user = r.rows[0];
+  const [salt, hash] = user.password_hash.split(':');
+  const check = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+  if (check !== hash) return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+  const token = await createSession(user.id);
+  res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+});
+
 // POST /api/auth/logout
 app.post('/api/auth/logout', async (req, res) => {
   const token = req.headers['x-session-token'];
@@ -3505,6 +3522,7 @@ app.get('/auth/google', (req, res) => {
     scope: 'openid email profile',
     access_type: 'online',
     prompt: 'select_account',
+    state: req.query.invite || '',
   });
   res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
 });
@@ -3528,28 +3546,47 @@ app.get('/auth/google/callback', async (req, res) => {
       headers: { Authorization: `Bearer ${access_token}` },
     });
     const { id: googleId, email, name, picture } = userRes.data;
+    const inviteToken = req.query.state || '';
 
-    // Verificar si el email está autorizado
-    const allowedRes = await pool.query('SELECT 1 FROM allowed_emails WHERE email = $1', [email]);
-    const existingUser = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    // ¿Ya existe el usuario?
+    const existingRes = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const isNewUser = !existingRes.rows.length;
 
-    if (!existingUser.rows.length && !allowedRes.rows.length) {
-      return res.send(`<html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f9fafb;"><div style="text-align:center;background:white;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.1);"><h2 style="color:#dc2626;">Acceso denegado</h2><p style="color:#6b7280;">${esc(email)} no está autorizado.</p><a href="/" style="color:#1d4ed8;">Volver</a></div></body></html>`);
+    if (isNewUser) {
+      // Usuario nuevo: verificar invite válido
+      const countRes = await pool.query('SELECT COUNT(*) FROM users');
+      const isFirst = parseInt(countRes.rows[0].count) === 0;
+
+      if (!isFirst) {
+        // No es el primero → necesita invite válido
+        if (!inviteToken) return res.redirect('/invite-required');
+        const invRes = await pool.query(
+          'SELECT * FROM invites WHERE token = $1 AND used_by IS NULL AND expires_at > NOW()',
+          [inviteToken]
+        );
+        if (!invRes.rows.length) return res.redirect('/invite-expired');
+      }
     }
 
-    // Primer usuario siempre es admin
-    const countRes = await pool.query('SELECT COUNT(*) FROM users');
-    const isFirst = parseInt(countRes.rows[0].count) === 0;
+    // Primer usuario es admin
+    const countRes2 = await pool.query('SELECT COUNT(*) FROM users');
+    const isFirst2 = parseInt(countRes2.rows[0].count) === 0;
 
-    // Crear o actualizar usuario en DB
+    // Crear o actualizar usuario
     const upsertRes = await pool.query(`
       INSERT INTO users (google_id, email, name, picture, role)
       VALUES ($1, $2, $3, $4, COALESCE((SELECT role FROM users WHERE email = $2), $5))
       ON CONFLICT (email) DO UPDATE SET google_id = $1, name = $3, picture = $4
       RETURNING *
-    `, [googleId, email, name || email, picture, isFirst ? 'admin' : 'user']);
+    `, [googleId, email, name || email, picture, isFirst2 ? 'admin' : 'user']);
 
     const user = upsertRes.rows[0];
+
+    // Marcar invite como usado si aplica
+    if (isNewUser && inviteToken) {
+      await pool.query('UPDATE invites SET used_by = $1 WHERE token = $2', [user.id, inviteToken]);
+    }
+
     console.log('[auth] login Google:', email, '- rol:', user.role);
 
     // Crear sesión en DB
@@ -3564,22 +3601,88 @@ app.get('/auth/google/callback', async (req, res) => {
   }
 });
 
-// ── Emails autorizados (admin) ────────────────────────────────────
-app.get('/api/auth/allowed-emails', requireAdmin, async (req, res) => {
-  const r = await pool.query('SELECT email FROM allowed_emails ORDER BY added_at');
-  res.json(r.rows.map(r => r.email));
+// ── Sistema de Invitaciones ───────────────────────────────────────
+// Crear invite (admin)
+app.post('/api/invites', requireAdmin, express.json(), async (req, res) => {
+  const { label, hours = 48 } = req.body || {};
+  const token = crypto.randomBytes(24).toString('hex');
+  const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+  await pool.query(
+    'INSERT INTO invites (token, created_by, label, expires_at) VALUES ($1, $2, $3, $4)',
+    [token, req.user.id, label || null, expiresAt]
+  );
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  res.json({ token, link: `${baseUrl}/invite/${token}`, expires_at: expiresAt });
 });
 
-app.post('/api/auth/allowed-emails', requireAdmin, express.json(), async (req, res) => {
-  const { email, action } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email requerido' });
-  if (action === 'add') {
-    await pool.query('INSERT INTO allowed_emails (email) VALUES ($1) ON CONFLICT DO NOTHING', [email]);
-  } else if (action === 'remove') {
-    await pool.query('DELETE FROM allowed_emails WHERE email = $1', [email]);
-  }
-  const r = await pool.query('SELECT email FROM allowed_emails ORDER BY added_at');
-  res.json({ ok: true, emails: r.rows.map(r => r.email) });
+// Listar invites (admin)
+app.get('/api/invites', requireAdmin, async (req, res) => {
+  const r = await pool.query(`
+    SELECT i.token, i.label, i.expires_at, i.created_at,
+           u.name AS used_by_name, u.email AS used_by_email
+    FROM invites i
+    LEFT JOIN users u ON i.used_by = u.id
+    ORDER BY i.created_at DESC
+  `);
+  res.json(r.rows);
+});
+
+// Revocar invite (admin)
+app.delete('/api/invites/:token', requireAdmin, async (req, res) => {
+  await pool.query('DELETE FROM invites WHERE token = $1', [req.params.token]);
+  res.json({ ok: true });
+});
+
+// Validar invite (público — para la página de registro)
+app.get('/api/invites/:token/check', async (req, res) => {
+  const r = await pool.query(
+    'SELECT token, label, expires_at, used_by FROM invites WHERE token = $1',
+    [req.params.token]
+  );
+  if (!r.rows.length) return res.status(404).json({ valid: false, reason: 'not_found' });
+  const inv = r.rows[0];
+  if (inv.used_by) return res.json({ valid: false, reason: 'used' });
+  if (new Date(inv.expires_at) < new Date()) return res.json({ valid: false, reason: 'expired' });
+  res.json({ valid: true, label: inv.label, expires_at: inv.expires_at });
+});
+
+// Registro con email/contraseña + invite (público)
+app.post('/api/auth/register', express.json(), async (req, res) => {
+  const { invite_token, name, email, password } = req.body || {};
+  if (!invite_token || !name || !email || !password)
+    return res.status(400).json({ error: 'Faltan campos requeridos' });
+  if (password.length < 8)
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+
+  // Validar invite
+  const invRes = await pool.query(
+    'SELECT * FROM invites WHERE token = $1 AND used_by IS NULL AND expires_at > NOW()',
+    [invite_token]
+  );
+  if (!invRes.rows.length) return res.status(400).json({ error: 'Invitación inválida o expirada' });
+
+  // Verificar que el email no exista
+  const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+  if (existing.rows.length) return res.status(409).json({ error: 'El email ya está registrado' });
+
+  // Crear usuario
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+  const countRes = await pool.query('SELECT COUNT(*) FROM users');
+  const role = parseInt(countRes.rows[0].count) === 0 ? 'admin' : 'user';
+
+  const userRes = await pool.query(
+    'INSERT INTO users (email, name, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING *',
+    [email, name, `${salt}:${hash}`, role]
+  );
+  const user = userRes.rows[0];
+
+  // Marcar invite como usado
+  await pool.query('UPDATE invites SET used_by = $1 WHERE token = $2', [user.id, invite_token]);
+
+  // Crear sesión
+  const token = await createSession(user.id);
+  res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
 });
 
 // ── Usuarios (admin) ──────────────────────────────────────────────
@@ -8173,6 +8276,87 @@ app.get('/api/trends/regions', requireToken, async (req, res) => {
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── Páginas de invite ─────────────────────────────────────────────
+const invitePage = (token) => `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Registro — MA Importaciones</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}.card{background:white;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,0.1);padding:40px;width:100%;max-width:420px}.logo{text-align:center;margin-bottom:28px}.logo h1{font-size:20px;font-weight:800;color:#111827}.logo p{font-size:13px;color:#6b7280;margin-top:4px}.tabs{display:flex;background:#f3f4f6;border-radius:10px;padding:4px;margin-bottom:28px}.tab{flex:1;padding:10px;text-align:center;border:none;background:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:#6b7280;transition:all 0.2s}.tab.active{background:white;color:#111827;box-shadow:0 1px 4px rgba(0,0,0,0.1)}.form-group{margin-bottom:16px}label{display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px}input{width:100%;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;outline:none;transition:border-color 0.2s}input:focus{border-color:#6366f1}.btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;transition:opacity 0.2s}.btn-google{background:#4285f4;color:white;display:flex;align-items:center;justify-content:center;gap:10px}.btn-google:hover{opacity:0.9}.btn-primary{background:#111827;color:white}.btn-primary:hover{opacity:0.85}.divider{text-align:center;color:#9ca3af;font-size:12px;margin:20px 0;position:relative}.divider::before,.divider::after{content:'';position:absolute;top:50%;width:42%;height:1px;background:#e5e7eb}.divider::before{left:0}.divider::after{right:0}.error{background:#fee2e2;color:#dc2626;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none}.loading{display:none}</style>
+</head><body>
+<div class="card">
+  <div class="logo">
+    <h1>MA Importaciones</h1>
+    <p>Fuiste invitado a unirte al panel</p>
+  </div>
+  <div id="error" class="error"></div>
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('google')">Google</button>
+    <button class="tab" onclick="showTab('email')">Email y contraseña</button>
+  </div>
+  <div id="tab-google">
+    <a href="/auth/google?invite=${token}" class="btn btn-google" style="text-decoration:none;">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.1 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 7.9 2.9L37 9.8C33.6 6.7 29 4.8 24 4.8 12.9 4.8 3.8 13.9 3.8 25S12.9 45.2 24 45.2C35.1 45.2 44 36.5 44 25.3c0-1.8-.2-3.5-.4-5.3z"/><path fill="#FF3D00" d="M6.3 15.1l6.6 4.8C14.5 16 18.9 13 24 13c3.1 0 5.8 1.1 7.9 2.9L37 9.8C33.6 6.7 29 4.8 24 4.8c-7.7 0-14.3 4.4-17.7 10.3z"/><path fill="#4CAF50" d="M24 45.2c4.9 0 9.4-1.8 12.8-4.7l-5.9-5c-2 1.4-4.5 2.2-6.9 2.2-5.2 0-9.5-2.9-11.3-7.1l-6.6 5.1C8 41 15.5 45.2 24 45.2z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.9 2.6-2.6 4.8-4.8 6.5l5.9 5C40.3 36.2 44 31 44 25.3c0-1.8-.2-3.5-.4-5.3z"/></svg>
+      Continuar con Google
+    </a>
+  </div>
+  <div id="tab-email" style="display:none">
+    <form onsubmit="register(event)">
+      <div class="form-group"><label>Nombre</label><input id="r-name" type="text" placeholder="Tu nombre" required></div>
+      <div class="form-group"><label>Email</label><input id="r-email" type="email" placeholder="tu@email.com" required></div>
+      <div class="form-group"><label>Contraseña</label><input id="r-pass" type="password" placeholder="Mínimo 8 caracteres" required minlength="8"></div>
+      <button type="submit" class="btn btn-primary" id="r-btn">Crear cuenta</button>
+    </form>
+  </div>
+</div>
+<script>
+const INVITE = '${token}';
+function showTab(t) {
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active', (t==='google'&&i===0)||(t==='email'&&i===1)));
+  document.getElementById('tab-google').style.display = t==='google'?'':'none';
+  document.getElementById('tab-email').style.display = t==='email'?'':'none';
+}
+async function register(e) {
+  e.preventDefault();
+  const btn = document.getElementById('r-btn');
+  const errEl = document.getElementById('error');
+  errEl.style.display = 'none';
+  btn.textContent = 'Creando cuenta...'; btn.disabled = true;
+  try {
+    const r = await fetch('/api/auth/register', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ invite_token: INVITE, name: document.getElementById('r-name').value, email: document.getElementById('r-email').value, password: document.getElementById('r-pass').value })
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    localStorage.setItem('session_token', d.token);
+    window.location.href = '/';
+  } catch(err) {
+    errEl.textContent = err.message; errEl.style.display = '';
+    btn.textContent = 'Crear cuenta'; btn.disabled = false;
+  }
+}
+// Validar invite al cargar
+fetch('/api/invites/${token}/check').then(r=>r.json()).then(d=>{
+  if (!d.valid) window.location.href = d.reason === 'used' ? '/invite-used' : '/invite-expired';
+});
+</script>
+</body></html>`;
+
+app.get('/invite/:token', (req, res) => {
+  res.send(invitePage(req.params.token));
+});
+
+app.get('/invite-required', (req, res) => {
+  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Acceso restringido</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f9fafb;}div{text-align:center;background:white;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);}</style></head><body><div><h2 style="color:#dc2626">Acceso restringido</h2><p style="color:#6b7280;margin:12px 0">Necesitás una invitación para registrarte.</p><p style="color:#6b7280;font-size:13px">Pedile el link de invitación a un administrador.</p></div></body></html>`);
+});
+
+app.get('/invite-expired', (req, res) => {
+  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Invitación expirada</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f9fafb;}div{text-align:center;background:white;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);}</style></head><body><div><h2 style="color:#d97706">Invitación expirada o ya usada</h2><p style="color:#6b7280;margin:12px 0">Este link de invitación ya no es válido.</p><p style="color:#6b7280;font-size:13px">Pedile un nuevo link a un administrador.</p></div></body></html>`);
+});
+
+app.get('/invite-used', (req, res) => {
+  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Invitación usada</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f9fafb;}div{text-align:center;background:white;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);}</style></head><body><div><h2 style="color:#d97706">Invitación ya utilizada</h2><p style="color:#6b7280;margin:12px 0">Este link ya fue usado para crear una cuenta.</p><p style="color:#6b7280;font-size:13px">Pedile un nuevo link a un administrador.</p></div></body></html>`);
 });
 
 app.listen(PORT, () => {
