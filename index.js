@@ -14,6 +14,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const cors = require('cors');
 const { Pool } = require('pg');
 
 // ── PostgreSQL ────────────────────────────────────────────────────
@@ -52,6 +53,23 @@ initDb().catch(e => console.error('[db] Error inicializando tablas:', e.message)
 
 const app = express();
 app.set('trust proxy', 1); // Railway runs behind a proxy
+
+// CORS — solo permite el dominio propio + localhost para dev
+const allowedOrigins = [
+  'https://ml-panel-testing-testing.up.railway.app',
+  'http://localhost:3000',
+  'http://localhost:8080',
+];
+app.use(cors({
+  origin: (origin, callback) => {
+    // Permitir requests sin origin (curl, Postman, mismo servidor)
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error('Origen no permitido por CORS'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'x-session-token'],
+  credentials: false,
+}));
 const SERVER_START = new Date().toISOString();
 const DEPLOY_COMMIT = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0,7) || 'local';
 
