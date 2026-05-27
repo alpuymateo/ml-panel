@@ -2338,7 +2338,7 @@ app.get('/api/odoo/buscar-partner', requireUser, async (req, res) => {
 const IMG_CACHE_DIR = path.join(__dirname, 'data', 'images');
 if (!fs.existsSync(IMG_CACHE_DIR)) fs.mkdirSync(IMG_CACHE_DIR, { recursive: true });
 
-app.get('/api/odoo/imagen/:id', requireUser, async (req, res) => {
+app.get('/api/odoo/imagen/:id', async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).end();
   const filePath = path.join(IMG_CACHE_DIR, `${id}.png`);
