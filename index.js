@@ -56,6 +56,16 @@ const SERVER_START = new Date().toISOString();
 const DEPLOY_COMMIT = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0,7) || 'local';
 
 app.get('/api/version', (req, res) => res.json({ started: SERVER_START, commit: DEPLOY_COMMIT, uptime: Math.round(process.uptime()) + 's' }));
+app.get('/api/db-test', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT NOW() as t');
+    res.json({ ok: true, time: r.rows[0].t });
+  } catch(e) {
+    const msg = e.message || e.code || String(e);
+    const dbUrl = process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:([^:@]+)@/, ':***@') : 'NO CONFIGURADO';
+    res.json({ ok: false, error: msg, code: e.code, dbUrl });
+  }
+});
 
 // Security headers
 app.use(helmet({
@@ -3496,8 +3506,9 @@ app.post('/api/auth/login', express.json(), async (req, res) => {
     const token = await createSession(user.id);
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
   } catch(e) {
-    console.error('[login] Error:', e.message);
-    res.status(500).json({ error: 'Error interno: ' + e.message });
+    const msg = e.message || e.code || (e.errors && e.errors[0]?.message) || String(e);
+    console.error('[login] Error DB:', msg);
+    res.status(500).json({ error: 'Error DB: ' + msg });
   }
 });
 
