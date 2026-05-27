@@ -2431,6 +2431,12 @@
 </div>
 
 <script>
+// Sanitización HTML — previene XSS en todo innerHTML dinámico
+function esc(str) {
+  if (str == null) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 let currentOffset = 0;
 const PAGE_SIZE = 50;
 let totalOrders = 0;
@@ -2947,7 +2953,7 @@ async function pollSync() {
     const logsEl = document.getElementById('sync-logs');
     if (data.logs?.length) {
       logsEl.style.display = '';
-      logsEl.innerHTML = data.logs.map(l => `<div><span style="color:#6b7280;">${l.time.slice(11,19)}</span> ${l.msg}</div>`).join('');
+      logsEl.innerHTML = data.logs.map(l => `<div><span style="color:#6b7280;">${esc(l.time.slice(11,19))}</span> ${esc(l.msg)}</div>`).join('');
       logsEl.scrollTop = logsEl.scrollHeight;
     }
 
@@ -3040,7 +3046,7 @@ function buildStockRow(item) {
   return `<tr>
     <td>${thumb}</td>
     <td class="item-title">
-      <span title="${item.title}">${item.title}</span>${pausedBadge}
+      <span title="${esc(item.title)}">${esc(item.title)}</span>${pausedBadge}
       <div style="font-size:11px;color:#9ca3af;margin-top:2px;">${item.sku ? 'SKU: ' + item.sku : ''}${expandBtn}${mlLink}</div>${incomingHtml}
     </td>
     <td style="text-align:center;font-weight:600;">${item.stock.toLocaleString('es-UY')}</td>
@@ -3137,8 +3143,8 @@ async function loadCruceNombre() {
             <tr style="border-bottom:1px solid #e5e7eb;${i%2===1?'background:#f9fafb':''}vertical-align:top;">
               <td style="padding:10px 14px;text-align:center;">${scoreBadge(g.score)}</td>
               <td style="padding:10px 14px;">
-                <a href="${g.ml_permalink}" target="_blank" style="color:#1d4ed8;font-weight:600;text-decoration:none;font-size:13px;">${g.ml_title}</a>
-                <div style="font-size:11px;color:#9ca3af;margin-top:2px;">ID: ${g.ml_id}</div>
+                <a href="${esc(g.ml_permalink)}" target="_blank" style="color:#1d4ed8;font-weight:600;text-decoration:none;font-size:13px;">${esc(g.ml_title)}</a>
+                <div style="font-size:11px;color:#9ca3af;margin-top:2px;">ID: ${esc(g.ml_id)}</div>
               </td>
               <td style="padding:10px 14px;text-align:center;font-family:monospace;font-size:12px;color:#7c3aed;">${g.ml_sku || '<span style="color:#d1d5db;">—</span>'}</td>
               <td style="padding:10px 14px;text-align:center;">${statusBadge(g.ml_status)}</td>
@@ -3190,7 +3196,7 @@ async function loadDiscrepancias(subtipo = null) {
           ${rows.map((row, i) => `
             <tr style="border-bottom:1px solid #f3f4f6;${i%2===1?'background:#fafafa':''}">
               <td style="padding:9px 14px;font-family:monospace;font-size:12px;color:#7c3aed;font-weight:600;">${row.sku}</td>
-              <td style="padding:9px 14px;color:#111827;font-weight:500;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${row.odoo_name}</td>
+              <td style="padding:9px 14px;color:#111827;font-weight:500;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(row.odoo_name)}</td>
               <td style="padding:9px 14px;text-align:center;font-weight:700;color:#059669;">${row.odoo_stock}</td>
               <td style="padding:9px 14px;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                 ${row.ml_permalink ? `<a href="${row.ml_permalink}" target="_blank" style="color:#1d4ed8;text-decoration:none;">${row.ml_title||row.ml_id}</a>` : '<span style="color:#9ca3af;">—</span>'}
@@ -3494,7 +3500,7 @@ async function loadVentas(force = false) {
       return `<div class="product-row">
         ${thumb}
         <div class="product-info">
-          <div class="product-name"><a href="${item.permalink||'#'}" target="_blank">${item.title}</a></div>
+          <div class="product-name"><a href="${esc(item.permalink||'#')}" target="_blank">${esc(item.title)}</a></div>
           <div class="product-meta">${meta ? `Publicación ${meta}` : ''}</div>
           <div class="product-price">${fmtCurrency(item.price, currency)}</div>
         </div>
@@ -12088,7 +12094,7 @@ function renderDimensionesTable() {
         <a href="${mlUrl}" target="_blank" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#374151;">
           ${thumbHtml}
           <div style="min-width:0;">
-            <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;" title="${item.title}">${item.title}</div>
+            <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;" title="${esc(item.title)}">${esc(item.title)}</div>
             <div style="font-size:11px;color:#9ca3af;">${item.id} ${item.sku ? '· ' + item.sku : ''}</div>
           </div>
         </a>
@@ -12777,7 +12783,7 @@ function renderComparadorTable() {
       <td style="max-width:300px;">
         <a href="${mlUrl}" target="_blank" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#374151;">
           ${thumbHtml}
-          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:240px;" title="${item.title}">${item.title}</span>
+          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:240px;" title="${esc(item.title)}">${esc(item.title)}</span>
         </a>
       </td>
       <td style="text-align:center;font-weight:600;">${qCurr}</td>

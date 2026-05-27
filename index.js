@@ -2256,7 +2256,7 @@ app.get('/api/odoo/sync-status', requireAdmin, (req, res) => {
   res.json({ status: _syncStatus, progress: _syncProgress, log: _syncLog, lastUpdate, productCount });
 });
 
-app.get('/api/odoo/buscar-partner', async (req, res) => {
+app.get('/api/odoo/buscar-partner', requireUser, async (req, res) => {
   try {
     const q = req.query.q || '';
     if (!q) return res.json([]);
@@ -2285,7 +2285,7 @@ app.get('/api/odoo/buscar-partner', async (req, res) => {
 const IMG_CACHE_DIR = path.join(__dirname, 'data', 'images');
 if (!fs.existsSync(IMG_CACHE_DIR)) fs.mkdirSync(IMG_CACHE_DIR, { recursive: true });
 
-app.get('/api/odoo/imagen/:id', async (req, res) => {
+app.get('/api/odoo/imagen/:id', requireUser, async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).end();
   const filePath = path.join(IMG_CACHE_DIR, `${id}.png`);
@@ -2614,7 +2614,7 @@ app.post('/api/catalog/import-cache', requireToken, (req, res) => {
   }
 });
 
-app.get('/api/odoo/productos', async (req, res) => {
+app.get('/api/odoo/productos', requireUser, async (req, res) => {
   try {
     if (req.query.refresh === 'true' && !process.env.RAILWAY_ENVIRONMENT) {
       buildCatalogoCache(true).catch(e => console.error('[catalogo] refresh error:', e.message));
@@ -2957,7 +2957,7 @@ app.get('/api/stock/cruce-nombre', requireToken, async (req, res) => {
   }
 });
 
-app.get('/api/odoo/cruce', async (req, res) => {
+app.get('/api/odoo/cruce', requireUser, async (req, res) => {
   try {
     const products = await getOdooProducts(req.query.refresh === 'true');
 
@@ -2998,7 +2998,7 @@ app.get('/api/odoo/cruce', async (req, res) => {
 });
 
 // ── Cotización desde foto ────────────────────────────────────────
-app.post('/api/odoo/cotizacion-foto', express.json({ limit: '20mb' }), async (req, res) => {
+app.post('/api/odoo/cotizacion-foto', requireUser, express.json({ limit: '20mb' }), async (req, res) => {
   try {
     const { image_base64, media_type } = req.body;
     if (!image_base64) return res.status(400).json({ error: 'Se requiere image_base64' });
@@ -3123,7 +3123,7 @@ Si no encontrás algún campo ponelo como null.`,
   }
 });
 
-app.post('/api/odoo/cotizacion-crear', express.json(), async (req, res) => {
+app.post('/api/odoo/cotizacion-crear', requireUser, express.json(), async (req, res) => {
   try {
     const { partner_id, lineas, notas } = req.body;
     if (!partner_id) return res.status(400).json({ error: 'Se requiere partner_id' });
@@ -3236,7 +3236,7 @@ app.get('/api/odoo/pedido-mayorista/:id', requireToken, async (req, res) => {
 });
 
 // ── Confirmar orden + crear factura + remito ─────────────────────
-app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res) => {
+app.post('/api/odoo/cotizacion-confirmar-full', requireUser, express.json(), async (req, res) => {
   try {
     const { partner_id, lineas, notas, forma_pago, dias_vencimiento } = req.body;
     if (!partner_id) return res.status(400).json({ error: 'Se requiere partner_id' });
@@ -3464,11 +3464,15 @@ function saveUsers(data) {
       name:     'Administrador',
       role:     'admin',
       salt,
-      hash:     hashPassword('admin123', salt),
+      hash:     hashPassword(process.env.ADMIN_PASSWORD || 'admin123', salt),
       createdAt: new Date().toISOString(),
     });
     saveUsers(users);
-    console.log('[usuarios] Usuario admin creado — password: admin123  (cambialo después)');
+    if (process.env.ADMIN_PASSWORD) {
+      console.log('[usuarios] Usuario admin creado con ADMIN_PASSWORD del entorno.');
+    } else {
+      console.warn('[usuarios] ⚠ ADMIN_PASSWORD no configurado — usando contraseña por defecto. Configurá la variable de entorno ADMIN_PASSWORD en Railway.');
+    }
   }
 })();
 
@@ -8063,7 +8067,9 @@ app.get('/api/ihome-mapping', requireToken, (req, res) => {
 });
 
 app.get('/api/product-image/:filename', (req, res) => {
-  const filePath = path.join(PRODUCT_IMAGES_DIR, req.params.filename);
+  const filename = path.basename(req.params.filename); // elimina ../ y rutas
+  const filePath = path.join(PRODUCT_IMAGES_DIR, filename);
+  if (!filePath.startsWith(PRODUCT_IMAGES_DIR + path.sep)) return res.status(403).end();
   if (fs.existsSync(filePath)) return res.sendFile(filePath);
   res.status(404).end();
 });
