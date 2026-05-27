@@ -4359,7 +4359,7 @@ async function analizarFoto() {
 
     const res = await fetch('/api/odoo/cotizacion-foto', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ image_base64: b64, media_type }),
     });
     const data = await res.json();
@@ -4560,7 +4560,7 @@ async function crearCotizacion() {
 
     const res = await fetch('/api/odoo/cotizacion-crear', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ partner_id, lineas, notas: document.getElementById('cot-notas').value }),
     });
     const data = await res.json();
@@ -4619,7 +4619,7 @@ async function confirmarYFacturar() {
     const dias_vencimiento = parseInt(document.getElementById('cot-dias-venc').value) || 30;
     const res = await fetch('/api/odoo/cotizacion-confirmar-full', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ partner_id, lineas, notas: document.getElementById('cot-notas').value, forma_pago, dias_vencimiento }),
     });
     const data = await res.json();
@@ -4648,7 +4648,7 @@ async function loadOdoo(refresh = false) {
   document.getElementById('odoo-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando productos de Odoo...</div>';
   try {
     const url = '/api/odoo/productos' + (refresh ? '?refresh=true' : '');
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: authHeaders() });
     odooData = await res.json();
     if (odooData.error) throw new Error(odooData.error);
     document.getElementById('odoo-subtitle').textContent = `${odooData.total} productos · ${odooData.categories.length} categorías · actualizado ${new Date(odooData.savedAt).toLocaleTimeString('es-UY')}`;
