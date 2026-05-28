@@ -1838,11 +1838,16 @@ async function odooCall(path, method, params, host = ODOO_HOST, httpsAgent = und
   }
 }
 
-const https = require('https');
-const stagingAgent = new https.Agent({ rejectUnauthorized: false });
-
+// Staging usa XML-RPC directo (el servidor de Opentech no expone /jsonrpc)
 function odooCallStaging(path, method, params) {
-  return odooCall(path, method, params, ODOO_STAGING_HOST, stagingAgent);
+  const rawHost = ODOO_STAGING_HOST.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const useSSL  = !ODOO_STAGING_HOST.startsWith('http://');
+  const client  = useSSL
+    ? xmlrpc.createSecureClient({ host: rawHost, path, rejectUnauthorized: false })
+    : xmlrpc.createClient({ host: rawHost, path });
+  return new Promise((resolve, reject) => {
+    client.methodCall(method, params, (err, val) => err ? reject(err) : resolve(val));
+  });
 }
 
 async function odooAuth() {
