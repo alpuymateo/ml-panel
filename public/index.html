@@ -1194,37 +1194,6 @@
         <div class="loading"><span class="spinner"></span>Cargando catálogo...</div>
       </div>
 
-      <!-- Modal subir imagen producto -->
-      <div id="modal-imagen-prod" style="display:none;position:fixed;inset:0;background:#0006;z-index:1100;align-items:center;justify-content:center;">
-        <div style="background:white;border-radius:16px;padding:28px;width:100%;max-width:420px;margin:16px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <h3 style="font-size:16px;font-weight:700;margin:0;">Subir imagen</h3>
-            <button onclick="closeImagenModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#6b7280;">✕</button>
-          </div>
-          <div id="img-modal-name" style="font-size:12px;color:#6b7280;margin-bottom:16px;"></div>
-          <div id="img-drop-zone"
-            style="border:2px dashed #d1d5db;border-radius:12px;padding:32px;text-align:center;cursor:pointer;transition:border-color 0.2s;"
-            onclick="document.getElementById('img-file-input').click()"
-            ondragover="event.preventDefault();this.style.borderColor='#7c3aed'"
-            ondragleave="this.style.borderColor='#d1d5db'"
-            ondrop="handleImgDrop(event)">
-            <div id="img-preview-wrap" style="display:none;margin-bottom:12px;">
-              <img id="img-preview" style="max-height:160px;max-width:100%;border-radius:8px;object-fit:contain;">
-            </div>
-            <div id="img-drop-text">
-              <div style="font-size:32px;margin-bottom:8px;">📷</div>
-              <div style="font-size:13px;font-weight:600;color:#374151;">Hacé clic o arrastrá una imagen</div>
-              <div style="font-size:11px;color:#9ca3af;margin-top:4px;">JPG o PNG · mín. 1024×1024px recomendado</div>
-            </div>
-          </div>
-          <input id="img-file-input" type="file" accept="image/*" style="display:none" onchange="previewImgFile(this.files[0])">
-          <div id="img-modal-error" style="color:#dc2626;font-size:12px;margin-top:8px;display:none;"></div>
-          <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
-            <button onclick="closeImagenModal()" style="padding:8px 16px;border:1px solid #e5e7eb;border-radius:8px;background:white;cursor:pointer;font-size:13px;">Cancelar</button>
-            <button onclick="uploadImagen()" id="img-upload-btn" style="padding:8px 20px;background:#7c3aed;color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;" disabled>Guardar imagen</button>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- ── Pedidos Mayoristas ── -->
@@ -5436,8 +5405,57 @@ function openVariantsPopup(uid, variants) {
 }
 
 // ── Override de categoría ─────────────────────────────────────────
+let _coProductId = null;
+let _coImgFile = null;
+
+function coPreviewImg(file) {
+  if (!file) return;
+  _coImgFile = file;
+  document.getElementById('co-img-preview').style.display = 'flex';
+  document.getElementById('co-img-filename').textContent = file.name;
+  document.getElementById('co-img-status').textContent = '';
+  const reader = new FileReader();
+  reader.onload = e => { document.getElementById('co-img-preview-img').src = e.target.result; };
+  reader.readAsDataURL(file);
+}
+function coHandleImgDrop(e) {
+  e.preventDefault();
+  document.getElementById('co-img-drop').style.borderColor = '#e5e7eb';
+  const file = e.dataTransfer.files[0];
+  if (file) coPreviewImg(file);
+}
+async function coUploadImg() {
+  if (!_coImgFile || !_coProductId) return;
+  const btn = document.getElementById('co-img-upload-btn');
+  const status = document.getElementById('co-img-status');
+  btn.textContent = 'Subiendo...'; btn.disabled = true;
+  try {
+    const fd = new FormData();
+    fd.append('imagen', _coImgFile);
+    const r = await fetch(`/api/productos/${_coProductId}/imagen`, { method: 'POST', headers: authHeaders(), body: fd });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    // Actualizar thumb en el modal y en la grilla
+    const newSrc = `/api/odoo/imagen/${_coProductId}?t=${Date.now()}`;
+    document.getElementById('co-thumb').src = newSrc;
+    const mainImg = document.getElementById('cv_' + (document.getElementById('co-sku-input').value.replace(/\W/g,'_')) + '_main');
+    if (mainImg) mainImg.src = newSrc;
+    status.style.color = '#059669'; status.textContent = '✓ Guardada';
+    btn.textContent = 'Subir imagen'; btn.disabled = false;
+    _coImgFile = null;
+  } catch(e) {
+    status.style.color = '#dc2626'; status.textContent = 'Error: ' + e.message;
+    btn.textContent = 'Subir imagen'; btn.disabled = false;
+  }
+}
+
 function openCatOverride(skuBase, currentMacro, currentSub) {
   const meta = catCardMeta[skuBase] || {};
+  _coProductId = meta.variants?.[0]?.id || null;
+  _coImgFile = null;
+  document.getElementById('co-img-preview').style.display = 'none';
+  document.getElementById('co-img-input').value = '';
+  document.getElementById('co-img-status').textContent = '';
   const modal = document.getElementById('cat-override-modal');
   // Info producto
   const thumb = document.getElementById('co-thumb');
@@ -5892,70 +5910,6 @@ async function loadCatalogo() {
   renderCatalogo();
   const total = (odooData?.categories || []).flatMap(c => c.items).filter(p => p.mayorista).length;
   document.getElementById('catalogo-subtitle').textContent = `${total} productos mayoristas`;
-}
-
-// ── Subir imagen producto ─────────────────────────────────────────
-let _imgModalProductId = null;
-let _imgModalFile = null;
-
-function openImagenModal(id, name) {
-  _imgModalProductId = id;
-  _imgModalFile = null;
-  document.getElementById('img-modal-name').textContent = name;
-  document.getElementById('img-preview-wrap').style.display = 'none';
-  document.getElementById('img-drop-text').style.display = '';
-  document.getElementById('img-modal-error').style.display = 'none';
-  document.getElementById('img-upload-btn').disabled = true;
-  document.getElementById('img-file-input').value = '';
-  document.getElementById('modal-imagen-prod').style.display = 'flex';
-}
-function closeImagenModal() {
-  document.getElementById('modal-imagen-prod').style.display = 'none';
-  _imgModalProductId = null;
-  _imgModalFile = null;
-}
-function previewImgFile(file) {
-  if (!file) return;
-  _imgModalFile = file;
-  const reader = new FileReader();
-  reader.onload = e => {
-    document.getElementById('img-preview').src = e.target.result;
-    document.getElementById('img-preview-wrap').style.display = '';
-    document.getElementById('img-drop-text').style.display = 'none';
-    document.getElementById('img-upload-btn').disabled = false;
-  };
-  reader.readAsDataURL(file);
-}
-function handleImgDrop(e) {
-  e.preventDefault();
-  document.getElementById('img-drop-zone').style.borderColor = '#d1d5db';
-  const file = e.dataTransfer.files[0];
-  if (file) previewImgFile(file);
-}
-async function uploadImagen() {
-  if (!_imgModalFile || !_imgModalProductId) return;
-  const btn = document.getElementById('img-upload-btn');
-  const errEl = document.getElementById('img-modal-error');
-  errEl.style.display = 'none';
-  btn.textContent = 'Guardando...'; btn.disabled = true;
-  try {
-    const fd = new FormData();
-    fd.append('imagen', _imgModalFile);
-    const r = await fetch(`/api/productos/${_imgModalProductId}/imagen`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: fd,
-    });
-    const d = await r.json();
-    if (d.error) throw new Error(d.error);
-    // Actualizar imagen en la lista sin recargar
-    const imgEl = document.getElementById(`cat-img-${_imgModalProductId}`);
-    if (imgEl) imgEl.src = `/api/odoo/imagen/${_imgModalProductId}?t=${Date.now()}`;
-    closeImagenModal();
-  } catch(e) {
-    errEl.textContent = 'Error: ' + e.message; errEl.style.display = '';
-    btn.textContent = 'Guardar imagen'; btn.disabled = false;
-  }
 }
 
 function descargarCatalogo() {
@@ -6430,7 +6384,6 @@ function renderCatalogo() {
                 </div>
                 ${stockLabel(p.stock??0)}
                 <div class="clist-price">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
-                <button onclick="event.stopPropagation();openImagenModal(${p.id},'${p.name.replace(/'/g,"\\'")}')" title="Subir imagen" style="background:none;border:1px solid #e5e7eb;border-radius:6px;padding:4px 7px;cursor:pointer;font-size:14px;color:#6b7280;flex-shrink:0;">📷</button>
               </div>`
           ).join('')}
         </div>`).join('')}`;
@@ -6533,14 +6486,9 @@ function renderCatalogo() {
               : `<button onclick="openCatOverride('${base}','${m.nombre}','${sub.nombre}')"
                   style="position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.9);border:1px solid #e5e7eb;border-radius:5px;padding:3px 6px;font-size:10px;color:#6b7280;cursor:pointer;font-weight:600;z-index:2;" title="Editar">✎ <span style="font-size:9px;">${cardIdx+1}</span></button>`
             : '';
-          const imgBtn = catalogoModo === 'ver'
-            ? `<button onclick="openImagenModal(${p0.id},'${displayName.replace(/'/g,"\\'")}')"
-                title="Subir imagen" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,0.9);border:1px solid #e5e7eb;border-radius:5px;padding:3px 7px;font-size:13px;cursor:pointer;z-index:2;">📷</button>`
-            : '';
           return `
           <div class="cat-card" style="position:relative;">
             ${editBtn}
-            ${imgBtn}
             <div style="display:flex;padding:12px 12px 0;">
               <div style="flex:1;min-width:0;height:170px;display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:6px;overflow:hidden;">
                 <img id="${uid}_main" class="cat-card-img" src="${p0.ml_thumbnail || '/api/odoo/imagen/'+p0.id}" loading="lazy"
@@ -13327,6 +13275,27 @@ showPage = function(page) {
       <div id="co-variant-picker" style="display:none;margin-bottom:16px;">
         <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:8px;">Imagen principal</label>
         <div class="co-vp-thumbs" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+      </div>
+      <!-- Imagen -->
+      <div style="margin-bottom:14px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">Imagen del producto</label>
+        <div id="co-img-drop"
+          style="border:2px dashed #e5e7eb;border-radius:8px;padding:10px 14px;text-align:center;cursor:pointer;font-size:12px;color:#6b7280;transition:border-color 0.2s;"
+          onclick="document.getElementById('co-img-input').click()"
+          ondragover="event.preventDefault();document.getElementById('co-img-drop').style.borderColor='#7c3aed'"
+          ondragleave="document.getElementById('co-img-drop').style.borderColor='#e5e7eb'"
+          ondrop="coHandleImgDrop(event)">
+          📷 Hacé clic o arrastrá una imagen
+        </div>
+        <input id="co-img-input" type="file" accept="image/*" style="display:none" onchange="coPreviewImg(this.files[0])">
+        <div id="co-img-preview" style="display:none;margin-top:8px;display:flex;align-items:center;gap:10px;">
+          <img id="co-img-preview-img" style="height:60px;border-radius:6px;object-fit:contain;border:1px solid #e5e7eb;">
+          <div style="flex:1;min-width:0;">
+            <div id="co-img-filename" style="font-size:11px;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+            <button onclick="coUploadImg()" id="co-img-upload-btn" style="margin-top:4px;padding:4px 12px;background:#7c3aed;color:white;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">Subir imagen</button>
+            <span id="co-img-status" style="font-size:11px;margin-left:6px;"></span>
+          </div>
+        </div>
       </div>
       <!-- Posición -->
       <div style="margin-bottom:22px;">
