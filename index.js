@@ -1813,7 +1813,7 @@ let jsonRpcId = 1;
 async function odooCall(path, method, params, host = ODOO_HOST) {
   // Si el host ya incluye protocolo (ej: "https://..."), lo extraemos
   const hasProto = /^https?:\/\//.test(host);
-  const protocol = hasProto ? host.split('://')[0] : (host.includes('odoo.com') ? 'https' : 'http');
+  const protocol = hasProto ? host.split('://')[0] : 'https';
   const cleanHost = hasProto ? host.replace(/^https?:\/\//, '').replace(/\/$/, '') : host.replace(/\/$/, '');
   const url = `${protocol}://${cleanHost}/jsonrpc`;
 
