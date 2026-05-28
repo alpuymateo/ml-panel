@@ -5233,7 +5233,7 @@ async function confirmarPedidoMayorista() {
       uom_id: i.uom_id, tax_ids: i.tax_ids,
     }));
     const res = await fetch('/api/odoo/cotizacion-crear', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
+      method: 'POST', headers: {'Content-Type':'application/json', ...authHeaders()},
       body: JSON.stringify({ partner_id: catPedido.partner_id, lineas, notas: '' }),
     });
     const data = await res.json();
