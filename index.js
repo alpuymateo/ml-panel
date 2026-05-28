@@ -1810,7 +1810,7 @@ console.log(`[odoo] staging: ${ODOO_STAGING_HOST} / ${ODOO_STAGING_DB}`);
 
 // JSON-RPC call to Odoo (más rápido que XML-RPC)
 let jsonRpcId = 1;
-async function odooCall(path, method, params, host = ODOO_HOST) {
+async function odooCall(path, method, params, host = ODOO_HOST, httpsAgent = undefined) {
   // Si el host ya incluye protocolo (ej: "https://..."), lo extraemos
   const hasProto = /^https?:\/\//.test(host);
   const protocol = hasProto ? host.split('://')[0] : 'https';
@@ -1827,7 +1827,7 @@ async function odooCall(path, method, params, host = ODOO_HOST) {
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const r = await axios.post(url, body, { headers: { 'Content-Type': 'application/json' }, timeout: 120000 });
+      const r = await axios.post(url, body, { headers: { 'Content-Type': 'application/json' }, timeout: 120000, ...(httpsAgent ? { httpsAgent } : {}) });
       if (r.data.error) throw new Error(r.data.error.data?.message || r.data.error.message || JSON.stringify(r.data.error));
       return r.data.result;
     } catch (e) {
@@ -1838,8 +1838,11 @@ async function odooCall(path, method, params, host = ODOO_HOST) {
   }
 }
 
+const https = require('https');
+const stagingAgent = new https.Agent({ rejectUnauthorized: false });
+
 function odooCallStaging(path, method, params) {
-  return odooCall(path, method, params, ODOO_STAGING_HOST);
+  return odooCall(path, method, params, ODOO_STAGING_HOST, stagingAgent);
 }
 
 async function odooAuth() {
