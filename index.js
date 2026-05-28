@@ -46,10 +46,30 @@ async function initDb() {
       expires_at TIMESTAMPTZ NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id BIGSERIAL PRIMARY KEY,
+      user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      details JSONB,
+      ip TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS audit_log_created_at ON audit_log(created_at DESC);
   `);
   console.log('[db] Tablas inicializadas');
 }
 initDb().catch(e => console.error('[db] Error inicializando tablas:', e.message));
+
+async function auditLog(userId, action, details = {}, ip = null) {
+  try {
+    await pool.query(
+      'INSERT INTO audit_log (user_id, action, details, ip) VALUES ($1, $2, $3, $4)',
+      [userId || null, action, JSON.stringify(details), ip]
+    );
+  } catch(e) {
+    console.error('[audit]', e.message);
+  }
+}
 
 const app = express();
 app.set('trust proxy', 1); // Railway runs behind a proxy
@@ -3536,12 +3556,19 @@ app.post('/api/auth/login', express.json(), async (req, res) => {
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'Faltan credenciales' });
     const r = await pool.query('SELECT * FROM users WHERE email = $1 AND password_hash IS NOT NULL', [email]);
-    if (!r.rows.length) return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+    if (!r.rows.length) {
+      await auditLog(null, 'login_failed', { email, reason: 'not_found' }, req.ip);
+      return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+    }
     const user = r.rows[0];
     const [salt, hash] = user.password_hash.split(':');
     const check = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-    if (check !== hash) return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+    if (check !== hash) {
+      await auditLog(user.id, 'login_failed', { email, reason: 'wrong_password' }, req.ip);
+      return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+    }
     const token = await createSession(user.id);
+    await auditLog(user.id, 'login', { email }, req.ip);
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
   } catch(e) {
     const msg = e.message || e.code || (e.errors && e.errors[0]?.message) || String(e);
@@ -3667,6 +3694,7 @@ app.post('/api/invites', requireAdmin, express.json(), async (req, res) => {
     'INSERT INTO invites (token, created_by, label, expires_at) VALUES ($1, $2, $3, $4)',
     [token, req.user.id, label || null, expiresAt]
   );
+  await auditLog(req.user.id, 'invite_created', { label: label || null, hours, expires_at: expiresAt }, req.ip);
   const baseUrl = `${req.protocol}://${req.get('host')}`;
   res.json({ token, link: `${baseUrl}/invite/${token}`, expires_at: expiresAt });
 });
@@ -3686,6 +3714,7 @@ app.get('/api/invites', requireAdmin, async (req, res) => {
 // Revocar invite (admin)
 app.delete('/api/invites/:token', requireAdmin, async (req, res) => {
   await pool.query('DELETE FROM invites WHERE token = $1', [req.params.token]);
+  await auditLog(req.user.id, 'invite_revoked', { token: req.params.token }, req.ip);
   res.json({ ok: true });
 });
 
@@ -3744,6 +3773,8 @@ app.post('/api/auth/register', express.json(), async (req, res) => {
   // Marcar invite como usado
   await pool.query('UPDATE invites SET used_by = $1 WHERE token = $2', [user.id, invite_token]);
 
+  await auditLog(user.id, 'register', { email, role }, req.ip);
+
   // Crear sesión
   const token = await createSession(user.id);
   res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
@@ -3761,6 +3792,7 @@ app.put('/api/users/:id', requireAdmin, express.json(), async (req, res) => {
   if (!role) return res.status(400).json({ error: 'role requerido' });
   const r = await pool.query('UPDATE users SET role = $1 WHERE id = $2 RETURNING id, email, name, role', [role, req.params.id]);
   if (!r.rows.length) return res.status(404).json({ error: 'Usuario no encontrado' });
+  await auditLog(req.user.id, 'user_role_changed', { target_id: req.params.id, target_email: r.rows[0].email, new_role: role }, req.ip);
   res.json(r.rows[0]);
 });
 
@@ -3773,6 +3805,20 @@ app.delete('/api/users/:id', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'No podés eliminar el único admin' });
   await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
   res.json({ ok: true });
+});
+
+// ── Log de actividad (admin) ──────────────────────────────────────
+app.get('/api/audit-log', requireAdmin, async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+  const r = await pool.query(`
+    SELECT a.id, a.action, a.details, a.ip, a.created_at,
+           u.email AS user_email, u.name AS user_name
+    FROM audit_log a
+    LEFT JOIN users u ON a.user_id = u.id
+    ORDER BY a.created_at DESC
+    LIMIT $1
+  `, [limit]);
+  res.json(r.rows);
 });
 
 // ── ML: comisiones por categoría (cache en disco) ────────────────

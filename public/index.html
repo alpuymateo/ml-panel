@@ -554,6 +554,9 @@
         <div class="nav-item" data-page="usuarios" onclick="showPage('usuarios')">
           <span class="nav-icon">👥</span> Usuarios
         </div>
+        <div class="nav-item" data-page="auditlog" onclick="showPage('auditlog')">
+          <span class="nav-icon">📋</span> Log de actividad
+        </div>
       </div>
 
     </nav>
@@ -1441,6 +1444,20 @@
             <button onclick="saveUser()" style="padding:8px 20px;background:#4361ee;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;">Guardar</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ══ Log de actividad ══ -->
+    <div id="page-auditlog" style="display:none">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;">
+        <div>
+          <h1>Log de actividad</h1>
+          <p>Accesos, registros y cambios de administración</p>
+        </div>
+        <button class="btn-refresh" onclick="loadAuditLog()" style="background:#f3f4f6;color:#374151;border:none;">↻ Actualizar</button>
+      </div>
+      <div class="table-card">
+        <div id="audit-log-content"><div class="loading"><span class="spinner"></span>Cargando...</div></div>
       </div>
     </div>
 
@@ -2543,7 +2560,7 @@ const navGroupMap = {
   'nav-ml': ['ml-estrategia','ml-sin-descuento','ml-ofertas','ml-analizar','ml-preguntas','ml-postventa','ml-reglas'],
   'nav-integracion': ['odoo','odooml'],
   'nav-importaciones': ['importaciones','imp-todas','imp-buscar','imp-detalle','imp-pi'],
-  'nav-admin': ['usuarios'],
+  'nav-admin': ['usuarios', 'auditlog'],
 };
 
 function showPage(page) {
@@ -2632,6 +2649,9 @@ function showPage(page) {
   }
   if (page === 'usuarios') {
     loadUsersPage();
+  }
+  if (page === 'auditlog') {
+    loadAuditLog();
   }
   if (page === 'comparador') {
     document.getElementById('comparador-month').value = new Date().getMonth() + 1;
@@ -4315,6 +4335,59 @@ async function deleteUser(id, name) {
   const res = await fetch(`/api/users/${id}`, { method: 'DELETE', headers: authHeaders() });
   if (!res.ok) { const e = await res.json(); return alert(e.error); }
   loadUsersPage();
+}
+
+// ── Log de actividad ─────────────────────────────────────────────
+const ACTION_LABELS = {
+  login: { label: 'Login', color: '#16a34a', bg: '#f0fdf4' },
+  login_failed: { label: 'Login fallido', color: '#dc2626', bg: '#fef2f2' },
+  register: { label: 'Registro', color: '#2563eb', bg: '#eff6ff' },
+  invite_created: { label: 'Invite creado', color: '#7c3aed', bg: '#f5f3ff' },
+  invite_revoked: { label: 'Invite revocado', color: '#d97706', bg: '#fffbeb' },
+  user_role_changed: { label: 'Rol cambiado', color: '#0891b2', bg: '#ecfeff' },
+};
+async function loadAuditLog() {
+  const el = document.getElementById('audit-log-content');
+  el.innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
+  try {
+    const r = await fetch('/api/audit-log', { headers: authHeaders() });
+    const rows = await r.json();
+    if (!rows.length) { el.innerHTML = '<p style="color:#9ca3af;padding:16px;">Sin registros todavía.</p>'; return; }
+    const fmt = iso => {
+      const d = new Date(iso);
+      return d.toLocaleDateString('es-AR') + ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    };
+    const detailStr = d => {
+      if (!d) return '';
+      const parts = [];
+      if (d.email) parts.push(d.email);
+      if (d.reason) parts.push({ not_found: 'usuario no existe', wrong_password: 'contraseña incorrecta' }[d.reason] || d.reason);
+      if (d.target_email) parts.push('→ ' + d.target_email);
+      if (d.new_role) parts.push('rol: ' + d.new_role);
+      if (d.label) parts.push('etiqueta: ' + d.label);
+      return parts.join(' · ');
+    };
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="border-bottom:2px solid #f3f4f6;">
+        <th style="text-align:left;padding:10px 12px;color:#6b7280;font-weight:600;white-space:nowrap;">Fecha</th>
+        <th style="text-align:left;padding:10px 12px;color:#6b7280;font-weight:600;">Usuario</th>
+        <th style="text-align:left;padding:10px 12px;color:#6b7280;font-weight:600;">Acción</th>
+        <th style="text-align:left;padding:10px 12px;color:#6b7280;font-weight:600;">Detalle</th>
+        <th style="text-align:left;padding:10px 12px;color:#6b7280;font-weight:600;">IP</th>
+      </tr></thead>
+      <tbody>${rows.map(r => {
+        const a = ACTION_LABELS[r.action] || { label: r.action, color: '#374151', bg: '#f3f4f6' };
+        return `<tr style="border-bottom:1px solid #f3f4f6;">
+          <td style="padding:10px 12px;color:#6b7280;white-space:nowrap;">${fmt(r.created_at)}</td>
+          <td style="padding:10px 12px;">${r.user_name || r.user_email || '<span style="color:#9ca3af">—</span>'}</td>
+          <td style="padding:10px 12px;"><span style="background:${a.bg};color:${a.color};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;">${a.label}</span></td>
+          <td style="padding:10px 12px;color:#374151;">${detailStr(r.details)}</td>
+          <td style="padding:10px 12px;color:#9ca3af;font-size:11px;font-family:monospace;">${r.ip || '—'}</td>
+        </tr>`;
+      }).join('')}</tbody></table>`;
+  } catch(e) {
+    el.innerHTML = `<p style="color:#dc2626;padding:16px;">Error cargando log: ${e.message}</p>`;
+  }
 }
 
 // ── Modal cotización desde foto ──────────────────────────────────
