@@ -113,15 +113,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rate limiting on auth endpoints
+// Rate limiting en endpoints de autenticación
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // max 20 login attempts per 15 min
-  message: { error: 'Demasiados intentos. Esperá 15 minutos.' },
+  windowMs: 15 * 60 * 1000,        // ventana de 15 minutos
+  max: 5,                            // máx 5 intentos por IP
+  message: { error: 'Demasiados intentos fallidos. Esperá 15 minutos e intentá de nuevo.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skipSuccessfulRequests: true,      // los logins exitosos no cuentan
 });
 app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
 app.use('/auth/google', authLimiter);
 
 // General rate limiting
