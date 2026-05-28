@@ -8400,7 +8400,7 @@ app.get('/api/trends/regions', requireToken, async (req, res) => {
 const invitePage = (token) => `<!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Registro — MA Importaciones</title>
-<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}.card{background:white;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,0.1);padding:40px;width:100%;max-width:420px}.logo{text-align:center;margin-bottom:28px}.logo h1{font-size:20px;font-weight:800;color:#111827}.logo p{font-size:13px;color:#6b7280;margin-top:4px}.tabs{display:flex;background:#f3f4f6;border-radius:10px;padding:4px;margin-bottom:28px}.tab{flex:1;padding:10px;text-align:center;border:none;background:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:#6b7280;transition:all 0.2s}.tab.active{background:white;color:#111827;box-shadow:0 1px 4px rgba(0,0,0,0.1)}.form-group{margin-bottom:16px}label{display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px}input{width:100%;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;outline:none;transition:border-color 0.2s}input:focus{border-color:#6366f1}.btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;transition:opacity 0.2s}.btn-google{background:#4285f4;color:white;display:flex;align-items:center;justify-content:center;gap:10px}.btn-google:hover{opacity:0.9}.btn-primary{background:#111827;color:white}.btn-primary:hover{opacity:0.85}.divider{text-align:center;color:#9ca3af;font-size:12px;margin:20px 0;position:relative}.divider::before,.divider::after{content:'';position:absolute;top:50%;width:42%;height:1px;background:#e5e7eb}.divider::before{left:0}.divider::after{right:0}.error{background:#fee2e2;color:#dc2626;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none}.pw-reqs{margin-top:8px;display:none;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb}.req{font-size:12px;color:#9ca3af;margin:3px 0;display:flex;align-items:center;gap:6px}.req.ok{color:#16a34a}.req.fail{color:#dc2626}.req::before{content:'○';font-size:10px}.req.ok::before{content:'✓'}.req.fail::before{content:'✗'}</style>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}.card{background:white;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,0.1);padding:40px;width:100%;max-width:420px}.logo{text-align:center;margin-bottom:28px}.logo h1{font-size:20px;font-weight:800;color:#111827}.logo p{font-size:13px;color:#6b7280;margin-top:4px}.form-group{margin-bottom:16px}label{display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px}input{width:100%;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;outline:none;transition:border-color 0.2s}input:focus{border-color:#6366f1}.btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;transition:opacity 0.2s}.btn-primary{background:#111827;color:white}.btn-primary:hover{opacity:0.85}.error{background:#fee2e2;color:#dc2626;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none}.pw-reqs{margin-top:8px;display:none;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb}.req{font-size:12px;color:#9ca3af;margin:3px 0;display:flex;align-items:center;gap:6px}.req.ok{color:#16a34a}.req.fail{color:#dc2626}.req::before{content:'○';font-size:10px}.req.ok::before{content:'✓'}.req.fail::before{content:'✗'}</style>
 </head><body>
 <div class="card">
   <div class="logo">
@@ -8408,17 +8408,7 @@ const invitePage = (token) => `<!DOCTYPE html>
     <p>Fuiste invitado a unirte al panel</p>
   </div>
   <div id="error" class="error"></div>
-  <div class="tabs">
-    <button class="tab active" onclick="showTab('google')">Google</button>
-    <button class="tab" onclick="showTab('email')">Email y contraseña</button>
-  </div>
-  <div id="tab-google">
-    <a href="/auth/google?invite=${token}" class="btn btn-google" style="text-decoration:none;">
-      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.1 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 7.9 2.9L37 9.8C33.6 6.7 29 4.8 24 4.8 12.9 4.8 3.8 13.9 3.8 25S12.9 45.2 24 45.2C35.1 45.2 44 36.5 44 25.3c0-1.8-.2-3.5-.4-5.3z"/><path fill="#FF3D00" d="M6.3 15.1l6.6 4.8C14.5 16 18.9 13 24 13c3.1 0 5.8 1.1 7.9 2.9L37 9.8C33.6 6.7 29 4.8 24 4.8c-7.7 0-14.3 4.4-17.7 10.3z"/><path fill="#4CAF50" d="M24 45.2c4.9 0 9.4-1.8 12.8-4.7l-5.9-5c-2 1.4-4.5 2.2-6.9 2.2-5.2 0-9.5-2.9-11.3-7.1l-6.6 5.1C8 41 15.5 45.2 24 45.2z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.9 2.6-2.6 4.8-4.8 6.5l5.9 5C40.3 36.2 44 31 44 25.3c0-1.8-.2-3.5-.4-5.3z"/></svg>
-      Continuar con Google
-    </a>
-  </div>
-  <div id="tab-email" style="display:none">
+  <div>
     <form onsubmit="register(event)">
       <div class="form-group"><label>Nombre</label><input id="r-name" type="text" placeholder="Tu nombre" required></div>
       <div class="form-group"><label>Email</label><input id="r-email" type="email" placeholder="tu@email.com" required></div>
@@ -8435,11 +8425,6 @@ const invitePage = (token) => `<!DOCTYPE html>
 </div>
 <script>
 const INVITE = '${token}';
-function showTab(t) {
-  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active', (t==='google'&&i===0)||(t==='email'&&i===1)));
-  document.getElementById('tab-google').style.display = t==='google'?'':'none';
-  document.getElementById('tab-email').style.display = t==='email'?'':'none';
-}
 function checkPw(v) {
   const reqs = document.getElementById('pw-reqs');
   reqs.style.display = v.length ? '' : 'none';
