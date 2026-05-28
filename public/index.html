@@ -6533,9 +6533,14 @@ function renderCatalogo() {
               : `<button onclick="openCatOverride('${base}','${m.nombre}','${sub.nombre}')"
                   style="position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.9);border:1px solid #e5e7eb;border-radius:5px;padding:3px 6px;font-size:10px;color:#6b7280;cursor:pointer;font-weight:600;z-index:2;" title="Editar">✎ <span style="font-size:9px;">${cardIdx+1}</span></button>`
             : '';
+          const imgBtn = catalogoModo === 'ver'
+            ? `<button onclick="openImagenModal(${p0.id},'${displayName.replace(/'/g,"\\'")}')"
+                title="Subir imagen" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,0.9);border:1px solid #e5e7eb;border-radius:5px;padding:3px 7px;font-size:13px;cursor:pointer;z-index:2;">📷</button>`
+            : '';
           return `
           <div class="cat-card" style="position:relative;">
             ${editBtn}
+            ${imgBtn}
             <div style="display:flex;padding:12px 12px 0;">
               <div style="flex:1;min-width:0;height:170px;display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:6px;overflow:hidden;">
                 <img id="${uid}_main" class="cat-card-img" src="${p0.ml_thumbnail || '/api/odoo/imagen/'+p0.id}" loading="lazy"
