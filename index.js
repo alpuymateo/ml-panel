@@ -2389,7 +2389,7 @@ app.get('/api/odoo/imagen/:id', async (req, res) => {
   try {
     if (fs.existsSync(filePath)) {
       res.setHeader('Content-Type', 'image/png');
-      res.setHeader('Cache-Control', 'public, max-age=604800');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
       return res.end(fs.readFileSync(filePath));
     }
     const uid = await odooAuth();
@@ -2408,6 +2408,17 @@ app.get('/api/odoo/imagen/:id', async (req, res) => {
   } catch (err) {
     res.status(500).end();
   }
+});
+
+// Subir imagen local para un producto (se guarda en data/images/{id}.png)
+app.post('/api/productos/:id/imagen', requireUser, upload.single('imagen'), (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+  if (!req.file) return res.status(400).json({ error: 'No se recibió imagen' });
+  const filePath = path.join(IMG_CACHE_DIR, `${id}.png`);
+  fs.writeFileSync(filePath, req.file.buffer);
+  console.log(`[imagen] producto ${id} actualizado localmente (${req.file.size} bytes)`);
+  res.json({ ok: true, url: `/api/odoo/imagen/${id}` });
 });
 
 function upgradeMlThumb(url) {

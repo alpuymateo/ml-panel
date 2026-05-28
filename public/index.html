@@ -1193,6 +1193,38 @@
       <div id="catalogo-content" style="margin-top:8px;">
         <div class="loading"><span class="spinner"></span>Cargando catálogo...</div>
       </div>
+
+      <!-- Modal subir imagen producto -->
+      <div id="modal-imagen-prod" style="display:none;position:fixed;inset:0;background:#0006;z-index:1100;align-items:center;justify-content:center;">
+        <div style="background:white;border-radius:16px;padding:28px;width:100%;max-width:420px;margin:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <h3 style="font-size:16px;font-weight:700;margin:0;">Subir imagen</h3>
+            <button onclick="closeImagenModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#6b7280;">✕</button>
+          </div>
+          <div id="img-modal-name" style="font-size:12px;color:#6b7280;margin-bottom:16px;"></div>
+          <div id="img-drop-zone"
+            style="border:2px dashed #d1d5db;border-radius:12px;padding:32px;text-align:center;cursor:pointer;transition:border-color 0.2s;"
+            onclick="document.getElementById('img-file-input').click()"
+            ondragover="event.preventDefault();this.style.borderColor='#7c3aed'"
+            ondragleave="this.style.borderColor='#d1d5db'"
+            ondrop="handleImgDrop(event)">
+            <div id="img-preview-wrap" style="display:none;margin-bottom:12px;">
+              <img id="img-preview" style="max-height:160px;max-width:100%;border-radius:8px;object-fit:contain;">
+            </div>
+            <div id="img-drop-text">
+              <div style="font-size:32px;margin-bottom:8px;">📷</div>
+              <div style="font-size:13px;font-weight:600;color:#374151;">Hacé clic o arrastrá una imagen</div>
+              <div style="font-size:11px;color:#9ca3af;margin-top:4px;">JPG o PNG · mín. 1024×1024px recomendado</div>
+            </div>
+          </div>
+          <input id="img-file-input" type="file" accept="image/*" style="display:none" onchange="previewImgFile(this.files[0])">
+          <div id="img-modal-error" style="color:#dc2626;font-size:12px;margin-top:8px;display:none;"></div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+            <button onclick="closeImagenModal()" style="padding:8px 16px;border:1px solid #e5e7eb;border-radius:8px;background:white;cursor:pointer;font-size:13px;">Cancelar</button>
+            <button onclick="uploadImagen()" id="img-upload-btn" style="padding:8px 20px;background:#7c3aed;color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;" disabled>Guardar imagen</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ── Pedidos Mayoristas ── -->
@@ -5862,6 +5894,70 @@ async function loadCatalogo() {
   document.getElementById('catalogo-subtitle').textContent = `${total} productos mayoristas`;
 }
 
+// ── Subir imagen producto ─────────────────────────────────────────
+let _imgModalProductId = null;
+let _imgModalFile = null;
+
+function openImagenModal(id, name) {
+  _imgModalProductId = id;
+  _imgModalFile = null;
+  document.getElementById('img-modal-name').textContent = name;
+  document.getElementById('img-preview-wrap').style.display = 'none';
+  document.getElementById('img-drop-text').style.display = '';
+  document.getElementById('img-modal-error').style.display = 'none';
+  document.getElementById('img-upload-btn').disabled = true;
+  document.getElementById('img-file-input').value = '';
+  document.getElementById('modal-imagen-prod').style.display = 'flex';
+}
+function closeImagenModal() {
+  document.getElementById('modal-imagen-prod').style.display = 'none';
+  _imgModalProductId = null;
+  _imgModalFile = null;
+}
+function previewImgFile(file) {
+  if (!file) return;
+  _imgModalFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('img-preview').src = e.target.result;
+    document.getElementById('img-preview-wrap').style.display = '';
+    document.getElementById('img-drop-text').style.display = 'none';
+    document.getElementById('img-upload-btn').disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+function handleImgDrop(e) {
+  e.preventDefault();
+  document.getElementById('img-drop-zone').style.borderColor = '#d1d5db';
+  const file = e.dataTransfer.files[0];
+  if (file) previewImgFile(file);
+}
+async function uploadImagen() {
+  if (!_imgModalFile || !_imgModalProductId) return;
+  const btn = document.getElementById('img-upload-btn');
+  const errEl = document.getElementById('img-modal-error');
+  errEl.style.display = 'none';
+  btn.textContent = 'Guardando...'; btn.disabled = true;
+  try {
+    const fd = new FormData();
+    fd.append('imagen', _imgModalFile);
+    const r = await fetch(`/api/productos/${_imgModalProductId}/imagen`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: fd,
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    // Actualizar imagen en la lista sin recargar
+    const imgEl = document.getElementById(`cat-img-${_imgModalProductId}`);
+    if (imgEl) imgEl.src = `/api/odoo/imagen/${_imgModalProductId}?t=${Date.now()}`;
+    closeImagenModal();
+  } catch(e) {
+    errEl.textContent = 'Error: ' + e.message; errEl.style.display = '';
+    btn.textContent = 'Guardar imagen'; btn.disabled = false;
+  }
+}
+
 function descargarCatalogo() {
   if (!odooData) return;
   const q           = (document.getElementById('catalogo-search')?.value || '').toLowerCase();
@@ -6325,7 +6421,7 @@ function renderCatalogo() {
                 <div style="background:#111827;color:white;border-radius:6px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0;">+</div>
               </div>`
             : `<div class="clist-row">
-                <img class="clist-img" src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
+                <img id="cat-img-${p.id}" class="clist-img" src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
                   onerror="if(this.dataset.fb){this.style.opacity='0';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}">
                 <div style="flex:1;min-width:0;">
                   <div class="clist-name">${p.name}</div>
@@ -6334,6 +6430,7 @@ function renderCatalogo() {
                 </div>
                 ${stockLabel(p.stock??0)}
                 <div class="clist-price">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
+                <button onclick="event.stopPropagation();openImagenModal(${p.id},'${p.name.replace(/'/g,"\\'")}')" title="Subir imagen" style="background:none;border:1px solid #e5e7eb;border-radius:6px;padding:4px 7px;cursor:pointer;font-size:14px;color:#6b7280;flex-shrink:0;">📷</button>
               </div>`
           ).join('')}
         </div>`).join('')}`;
