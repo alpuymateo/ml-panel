@@ -68,6 +68,7 @@ app.use(cors({
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'x-session-token'],
+  exposedHeaders: ['X-New-Token'],
   credentials: false,
 }));
 const SERVER_START = new Date().toISOString();
@@ -138,7 +139,7 @@ const PORT = process.env.PORT || 3000;
 // ── Sesiones (PostgreSQL) ──
 async function createSession(userId) {
   const token = crypto.randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
+  const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 horas
   await pool.query('INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3)', [token, userId, expiresAt]);
   return token;
 }
@@ -3511,6 +3512,10 @@ async function requireUser(req, res, next) {
     const session = await getSession(token);
     if (!session) return res.status(401).json({ error: 'Sesión inválida o expirada' });
     req.user = session;
+    // Rotación de token en cada request autenticado
+    const newToken = await createSession(session.user_id || session.id);
+    await pool.query('DELETE FROM sessions WHERE token = $1', [token]);
+    res.setHeader('X-New-Token', newToken);
     next();
   } catch (e) {
     res.status(500).json({ error: 'Error de autenticación' });

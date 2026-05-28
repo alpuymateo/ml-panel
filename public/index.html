@@ -2448,6 +2448,20 @@
 </div>
 
 <script>
+// Interceptor global de fetch — rota el token de sesión automáticamente
+(function() {
+  const _fetch = window.fetch;
+  window.fetch = async function(...args) {
+    const res = await _fetch(...args);
+    const newToken = res.headers.get('X-New-Token');
+    if (newToken) {
+      sessionToken = newToken;
+      localStorage.setItem('session_token', newToken);
+    }
+    return res;
+  };
+})();
+
 // Sanitización HTML — previene XSS en todo innerHTML dinámico
 function esc(str) {
   if (str == null) return '';
