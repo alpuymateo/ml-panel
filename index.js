@@ -3700,13 +3700,21 @@ app.get('/api/invites/:token/check', async (req, res) => {
   res.json({ valid: true, label: inv.label, expires_at: inv.expires_at });
 });
 
+// Validación de complejidad de contraseña
+function validatePassword(password) {
+  if (!password || password.length < 8) return 'La contraseña debe tener al menos 8 caracteres';
+  if (!/[A-Z]/.test(password)) return 'La contraseña debe incluir al menos una mayúscula';
+  if (!/[0-9]/.test(password)) return 'La contraseña debe incluir al menos un número';
+  return null;
+}
+
 // Registro con email/contraseña + invite (público)
 app.post('/api/auth/register', express.json(), async (req, res) => {
   const { invite_token, name, email, password } = req.body || {};
   if (!invite_token || !name || !email || !password)
     return res.status(400).json({ error: 'Faltan campos requeridos' });
-  if (password.length < 8)
-    return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+  const pwError = validatePassword(password);
+  if (pwError) return res.status(400).json({ error: pwError });
 
   // Validar invite
   const invRes = await pool.query(
@@ -8336,7 +8344,7 @@ app.get('/api/trends/regions', requireToken, async (req, res) => {
 const invitePage = (token) => `<!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Registro — MA Importaciones</title>
-<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}.card{background:white;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,0.1);padding:40px;width:100%;max-width:420px}.logo{text-align:center;margin-bottom:28px}.logo h1{font-size:20px;font-weight:800;color:#111827}.logo p{font-size:13px;color:#6b7280;margin-top:4px}.tabs{display:flex;background:#f3f4f6;border-radius:10px;padding:4px;margin-bottom:28px}.tab{flex:1;padding:10px;text-align:center;border:none;background:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:#6b7280;transition:all 0.2s}.tab.active{background:white;color:#111827;box-shadow:0 1px 4px rgba(0,0,0,0.1)}.form-group{margin-bottom:16px}label{display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px}input{width:100%;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;outline:none;transition:border-color 0.2s}input:focus{border-color:#6366f1}.btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;transition:opacity 0.2s}.btn-google{background:#4285f4;color:white;display:flex;align-items:center;justify-content:center;gap:10px}.btn-google:hover{opacity:0.9}.btn-primary{background:#111827;color:white}.btn-primary:hover{opacity:0.85}.divider{text-align:center;color:#9ca3af;font-size:12px;margin:20px 0;position:relative}.divider::before,.divider::after{content:'';position:absolute;top:50%;width:42%;height:1px;background:#e5e7eb}.divider::before{left:0}.divider::after{right:0}.error{background:#fee2e2;color:#dc2626;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none}.loading{display:none}</style>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}.card{background:white;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,0.1);padding:40px;width:100%;max-width:420px}.logo{text-align:center;margin-bottom:28px}.logo h1{font-size:20px;font-weight:800;color:#111827}.logo p{font-size:13px;color:#6b7280;margin-top:4px}.tabs{display:flex;background:#f3f4f6;border-radius:10px;padding:4px;margin-bottom:28px}.tab{flex:1;padding:10px;text-align:center;border:none;background:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:#6b7280;transition:all 0.2s}.tab.active{background:white;color:#111827;box-shadow:0 1px 4px rgba(0,0,0,0.1)}.form-group{margin-bottom:16px}label{display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px}input{width:100%;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;outline:none;transition:border-color 0.2s}input:focus{border-color:#6366f1}.btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;transition:opacity 0.2s}.btn-google{background:#4285f4;color:white;display:flex;align-items:center;justify-content:center;gap:10px}.btn-google:hover{opacity:0.9}.btn-primary{background:#111827;color:white}.btn-primary:hover{opacity:0.85}.divider{text-align:center;color:#9ca3af;font-size:12px;margin:20px 0;position:relative}.divider::before,.divider::after{content:'';position:absolute;top:50%;width:42%;height:1px;background:#e5e7eb}.divider::before{left:0}.divider::after{right:0}.error{background:#fee2e2;color:#dc2626;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none}.pw-reqs{margin-top:8px;display:none;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb}.req{font-size:12px;color:#9ca3af;margin:3px 0;display:flex;align-items:center;gap:6px}.req.ok{color:#16a34a}.req.fail{color:#dc2626}.req::before{content:'○';font-size:10px}.req.ok::before{content:'✓'}.req.fail::before{content:'✗'}</style>
 </head><body>
 <div class="card">
   <div class="logo">
@@ -8358,7 +8366,13 @@ const invitePage = (token) => `<!DOCTYPE html>
     <form onsubmit="register(event)">
       <div class="form-group"><label>Nombre</label><input id="r-name" type="text" placeholder="Tu nombre" required></div>
       <div class="form-group"><label>Email</label><input id="r-email" type="email" placeholder="tu@email.com" required></div>
-      <div class="form-group"><label>Contraseña</label><input id="r-pass" type="password" placeholder="Mínimo 8 caracteres" required minlength="8"></div>
+      <div class="form-group"><label>Contraseña</label><input id="r-pass" type="password" placeholder="Mínimo 8 caracteres" required oninput="checkPw(this.value)">
+        <div id="pw-reqs" class="pw-reqs">
+          <div id="req-len" class="req">Mínimo 8 caracteres</div>
+          <div id="req-upper" class="req">Al menos una mayúscula (A-Z)</div>
+          <div id="req-num" class="req">Al menos un número (0-9)</div>
+        </div>
+      </div>
       <button type="submit" class="btn btn-primary" id="r-btn">Crear cuenta</button>
     </form>
   </div>
@@ -8370,16 +8384,33 @@ function showTab(t) {
   document.getElementById('tab-google').style.display = t==='google'?'':'none';
   document.getElementById('tab-email').style.display = t==='email'?'':'none';
 }
+function checkPw(v) {
+  const reqs = document.getElementById('pw-reqs');
+  reqs.style.display = v.length ? '' : 'none';
+  const setReq = (id, ok) => {
+    const el = document.getElementById(id);
+    el.className = 'req ' + (ok ? 'ok' : (v.length ? 'fail' : ''));
+  };
+  setReq('req-len', v.length >= 8);
+  setReq('req-upper', /[A-Z]/.test(v));
+  setReq('req-num', /[0-9]/.test(v));
+}
 async function register(e) {
   e.preventDefault();
   const btn = document.getElementById('r-btn');
   const errEl = document.getElementById('error');
+  const pass = document.getElementById('r-pass').value;
   errEl.style.display = 'none';
+  if (pass.length < 8 || !/[A-Z]/.test(pass) || !/[0-9]/.test(pass)) {
+    checkPw(pass);
+    errEl.textContent = 'La contraseña no cumple los requisitos'; errEl.style.display = '';
+    return;
+  }
   btn.textContent = 'Creando cuenta...'; btn.disabled = true;
   try {
     const r = await fetch('/api/auth/register', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ invite_token: INVITE, name: document.getElementById('r-name').value, email: document.getElementById('r-email').value, password: document.getElementById('r-pass').value })
+      body: JSON.stringify({ invite_token: INVITE, name: document.getElementById('r-name').value, email: document.getElementById('r-email').value, password: pass })
     });
     const d = await r.json();
     if (d.error) throw new Error(d.error);
