@@ -303,9 +303,9 @@
   <div class="login-card">
     <div class="login-logo">🛒</div>
     <h1>ML Panel</h1>
-    <p>Ingresá con tu usuario y contraseña</p>
+    <p>Ingresá con tu email y contraseña</p>
     <div id="login-error" style="display:none;background:#fee2e2;color:#991b1b;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
-    <input id="login-username" type="text" placeholder="Usuario" autocomplete="username"
+    <input id="login-username" type="email" placeholder="Email" autocomplete="email"
       style="display:block;width:100%;padding:12px 14px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;font-family:Inter,sans-serif;margin-bottom:10px;box-sizing:border-box;"
       onkeydown="if(event.key==='Enter')doLogin()">
     <input id="login-password" type="password" placeholder="Contraseña" autocomplete="current-password"
@@ -553,6 +553,9 @@
       <div class="nav-group-items admin-only" id="nav-admin" style="display:none;">
         <div class="nav-item" data-page="usuarios" onclick="showPage('usuarios')">
           <span class="nav-icon">👥</span> Usuarios
+        </div>
+        <div class="nav-item" data-page="auditlog" onclick="showPage('auditlog')">
+          <span class="nav-icon">📋</span> Log de actividad
         </div>
       </div>
 
@@ -1190,6 +1193,7 @@
       <div id="catalogo-content" style="margin-top:8px;">
         <div class="loading"><span class="spinner"></span>Cargando catálogo...</div>
       </div>
+
     </div>
 
     <!-- ── Pedidos Mayoristas ── -->
@@ -1363,7 +1367,7 @@
           <h1>Usuarios</h1>
           <p>Gestión de acceso al panel</p>
         </div>
-        <button class="btn-refresh" onclick="showUserForm()" style="background:#4361ee;color:white;border:none;">+ Nuevo usuario</button>
+        <button class="btn-refresh" onclick="loadUsersPage()" style="background:#f3f4f6;color:#374151;border:none;">↻ Actualizar</button>
       </div>
       <div class="table-card">
         <div id="users-table-content"><div class="loading"><span class="spinner"></span>Cargando...</div></div>
@@ -1382,36 +1386,53 @@
         <div id="sync-push-status" style="margin-top:8px;"></div>
       </div>
 
-      <!-- Emails autorizados Google -->
+      <!-- Invitaciones -->
       <div class="card" style="margin-bottom:16px;">
-        <div style="font-size:14px;font-weight:700;margin-bottom:8px;">Emails autorizados (Google Login)</div>
-        <div id="allowed-emails-list" style="margin-bottom:8px;"></div>
-        <div style="display:flex;gap:8px;">
-          <input type="email" id="new-allowed-email" placeholder="email@ejemplo.com" style="flex:1;padding:8px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;" onkeydown="if(event.key==='Enter')addAllowedEmail()">
-          <button onclick="addAllowedEmail()" style="padding:8px 14px;background:#059669;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">+ Agregar</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-size:14px;font-weight:700;">Invitaciones de registro</div>
+          <button onclick="openInviteForm()" style="padding:6px 14px;background:#4361ee;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">+ Nueva invitación</button>
+        </div>
+        <div id="invites-list"><div style="color:#9ca3af;font-size:12px;">Cargando...</div></div>
+      </div>
+
+      <!-- Modal nueva invitación -->
+      <div id="invite-modal" style="display:none;position:fixed;inset:0;background:#0006;z-index:1001;align-items:center;justify-content:center;">
+        <div style="background:white;border-radius:16px;padding:24px;width:100%;max-width:400px;margin:16px;">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;">Nueva invitación</h3>
+          <div style="margin-bottom:12px;">
+            <label style="font-size:12px;color:#6b7280;font-weight:600;">Etiqueta (opcional)</label>
+            <input id="invite-label" type="text" placeholder="Ej: Para Pedro López"
+              style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
+          </div>
+          <div style="margin-bottom:20px;">
+            <label style="font-size:12px;color:#6b7280;font-weight:600;">Validez</label>
+            <select id="invite-hours" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
+              <option value="24">24 horas</option>
+              <option value="48" selected>48 horas</option>
+              <option value="168">7 días</option>
+              <option value="720">30 días</option>
+            </select>
+          </div>
+          <div id="invite-result" style="display:none;margin-bottom:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;">
+            <div style="font-size:12px;color:#059669;font-weight:600;margin-bottom:6px;">Link generado — copiá y enviá</div>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input id="invite-link-input" type="text" readonly style="flex:1;padding:6px 8px;border:1px solid #bbf7d0;border-radius:6px;font-size:11px;background:white;font-family:monospace;">
+              <button onclick="copyInviteLink()" style="padding:6px 12px;background:#059669;color:white;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">Copiar</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button onclick="closeInviteForm()" style="padding:8px 16px;border:1px solid #e5e7eb;border-radius:8px;background:white;cursor:pointer;font-size:14px;">Cerrar</button>
+            <button onclick="createInvite()" id="invite-gen-btn" style="padding:8px 20px;background:#4361ee;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;">Generar</button>
+          </div>
         </div>
       </div>
 
       <!-- Modal usuario -->
       <div id="user-modal" style="display:none;position:fixed;inset:0;background:#0006;z-index:1000;align-items:center;justify-content:center;">
-        <div style="background:white;border-radius:16px;padding:24px;width:100%;max-width:420px;margin:16px;">
-          <h3 id="user-modal-title" style="font-size:16px;font-weight:700;margin-bottom:16px;">Nuevo usuario</h3>
+        <div style="background:white;border-radius:16px;padding:24px;width:100%;max-width:380px;margin:16px;">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">Editar usuario</h3>
           <input type="hidden" id="edit-user-id">
-          <div style="margin-bottom:12px;">
-            <label style="font-size:12px;color:#6b7280;font-weight:600;">Nombre completo</label>
-            <input id="edit-user-name" type="text" placeholder="Ej: Juan García"
-              style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
-          </div>
-          <div style="margin-bottom:12px;">
-            <label style="font-size:12px;color:#6b7280;font-weight:600;">Usuario</label>
-            <input id="edit-user-username" type="text" placeholder="Ej: juan"
-              style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
-          </div>
-          <div style="margin-bottom:12px;">
-            <label style="font-size:12px;color:#6b7280;font-weight:600;">Contraseña <span id="pass-hint" style="color:#9ca3af;">(dejar vacío para no cambiar)</span></label>
-            <input id="edit-user-password" type="password" placeholder="••••••••"
-              style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
-          </div>
+          <div id="edit-user-info" style="font-size:13px;color:#6b7280;margin-bottom:16px;"></div>
           <div style="margin-bottom:20px;">
             <label style="font-size:12px;color:#6b7280;font-weight:600;">Rol</label>
             <select id="edit-user-role" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
@@ -1424,6 +1445,20 @@
             <button onclick="saveUser()" style="padding:8px 20px;background:#4361ee;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;">Guardar</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ══ Log de actividad ══ -->
+    <div id="page-auditlog" style="display:none">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;">
+        <div>
+          <h1>Log de actividad</h1>
+          <p>Accesos, registros y cambios de administración</p>
+        </div>
+        <button class="btn-refresh" onclick="loadAuditLog()" style="background:#f3f4f6;color:#374151;border:none;">↻ Actualizar</button>
+      </div>
+      <div class="table-card">
+        <div id="audit-log-content"><div class="loading"><span class="spinner"></span>Cargando...</div></div>
       </div>
     </div>
 
@@ -2431,6 +2466,26 @@
 </div>
 
 <script>
+// Interceptor global de fetch — rota el token de sesión automáticamente
+(function() {
+  const _fetch = window.fetch;
+  window.fetch = async function(...args) {
+    const res = await _fetch(...args);
+    const newToken = res.headers.get('X-New-Token');
+    if (newToken) {
+      sessionToken = newToken;
+      localStorage.setItem('session_token', newToken);
+    }
+    return res;
+  };
+})();
+
+// Sanitización HTML — previene XSS en todo innerHTML dinámico
+function esc(str) {
+  if (str == null) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 let currentOffset = 0;
 const PAGE_SIZE = 50;
 let totalOrders = 0;
@@ -2506,7 +2561,7 @@ const navGroupMap = {
   'nav-ml': ['ml-estrategia','ml-sin-descuento','ml-ofertas','ml-analizar','ml-preguntas','ml-postventa','ml-reglas'],
   'nav-integracion': ['odoo','odooml'],
   'nav-importaciones': ['importaciones','imp-todas','imp-buscar','imp-detalle','imp-pi'],
-  'nav-admin': ['usuarios'],
+  'nav-admin': ['usuarios', 'auditlog'],
 };
 
 function showPage(page) {
@@ -2595,6 +2650,9 @@ function showPage(page) {
   }
   if (page === 'usuarios') {
     loadUsersPage();
+  }
+  if (page === 'auditlog') {
+    loadAuditLog();
   }
   if (page === 'comparador') {
     document.getElementById('comparador-month').value = new Date().getMonth() + 1;
@@ -2947,7 +3005,7 @@ async function pollSync() {
     const logsEl = document.getElementById('sync-logs');
     if (data.logs?.length) {
       logsEl.style.display = '';
-      logsEl.innerHTML = data.logs.map(l => `<div><span style="color:#6b7280;">${l.time.slice(11,19)}</span> ${l.msg}</div>`).join('');
+      logsEl.innerHTML = data.logs.map(l => `<div><span style="color:#6b7280;">${esc(l.time.slice(11,19))}</span> ${esc(l.msg)}</div>`).join('');
       logsEl.scrollTop = logsEl.scrollHeight;
     }
 
@@ -3040,7 +3098,7 @@ function buildStockRow(item) {
   return `<tr>
     <td>${thumb}</td>
     <td class="item-title">
-      <span title="${item.title}">${item.title}</span>${pausedBadge}
+      <span title="${esc(item.title)}">${esc(item.title)}</span>${pausedBadge}
       <div style="font-size:11px;color:#9ca3af;margin-top:2px;">${item.sku ? 'SKU: ' + item.sku : ''}${expandBtn}${mlLink}</div>${incomingHtml}
     </td>
     <td style="text-align:center;font-weight:600;">${item.stock.toLocaleString('es-UY')}</td>
@@ -3137,8 +3195,8 @@ async function loadCruceNombre() {
             <tr style="border-bottom:1px solid #e5e7eb;${i%2===1?'background:#f9fafb':''}vertical-align:top;">
               <td style="padding:10px 14px;text-align:center;">${scoreBadge(g.score)}</td>
               <td style="padding:10px 14px;">
-                <a href="${g.ml_permalink}" target="_blank" style="color:#1d4ed8;font-weight:600;text-decoration:none;font-size:13px;">${g.ml_title}</a>
-                <div style="font-size:11px;color:#9ca3af;margin-top:2px;">ID: ${g.ml_id}</div>
+                <a href="${esc(g.ml_permalink)}" target="_blank" style="color:#1d4ed8;font-weight:600;text-decoration:none;font-size:13px;">${esc(g.ml_title)}</a>
+                <div style="font-size:11px;color:#9ca3af;margin-top:2px;">ID: ${esc(g.ml_id)}</div>
               </td>
               <td style="padding:10px 14px;text-align:center;font-family:monospace;font-size:12px;color:#7c3aed;">${g.ml_sku || '<span style="color:#d1d5db;">—</span>'}</td>
               <td style="padding:10px 14px;text-align:center;">${statusBadge(g.ml_status)}</td>
@@ -3190,7 +3248,7 @@ async function loadDiscrepancias(subtipo = null) {
           ${rows.map((row, i) => `
             <tr style="border-bottom:1px solid #f3f4f6;${i%2===1?'background:#fafafa':''}">
               <td style="padding:9px 14px;font-family:monospace;font-size:12px;color:#7c3aed;font-weight:600;">${row.sku}</td>
-              <td style="padding:9px 14px;color:#111827;font-weight:500;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${row.odoo_name}</td>
+              <td style="padding:9px 14px;color:#111827;font-weight:500;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(row.odoo_name)}</td>
               <td style="padding:9px 14px;text-align:center;font-weight:700;color:#059669;">${row.odoo_stock}</td>
               <td style="padding:9px 14px;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                 ${row.ml_permalink ? `<a href="${row.ml_permalink}" target="_blank" style="color:#1d4ed8;text-decoration:none;">${row.ml_title||row.ml_id}</a>` : '<span style="color:#9ca3af;">—</span>'}
@@ -3494,7 +3552,7 @@ async function loadVentas(force = false) {
       return `<div class="product-row">
         ${thumb}
         <div class="product-info">
-          <div class="product-name"><a href="${item.permalink||'#'}" target="_blank">${item.title}</a></div>
+          <div class="product-name"><a href="${esc(item.permalink||'#')}" target="_blank">${esc(item.title)}</a></div>
           <div class="product-meta">${meta ? `Publicación ${meta}` : ''}</div>
           <div class="product-price">${fmtCurrency(item.price, currency)}</div>
         </div>
@@ -3890,15 +3948,15 @@ function authHeaders() {
 }
 
 async function doLogin() {
-  const username = document.getElementById('login-username').value.trim();
+  const email    = document.getElementById('login-username').value.trim();
   const password = document.getElementById('login-password').value;
   const errEl    = document.getElementById('login-error');
   errEl.style.display = 'none';
-  if (!username || !password) { errEl.textContent = 'Ingresá usuario y contraseña.'; errEl.style.display = ''; return; }
+  if (!email || !password) { errEl.textContent = 'Ingresá email y contraseña.'; errEl.style.display = ''; return; }
   try {
     const res = await fetch('/api/auth/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Error al ingresar'; errEl.style.display = ''; return; }
@@ -3925,9 +3983,9 @@ async function doLogout() {
 async function afterUserLogin() {
   // Actualizar UI del sidebar con datos del usuario
   const u = currentUser;
-  document.getElementById('user-name').textContent = u.name || u.username;
+  document.getElementById('user-name').textContent = u.name || u.email;
   document.getElementById('user-role').textContent = u.role === 'admin' ? 'Administrador' : 'Usuario';
-  document.getElementById('user-avatar').textContent = (u.name || u.username).charAt(0).toUpperCase();
+  document.getElementById('user-avatar').textContent = (u.name || u.email).charAt(0).toUpperCase();
 
   // Mostrar sección admin si corresponde
   if (u.role === 'admin') {
@@ -4117,32 +4175,91 @@ async function pollSyncStatus() {
   } catch(e) {}
 }
 
-async function loadAllowedEmails() {
+// ── Invitaciones ─────────────────────────────────────────────────
+function openInviteForm() {
+  document.getElementById('invite-modal').style.display = 'flex';
+  document.getElementById('invite-result').style.display = 'none';
+  document.getElementById('invite-label').value = '';
+  document.getElementById('invite-hours').value = '48';
+}
+function closeInviteForm() {
+  document.getElementById('invite-modal').style.display = 'none';
+  loadInvites();
+}
+function copyInviteLink() {
+  const input = document.getElementById('invite-link-input');
+  input.select();
+  document.execCommand('copy');
+  const btn = input.nextElementSibling;
+  btn.textContent = '¡Copiado!';
+  setTimeout(() => btn.textContent = 'Copiar', 2000);
+}
+async function createInvite() {
+  const label = document.getElementById('invite-label').value.trim();
+  const hours = parseInt(document.getElementById('invite-hours').value);
+  const btn = document.getElementById('invite-gen-btn');
+  btn.disabled = true; btn.textContent = 'Generando...';
   try {
-    const res = await fetch('/api/auth/allowed-emails', { headers: authHeaders() });
-    const emails = await res.json();
-    const el = document.getElementById('allowed-emails-list');
-    if (!emails.length) { el.innerHTML = '<div style="color:#9ca3af;font-size:12px;">Sin emails autorizados</div>'; return; }
-    el.innerHTML = emails.map(e => `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f3f4f6;">
-      <span style="font-size:13px;">${e}</span>
-      <button onclick="removeAllowedEmail('${e}')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:12px;">✕</button>
-    </div>`).join('');
-  } catch(e) {}
+    const res = await fetch('/api/invites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ label: label || undefined, hours }),
+    });
+    const data = await res.json();
+    if (!res.ok) return alert(data.error);
+    const link = window.location.origin + '/invite/' + data.token;
+    document.getElementById('invite-link-input').value = link;
+    document.getElementById('invite-result').style.display = 'block';
+  } catch(e) { alert('Error al generar invitación'); }
+  finally { btn.disabled = false; btn.textContent = 'Generar'; }
 }
-
-async function addAllowedEmail() {
-  const input = document.getElementById('new-allowed-email');
-  const email = input.value.trim();
-  if (!email) return;
-  await fetch('/api/auth/allowed-emails', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ email, action: 'add' }) });
-  input.value = '';
-  loadAllowedEmails();
+async function loadInvites() {
+  const el = document.getElementById('invites-list');
+  if (!el) return;
+  try {
+    const res = await fetch('/api/invites', { headers: authHeaders() });
+    const invites = await res.json();
+    if (!invites.length) {
+      el.innerHTML = '<div style="color:#9ca3af;font-size:12px;padding:8px 0;">Sin invitaciones generadas.</div>';
+      return;
+    }
+    const now = Date.now();
+    el.innerHTML = invites.map(inv => {
+      const expired = new Date(inv.expires_at).getTime() < now;
+      const used = !!inv.used_by_email;
+      const statusColor = used ? '#9ca3af' : expired ? '#dc2626' : '#059669';
+      const statusBg = used ? '#f3f4f6' : expired ? '#fee2e2' : '#f0fdf4';
+      const statusText = used ? 'Usada' : expired ? 'Vencida' : 'Activa';
+      const link = window.location.origin + '/invite/' + inv.token;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6;gap:8px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;">${esc(inv.label || '—')}</div>
+          <div style="font-size:11px;color:#9ca3af;margin-top:1px;">
+            ${used ? 'Usada por ' + esc(inv.used_by_name || inv.used_by_email) : 'Vence: ' + new Date(inv.expires_at).toLocaleString('es-UY')}
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="color:${statusColor};background:${statusBg};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;">${statusText}</span>
+          ${!used ? `<button onclick="copyInviteLinkById('${esc(inv.token)}')" style="padding:4px 10px;background:#e0e7ff;border:none;border-radius:6px;font-size:12px;color:#4361ee;cursor:pointer;font-weight:600;">Copiar</button>` : ''}
+          ${!used ? `<button onclick="revokeInvite('${esc(inv.token)}')" style="padding:4px 8px;background:#fee2e2;border:none;border-radius:6px;font-size:12px;color:#dc2626;cursor:pointer;font-weight:600;">✕</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { el.innerHTML = '<div style="color:#dc2626;font-size:12px;">Error al cargar invitaciones</div>'; }
 }
-
-async function removeAllowedEmail(email) {
-  if (!confirm('Quitar ' + email + '?')) return;
-  await fetch('/api/auth/allowed-emails', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ email, action: 'remove' }) });
-  loadAllowedEmails();
+function copyInviteLinkById(token) {
+  const link = window.location.origin + '/invite/' + token;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(link);
+  } else {
+    const t = document.createElement('textarea'); t.value = link;
+    document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t);
+  }
+}
+async function revokeInvite(token) {
+  if (!confirm('¿Revocar esta invitación?')) return;
+  await fetch('/api/invites/' + token, { method: 'DELETE', headers: authHeaders() });
+  loadInvites();
 }
 
 async function loadLastSyncInfo() {
@@ -4165,7 +4282,7 @@ async function loadLastSyncInfo() {
 }
 
 async function loadUsersPage() {
-  loadAllowedEmails();
+  loadInvites();
   loadLastSyncInfo();
   document.getElementById('users-table-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
   const res   = await fetch('/api/users', { headers: authHeaders() });
@@ -4175,54 +4292,40 @@ async function loadUsersPage() {
     return;
   }
   const rows = users.map(u => `<tr>
-    <td style="font-weight:600;">${u.name}</td>
-    <td style="font-family:monospace;color:#6b7280;">${u.username}</td>
+    <td style="font-weight:600;">${esc(u.name || '—')}</td>
+    <td style="font-size:12px;color:#6b7280;">${esc(u.email)}</td>
     <td><span style="background:${u.role==='admin'?'#ede9fe':'#f3f4f6'};color:${u.role==='admin'?'#5b21b6':'#374151'};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;">${u.role==='admin'?'Admin':'Usuario'}</span></td>
-    <td style="font-size:12px;color:#9ca3af;">${u.createdAt ? new Date(u.createdAt).toLocaleDateString('es-UY') : '—'}</td>
+    <td style="font-size:12px;color:#9ca3af;">${u.created_at ? new Date(u.created_at).toLocaleDateString('es-UY') : '—'}</td>
     <td style="display:flex;gap:6px;">
-      <button onclick='editUser(${JSON.stringify(u).replace(/'/g,"&#39;")})' style="background:#e0e7ff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;color:#4361ee;font-size:12px;font-weight:700;">Editar</button>
-      ${u.id !== currentUser?.id ? `<button onclick="deleteUser('${u.id}','${u.name}')" style="background:#fee2e2;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;color:#ef4444;font-size:12px;font-weight:700;">✕</button>` : ''}
+      <button onclick='showUserForm(${JSON.stringify(u).replace(/'/g,"&#39;")})' style="background:#e0e7ff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;color:#4361ee;font-size:12px;font-weight:700;">Editar</button>
+      ${u.id !== currentUser?.id ? `<button onclick="deleteUser('${u.id}','${esc(u.name||u.email)}')" style="background:#fee2e2;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;color:#ef4444;font-size:12px;font-weight:700;">✕</button>` : ''}
     </td>
   </tr>`).join('');
   document.getElementById('users-table-content').innerHTML = `<table>
     <thead><tr>
-      <th>Nombre</th><th>Usuario</th><th>Rol</th><th>Creado</th><th>Acciones</th>
+      <th>Nombre</th><th>Email</th><th>Rol</th><th>Creado</th><th>Acciones</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }
 
 function showUserForm(data) {
-  document.getElementById('user-modal-title').textContent = data ? 'Editar usuario' : 'Nuevo usuario';
-  document.getElementById('edit-user-id').value       = data?.id       || '';
-  document.getElementById('edit-user-name').value     = data?.name     || '';
-  document.getElementById('edit-user-username').value = data?.username || '';
-  document.getElementById('edit-user-password').value = '';
-  document.getElementById('edit-user-role').value     = data?.role     || 'user';
-  document.getElementById('edit-user-username').disabled = !!data;
-  document.getElementById('pass-hint').style.display  = data ? '' : 'none';
+  document.getElementById('edit-user-id').value  = data?.id   || '';
+  document.getElementById('edit-user-role').value = data?.role || 'user';
+  document.getElementById('edit-user-info').textContent = data ? (data.name || data.email || '') : '';
   document.getElementById('user-modal').style.display = 'flex';
 }
-function editUser(data) { showUserForm(data); }
 function closeUserForm() {
   document.getElementById('user-modal').style.display = 'none';
-  document.getElementById('edit-user-username').disabled = false;
 }
 async function saveUser() {
-  const id       = document.getElementById('edit-user-id').value;
-  const name     = document.getElementById('edit-user-name').value.trim();
-  const username = document.getElementById('edit-user-username').value.trim();
-  const password = document.getElementById('edit-user-password').value;
-  const role     = document.getElementById('edit-user-role').value;
-  if (!name) return alert('Ingresá el nombre.');
-  if (!id && !username) return alert('Ingresá un usuario.');
-  if (!id && !password) return alert('Ingresá una contraseña.');
-  const body = id ? { name, role, ...(password ? { password } : {}) }
-                  : { name, username, password, role };
-  const res = await fetch(id ? `/api/users/${id}` : '/api/users', {
-    method: id ? 'PUT' : 'POST',
+  const id   = document.getElementById('edit-user-id').value;
+  const role = document.getElementById('edit-user-role').value;
+  if (!id) return;
+  const res = await fetch(`/api/users/${id}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ role }),
   });
   if (!res.ok) { const e = await res.json(); return alert(e.error); }
   closeUserForm();
@@ -4233,6 +4336,59 @@ async function deleteUser(id, name) {
   const res = await fetch(`/api/users/${id}`, { method: 'DELETE', headers: authHeaders() });
   if (!res.ok) { const e = await res.json(); return alert(e.error); }
   loadUsersPage();
+}
+
+// ── Log de actividad ─────────────────────────────────────────────
+const ACTION_LABELS = {
+  login: { label: 'Login', color: '#16a34a', bg: '#f0fdf4' },
+  login_failed: { label: 'Login fallido', color: '#dc2626', bg: '#fef2f2' },
+  register: { label: 'Registro', color: '#2563eb', bg: '#eff6ff' },
+  invite_created: { label: 'Invite creado', color: '#7c3aed', bg: '#f5f3ff' },
+  invite_revoked: { label: 'Invite revocado', color: '#d97706', bg: '#fffbeb' },
+  user_role_changed: { label: 'Rol cambiado', color: '#0891b2', bg: '#ecfeff' },
+};
+async function loadAuditLog() {
+  const el = document.getElementById('audit-log-content');
+  el.innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
+  try {
+    const r = await fetch('/api/audit-log', { headers: authHeaders() });
+    const rows = await r.json();
+    if (!rows.length) { el.innerHTML = '<p style="color:#9ca3af;padding:16px;">Sin registros todavía.</p>'; return; }
+    const fmt = iso => {
+      const d = new Date(iso);
+      return d.toLocaleDateString('es-AR') + ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    };
+    const detailStr = d => {
+      if (!d) return '';
+      const parts = [];
+      if (d.email) parts.push(d.email);
+      if (d.reason) parts.push({ not_found: 'usuario no existe', wrong_password: 'contraseña incorrecta' }[d.reason] || d.reason);
+      if (d.target_email) parts.push('→ ' + d.target_email);
+      if (d.new_role) parts.push('rol: ' + d.new_role);
+      if (d.label) parts.push('etiqueta: ' + d.label);
+      return parts.join(' · ');
+    };
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="border-bottom:2px solid #f3f4f6;">
+        <th style="text-align:left;padding:10px 12px;color:#6b7280;font-weight:600;white-space:nowrap;">Fecha</th>
+        <th style="text-align:left;padding:10px 12px;color:#6b7280;font-weight:600;">Usuario</th>
+        <th style="text-align:left;padding:10px 12px;color:#6b7280;font-weight:600;">Acción</th>
+        <th style="text-align:left;padding:10px 12px;color:#6b7280;font-weight:600;">Detalle</th>
+        <th style="text-align:left;padding:10px 12px;color:#6b7280;font-weight:600;">IP</th>
+      </tr></thead>
+      <tbody>${rows.map(r => {
+        const a = ACTION_LABELS[r.action] || { label: r.action, color: '#374151', bg: '#f3f4f6' };
+        return `<tr style="border-bottom:1px solid #f3f4f6;">
+          <td style="padding:10px 12px;color:#6b7280;white-space:nowrap;">${fmt(r.created_at)}</td>
+          <td style="padding:10px 12px;">${r.user_name || r.user_email || '<span style="color:#9ca3af">—</span>'}</td>
+          <td style="padding:10px 12px;"><span style="background:${a.bg};color:${a.color};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;">${a.label}</span></td>
+          <td style="padding:10px 12px;color:#374151;">${detailStr(r.details)}</td>
+          <td style="padding:10px 12px;color:#9ca3af;font-size:11px;font-family:monospace;">${r.ip || '—'}</td>
+        </tr>`;
+      }).join('')}</tbody></table>`;
+  } catch(e) {
+    el.innerHTML = `<p style="color:#dc2626;padding:16px;">Error cargando log: ${e.message}</p>`;
+  }
 }
 
 // ── Modal cotización desde foto ──────────────────────────────────
@@ -4291,7 +4447,7 @@ async function analizarFoto() {
 
     const res = await fetch('/api/odoo/cotizacion-foto', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ image_base64: b64, media_type }),
     });
     const data = await res.json();
@@ -4340,7 +4496,7 @@ function renderStep2(data) {
   const lineasEl = document.getElementById('cot-lineas');
   lineasEl.innerHTML = data.lineas.map((l, i) => `
     <div style="display:grid;grid-template-columns:90px 1fr 90px 70px 100px 36px;gap:8px;align-items:start;margin-bottom:8px;">
-      <input value="${l.sku}" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:monospace;margin-top:1px;" disabled>
+      <input id="cot-l-sku-${i}" value="${l.sku}" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:monospace;margin-top:1px;" onchange="onCotSkuChange(${i}, this.value.trim())" onkeydown="if(event.key==='Enter'){this.blur();}" title="Editá el SKU y presioná Enter para buscar el producto">
       ${l.found
         ? `<input value="${l.product_name || ''}" id="cot-l-name-${i}" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;">`
         : `<div style="position:relative;">
@@ -4412,6 +4568,28 @@ function searchCotProduct(i, q) {
   drop.style.display = '';
 }
 
+function onCotSkuChange(i, val) {
+  if (!val || !odooData) return;
+  const skuBase = val.split('-')[0].toLowerCase();
+  let found = null;
+  for (const cat of odooData.categories) {
+    for (const p of cat.items) {
+      if (p.sku.toLowerCase() === val.toLowerCase() || p.sku.toLowerCase().split('-')[0] === skuBase) {
+        found = p; break;
+      }
+    }
+    if (found) break;
+  }
+  saveCotFormState();
+  if (found) {
+    selectCotProduct(i, found.id, found.name, found.price, found.sku, found.uom_id, found.tax_ids);
+  } else {
+    cotExtracted.lineas[i].sku = val;
+    const skuEl = document.getElementById(`cot-l-sku-${i}`);
+    if (skuEl) { skuEl.style.borderColor = '#fca5a5'; skuEl.style.background = '#fff1f2'; }
+  }
+}
+
 function selectCotProduct(i, productId, name, price, sku, uomId, taxIds) {
   cotExtracted.lineas[i].product_id   = productId;
   cotExtracted.lineas[i].product_name = name;
@@ -4470,7 +4648,7 @@ async function crearCotizacion() {
 
     const res = await fetch('/api/odoo/cotizacion-crear', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ partner_id, lineas, notas: document.getElementById('cot-notas').value }),
     });
     const data = await res.json();
@@ -4529,20 +4707,21 @@ async function confirmarYFacturar() {
     const dias_vencimiento = parseInt(document.getElementById('cot-dias-venc').value) || 30;
     const res = await fetch('/api/odoo/cotizacion-confirmar-full', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ partner_id, lineas, notas: document.getElementById('cot-notas').value, forma_pago, dias_vencimiento }),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     document.getElementById('cot-step-2').style.display = 'none';
     document.getElementById('cot-step-3').style.display = '';
-    document.getElementById('cot-result-title').textContent = '¡Confirmado y facturado!';
-    document.getElementById('cot-result-total').textContent = 'Total: $' + data.amount_total.toLocaleString('es-UY', { minimumFractionDigits: 2 });
-    const due = data.invoice_due ? ` · vence ${data.invoice_due}` : '';
+    document.getElementById('cot-result-title').textContent = '¡Cotización enviada a Odoo!';
+    document.getElementById('cot-result-total').textContent = 'Total: $' + (data.amount_total||0).toLocaleString('es-UY', { minimumFractionDigits: 2 });
     document.getElementById('cot-result-cards').innerHTML =
-      resultCard('Orden de venta', data.order_name, '#7c3aed') +
-      resultCard('Factura' + due, data.invoice_name, '#059669') +
-      (data.pickings?.length ? data.pickings.map(p => resultCard('Remito', p.name, '#2563eb')).join('') : '');
+      resultCard('Cotización en Odoo', data.order_name, '#7c3aed') +
+      `<div style="font-size:12px;color:#6b7280;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;margin-top:8px;line-height:1.6;">
+        📋 La cotización quedó en <strong>borrador</strong> en Odoo.<br>
+        Entrá a Odoo → buscá <strong>${data.order_name}</strong> → confirmá y generá la factura desde ahí.
+      </div>`;
   } catch (e) {
     errEl.textContent = 'Error: ' + e.message;
     errEl.style.display = '';
@@ -4557,7 +4736,7 @@ async function loadOdoo(refresh = false) {
   document.getElementById('odoo-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando productos de Odoo...</div>';
   try {
     const url = '/api/odoo/productos' + (refresh ? '?refresh=true' : '');
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: authHeaders() });
     odooData = await res.json();
     if (odooData.error) throw new Error(odooData.error);
     document.getElementById('odoo-subtitle').textContent = `${odooData.total} productos · ${odooData.categories.length} categorías · actualizado ${new Date(odooData.savedAt).toLocaleTimeString('es-UY')}`;
@@ -5055,7 +5234,7 @@ async function confirmarPedidoMayorista() {
       uom_id: i.uom_id, tax_ids: i.tax_ids,
     }));
     const res = await fetch('/api/odoo/cotizacion-crear', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
+      method: 'POST', headers: {'Content-Type':'application/json', ...authHeaders()},
       body: JSON.stringify({ partner_id: catPedido.partner_id, lineas, notas: '' }),
     });
     const data = await res.json();
@@ -5226,8 +5405,57 @@ function openVariantsPopup(uid, variants) {
 }
 
 // ── Override de categoría ─────────────────────────────────────────
+let _coProductId = null;
+let _coImgFile = null;
+
+function coPreviewImg(file) {
+  if (!file) return;
+  _coImgFile = file;
+  document.getElementById('co-img-preview').style.display = 'flex';
+  document.getElementById('co-img-filename').textContent = file.name;
+  document.getElementById('co-img-status').textContent = '';
+  const reader = new FileReader();
+  reader.onload = e => { document.getElementById('co-img-preview-img').src = e.target.result; };
+  reader.readAsDataURL(file);
+}
+function coHandleImgDrop(e) {
+  e.preventDefault();
+  document.getElementById('co-img-drop').style.borderColor = '#e5e7eb';
+  const file = e.dataTransfer.files[0];
+  if (file) coPreviewImg(file);
+}
+async function coUploadImg() {
+  if (!_coImgFile || !_coProductId) return;
+  const btn = document.getElementById('co-img-upload-btn');
+  const status = document.getElementById('co-img-status');
+  btn.textContent = 'Subiendo...'; btn.disabled = true;
+  try {
+    const fd = new FormData();
+    fd.append('imagen', _coImgFile);
+    const r = await fetch(`/api/productos/${_coProductId}/imagen`, { method: 'POST', headers: authHeaders(), body: fd });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    // Actualizar thumb en el modal y en la grilla
+    const newSrc = `/api/odoo/imagen/${_coProductId}?t=${Date.now()}`;
+    document.getElementById('co-thumb').src = newSrc;
+    const mainImg = document.getElementById('cv_' + (document.getElementById('co-sku-input').value.replace(/\W/g,'_')) + '_main');
+    if (mainImg) mainImg.src = newSrc;
+    status.style.color = '#059669'; status.textContent = '✓ Guardada';
+    btn.textContent = 'Subir imagen'; btn.disabled = false;
+    _coImgFile = null;
+  } catch(e) {
+    status.style.color = '#dc2626'; status.textContent = 'Error: ' + e.message;
+    btn.textContent = 'Subir imagen'; btn.disabled = false;
+  }
+}
+
 function openCatOverride(skuBase, currentMacro, currentSub) {
   const meta = catCardMeta[skuBase] || {};
+  _coProductId = meta.variants?.[0]?.id || null;
+  _coImgFile = null;
+  document.getElementById('co-img-preview').style.display = 'none';
+  document.getElementById('co-img-input').value = '';
+  document.getElementById('co-img-status').textContent = '';
   const modal = document.getElementById('cat-override-modal');
   // Info producto
   const thumb = document.getElementById('co-thumb');
@@ -5768,12 +5996,49 @@ function descargarCatalogo() {
   if (!macros.length) return alert('No hay productos para descargar.');
   const totalGroups = macros.reduce((s,m) => s + m.subs.reduce((ss,sub) => ss + sub.order.length, 0), 0);
 
-  // ── Generar HTML del PDF ────────────────────────────────────────
+  // ── Pre-paginación: dividir contenido en hojas físicas ──────────
+  // A4 landscape con @page margin:14mm top/bottom, 12mm left/right
+  // Alto util: 210 - 28mm = 182mm ≈ 688px
+  const PAGE_H    = Math.round(183 * 3.7795); // ≈ 692px
+  const FOOTER_H  = 44;
+  const PAD_TOP   = 16;
+  const MACRO_HDR = 48; // header negro + margin
+  const SUB_HDR   = 30; // título sub + margin
+  const CARD_H    = 196;
+  const CARD_GAP  = 8;
+  const ROW_H     = CARD_H + CARD_GAP;
+  const COLS      = 5;
+  const AVAIL     = PAGE_H - FOOTER_H - PAD_TOP;
+
+  // Divide cada macro en páginas
+  const allPages = [];
+  for (const m of macros) {
+    let usedH = MACRO_HDR;
+    let pg = { macroNombre: m.nombre, isFirst: true, items: [] };
+    const flush = () => { allPages.push(pg); pg = { macroNombre: m.nombre, isFirst: false, items: [] }; usedH = 0; };
+    for (const sub of m.subs) {
+      if (usedH + SUB_HDR > AVAIL) flush();
+      pg.items.push({ type: 'sub', name: sub.nombre });
+      usedH += SUB_HDR;
+      for (let i = 0; i < sub.order.length; i += COLS) {
+        const rowBases = sub.order.slice(i, i + COLS);
+        if (usedH + ROW_H > AVAIL) flush();
+        pg.items.push({ type: 'row', bases: rowBases, groups: sub.groups });
+        usedH += ROW_H;
+      }
+    }
+    if (pg.items.length) allPages.push(pg);
+  }
+
+  // ── Helpers de render ───────────────────────────────────────────
   const stockBadge = (stock) => stock > 10
     ? `<span style="font-size:9px;font-weight:700;color:#059669;">● En stock</span>`
     : stock > 0
     ? `<span style="font-size:9px;font-weight:700;color:#d97706;">● Stock bajo (${stock})</span>`
     : `<span style="font-size:9px;font-weight:700;color:#dc2626;">Sin stock</span>`;
+
+  const COLOR_NAME = {BLA:'Blanco',BCO:'Blanco',BLN:'Blanco',BLC:'Blanco',BLQ:'Blanco',BLU:'Blanco',NEG:'Negro',VER:'Verde',ROJ:'Rojo',RED:'Rojo',AZU:'Azul',AZL:'Azul',AMA:'Amarillo',YEL:'Amarillo',GRI:'Gris',GRS:'Gris',ROS:'Rosado',PNK:'Rosado',NAR:'Naranja',VIO:'Violeta',MAR:'Marrón',BEI:'Beige',CRE:'Crema',TUR:'Turquesa',PLT:'Plateado',SLV:'Plateado',GLD:'Dorado',BRN:'Marrón',GRN:'Verde'};
+  const colorLabel = sku => { const c=(sku||'').split('-').pop().toUpperCase(); return COLOR_NAME[c]||c; };
 
   const cardHtml = (groups, base) => {
     const variants = groups[base];
@@ -5787,56 +6052,117 @@ function descargarCatalogo() {
     const priceHtml = isGroup && minPrice !== maxPrice
       ? `desde $${Math.round(minPrice).toLocaleString('es-UY')}`
       : `$${Math.round(p0.price||0).toLocaleString('es-UY')}`;
-    const imgSrc = p0.ml_thumbnail || (location.origin + '/api/odoo/imagen/' + p0.id);
-    const variantDots = isGroup
-      ? `<div style="display:flex;gap:3px;margin-top:4px;">${variants.slice(0,6).map(()=>'<div style="width:6px;height:6px;border-radius:50%;background:#d1d5db;"></div>').join('')}${variants.length>6?`<span style="font-size:8px;color:#9ca3af;">+${variants.length-6}</span>`:''}</div>`
+
+    let imgSection;
+    if (!isGroup) {
+      const imgSrc = p0.ml_thumbnail || (location.origin + '/api/odoo/imagen/' + p0.id);
+      imgSection = `<div style="background:#f5f5f5;height:108px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <img src="${imgSrc}" style="max-width:90%;max-height:98px;object-fit:contain;mix-blend-mode:multiply;" onerror="this.style.opacity='0.1'">
+      </div>`;
+    } else {
+      const cols = variants.length <= 4 ? 2 : 3;
+      const shown = variants.slice(0, 6);
+      const extra = variants.length > 6 ? variants.length - 6 : 0;
+      const imgH = cols === 2 ? 42 : 34;
+      imgSection = `<div style="background:#f5f5f5;padding:5px;display:grid;grid-template-columns:repeat(${cols},1fr);gap:3px;flex-shrink:0;">
+        ${shown.map(v => {
+          const src = v.ml_thumbnail || (location.origin + '/api/odoo/imagen/' + v.id);
+          return `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+            <div style="background:white;border-radius:4px;width:100%;height:${imgH}px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <img src="${src}" style="max-width:88%;max-height:${imgH-4}px;object-fit:contain;mix-blend-mode:multiply;" onerror="this.style.opacity='0.1'">
+            </div>
+            <span style="font-size:6px;color:#6b7280;text-align:center;line-height:1.1;">${colorLabel(v.sku)}</span>
+          </div>`;
+        }).join('')}
+        ${extra ? `<div style="display:flex;align-items:center;justify-content:center;font-size:8px;color:#9ca3af;">+${extra}</div>` : ''}
+      </div>`;
+    }
+
+    const coloresList = isGroup
+      ? `<div style="font-size:7px;color:#6b7280;margin-top:2px;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${variants.map(v=>colorLabel(v.sku)).join(' · ')}</div>`
       : '';
-    return `<div style="background:white;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;break-inside:avoid;display:flex;flex-direction:column;">
-      <div style="background:#f5f5f5;height:140px;display:flex;align-items:center;justify-content:center;">
-        <img src="${imgSrc}" style="max-width:90%;max-height:128px;object-fit:contain;mix-blend-mode:multiply;" onerror="this.style.opacity='0.1'">
-      </div>
-      <div style="padding:10px 12px 12px;display:flex;flex-direction:column;flex:1;">
-        <div style="font-size:9px;font-weight:700;color:#9ca3af;letter-spacing:0.08em;margin-bottom:4px;">${p0.sku||'S/C'}${isGroup?` +${variants.length-1}`:''}</div>
-        <div style="font-size:11px;font-weight:700;color:#111827;line-height:1.4;flex:1;">${displayName}</div>
-        ${variantDots}
-        <div style="height:1px;background:#f3f4f6;margin:8px 0;"></div>
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div style="font-size:16px;font-weight:900;color:#111827;">${priceHtml}</div>
+
+    return `<div style="background:white;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;height:${CARD_H}px;display:flex;flex-direction:column;">
+      ${imgSection}
+      <div style="padding:6px 8px 7px;display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
+        <div style="font-size:7px;font-weight:700;color:#9ca3af;letter-spacing:0.06em;margin-bottom:2px;flex-shrink:0;">${p0.sku?.split('-')[0]||'S/C'}${isGroup?` · ${variants.length} col.`:''}</div>
+        <div style="font-size:9px;font-weight:700;color:#111827;line-height:1.25;overflow:hidden;">${displayName}</div>
+        ${coloresList}
+        <div style="height:1px;background:#f3f4f6;margin:4px 0;flex-shrink:0;margin-top:auto;"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+          <div style="font-size:13px;font-weight:900;color:#111827;">${priceHtml}</div>
           <div>${stockBadge(p0.stock??0)}</div>
         </div>
       </div>
     </div>`;
   };
 
+  // ── Footer HTML (reutilizable en cada hoja) ─────────────────────
+  const footerHtml = `<div style="background:#111827;padding:10px 28px;display:flex;align-items:center;justify-content:center;gap:48px;flex-shrink:0;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+    <span style="color:white;font-size:11px;font-weight:600;display:flex;align-items:center;gap:7px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Arenal Grande 2125, Montevideo</span>
+    <span style="color:white;font-size:11px;font-weight:600;display:flex;align-items:center;gap:7px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.41 2 2 0 0 1 3.6 1.21h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.71 2.81a2 2 0 0 1-.45 2.11L7.91 8.81A16 16 0 0 0 15.19 16l.96-.96a2 2 0 0 1 2.11-.45c.91.35 1.85.58 2.81.71A2 2 0 0 1 22 16.92z"/></svg>099 500 477</span>
+    <span style="color:white;font-size:11px;font-weight:600;display:flex;align-items:center;gap:7px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>MA Importaciones SAS</span>
+  </div>`;
+
+  // ── Renderizar páginas pre-paginadas ────────────────────────────
+  const renderPage = (pg, isVeryFirst) => `
+    <div class="pdf-page" style="border:2.5px solid #d1d5db;border-radius:14px;${isVeryFirst?'':'break-before:page;page-break-before:always;'}">
+    <div style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
+      <div style="padding:${PAD_TOP}px 20px 0;flex:1;overflow:hidden;display:flex;flex-direction:column;">
+        ${pg.isFirst
+          ? `<div style="border-radius:7px;background:#111827;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-shrink:0;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+               <span style="font-size:16px;font-weight:900;color:white;text-transform:uppercase;letter-spacing:-0.01em;">${pg.macroNombre}</span>
+               <span style="font-size:9px;color:#9ca3af;">${fecha}</span>
+             </div>`
+          : `<div style="font-size:9px;color:#9ca3af;font-style:italic;margin-bottom:10px;flex-shrink:0;">↪ ${pg.macroNombre}</div>`
+        }
+        ${pg.items.map(item => item.type === 'sub'
+          ? `<div style="font-size:10px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:0.04em;margin:8px 0 6px;flex-shrink:0;">${item.name}</div>`
+          : `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:8px;flex-shrink:0;">
+               ${item.bases.map(base => cardHtml(item.groups, base)).join('')}
+             </div>`
+        ).join('')}
+      </div>
+      ${footerHtml}
+    </div></div>`;
+
   const html = `<!DOCTYPE html><html lang="es"><head>
     <meta charset="UTF-8">
-    <title>Catálogo Mayorista</title>
+    <title>Catálogo Mayorista 2026</title>
     <style>
       *{box-sizing:border-box;margin:0;padding:0;}
-      body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:white;color:#111827;padding:28px 32px;}
-      @media print{body{padding:12px 16px;}@page{size:A4;margin:12mm 12mm;}}
+      html,body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f3f4f6;color:#111827;}
+      .pdf-page{width:272mm;height:183mm;margin:0 auto 0;display:flex;flex-direction:column;overflow:hidden;background:white;}
+      .pdf-cover{width:272mm;height:183mm;margin:0 auto;display:flex;align-items:center;justify-content:center;background:#e8e8e8;}
+      .no-print{background:#1e293b;color:white;padding:12px 24px;text-align:center;font-size:13px;font-weight:600;position:sticky;top:0;z-index:99;}
+      .no-print span{background:#f59e0b;color:#111;border-radius:4px;padding:2px 8px;margin:0 6px;font-weight:700;}
+      @media print{
+        @page{size:A4 landscape;margin:14mm 12mm;}
+        html,body{background:white;}
+        .no-print{display:none;}
+        *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+      }
     </style>
   </head><body>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;padding-bottom:16px;border-bottom:2px solid #111827;">
-      <div>
-        <div style="font-size:22px;font-weight:900;color:#111827;">Catálogo Mayorista</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:3px;">${totalGroups} productos · Vigencia: ${fecha}</div>
-      </div>
-      ${stockFilter==='con_stock'?'<div style="font-size:11px;font-weight:600;color:#059669;background:#f0fdf4;padding:4px 10px;border-radius:6px;">Solo con stock</div>':''}
+    <div class="no-print">
+      ⚙ Antes de guardar/imprimir configurá: Márgenes →<span>Ninguno</span> · Gráficos de fondo →<span>✓ activado</span>
     </div>
-    ${macros.map(m => `
-      <div style="margin:32px 0 16px;border-radius:8px;background:#111827;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;break-before:${m===macros[0]?'avoid':'page'};">
-        <span style="font-size:20px;font-weight:900;color:white;text-transform:uppercase;letter-spacing:-0.01em;">${m.nombre}</span>
-        <span style="font-size:10px;color:#9ca3af;">${m.subs.reduce((s,sub)=>s+sub.order.length,0)} productos</span>
+    <!-- PORTADA -->
+    <div class="pdf-cover">
+      <div style="display:flex;align-items:center;gap:40px;">
+        <div style="border:4px solid #555;border-radius:14px;padding:18px 28px;display:flex;flex-direction:column;align-items:center;">
+          <span style="font-size:90px;font-weight:900;color:#555;line-height:1;">20</span>
+          <span style="font-size:90px;font-weight:900;color:#555;line-height:1;">26</span>
+        </div>
+        <div style="width:4px;height:200px;background:#555;border-radius:2px;"></div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="font-size:88px;font-weight:900;color:#555;line-height:1;text-transform:uppercase;letter-spacing:-0.02em;">CATALOGO</div>
+          <div style="font-size:88px;font-weight:900;color:#555;line-height:1;text-transform:uppercase;letter-spacing:-0.02em;">MAYORISTA</div>
+          <div style="font-size:22px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.08em;margin-top:8px;">MA IMPORTACIONES SAS</div>
+        </div>
       </div>
-      ${m.subs.map(sub => `
-        <div style="font-size:14px;font-weight:800;color:#111827;text-transform:uppercase;letter-spacing:0.03em;margin:20px 0 10px;">${sub.nombre}</div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:6px;">
-          ${sub.order.map(base => cardHtml(sub.groups, base)).join('')}
-        </div>`).join('')}`).join('')}
-    <div style="margin-top:28px;padding-top:10px;border-top:1px solid #f3f4f6;font-size:9px;color:#9ca3af;text-align:center;">
-      Precios en pesos uruguayos · Sujetos a disponibilidad de stock · ${fecha}
     </div>
+    ${allPages.map((pg, i) => renderPage(pg, false)).join('')}
   </body></html>`;
 
   const win = window.open('', '_blank');
@@ -6049,7 +6375,7 @@ function renderCatalogo() {
                 <div style="background:#111827;color:white;border-radius:6px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0;">+</div>
               </div>`
             : `<div class="clist-row">
-                <img class="clist-img" src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
+                <img id="cat-img-${p.id}" class="clist-img" src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
                   onerror="if(this.dataset.fb){this.style.opacity='0';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}">
                 <div style="flex:1;min-width:0;">
                   <div class="clist-name">${p.name}</div>
@@ -11967,7 +12293,7 @@ function renderDimensionesTable() {
         <a href="${mlUrl}" target="_blank" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#374151;">
           ${thumbHtml}
           <div style="min-width:0;">
-            <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;" title="${item.title}">${item.title}</div>
+            <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;" title="${esc(item.title)}">${esc(item.title)}</div>
             <div style="font-size:11px;color:#9ca3af;">${item.id} ${item.sku ? '· ' + item.sku : ''}</div>
           </div>
         </a>
@@ -12661,7 +12987,7 @@ function renderComparadorTable() {
       <td style="max-width:300px;">
         <a href="${mlUrl}" target="_blank" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#374151;">
           ${thumbHtml}
-          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:240px;" title="${item.title}">${item.title}</span>
+          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:240px;" title="${esc(item.title)}">${esc(item.title)}</span>
         </a>
       </td>
       <td style="text-align:center;font-weight:600;">${qCurr}</td>
@@ -12954,6 +13280,27 @@ showPage = function(page) {
       <div id="co-variant-picker" style="display:none;margin-bottom:16px;">
         <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:8px;">Imagen principal</label>
         <div class="co-vp-thumbs" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+      </div>
+      <!-- Imagen -->
+      <div style="margin-bottom:14px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">Imagen del producto</label>
+        <div id="co-img-drop"
+          style="border:2px dashed #e5e7eb;border-radius:8px;padding:10px 14px;text-align:center;cursor:pointer;font-size:12px;color:#6b7280;transition:border-color 0.2s;"
+          onclick="document.getElementById('co-img-input').click()"
+          ondragover="event.preventDefault();document.getElementById('co-img-drop').style.borderColor='#7c3aed'"
+          ondragleave="document.getElementById('co-img-drop').style.borderColor='#e5e7eb'"
+          ondrop="coHandleImgDrop(event)">
+          📷 Hacé clic o arrastrá una imagen
+        </div>
+        <input id="co-img-input" type="file" accept="image/*" style="display:none" onchange="coPreviewImg(this.files[0])">
+        <div id="co-img-preview" style="display:none;margin-top:8px;display:flex;align-items:center;gap:10px;">
+          <img id="co-img-preview-img" style="height:60px;border-radius:6px;object-fit:contain;border:1px solid #e5e7eb;">
+          <div style="flex:1;min-width:0;">
+            <div id="co-img-filename" style="font-size:11px;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+            <button onclick="coUploadImg()" id="co-img-upload-btn" style="margin-top:4px;padding:4px 12px;background:#7c3aed;color:white;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">Subir imagen</button>
+            <span id="co-img-status" style="font-size:11px;margin-left:6px;"></span>
+          </div>
+        </div>
       </div>
       <!-- Posición -->
       <div style="margin-bottom:22px;">

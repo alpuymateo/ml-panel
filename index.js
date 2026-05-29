@@ -14,16 +14,114 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const cors = require('cors');
+const { Pool } = require('pg');
+
+// ── PostgreSQL ────────────────────────────────────────────────────
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_URL?.includes('railway') ? { rejectUnauthorized: false } : false });
+
+async function initDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      google_id TEXT UNIQUE,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT,
+      picture TEXT,
+      role TEXT NOT NULL DEFAULT 'user',
+      password_hash TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS invites (
+      token TEXT PRIMARY KEY,
+      created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      label TEXT,
+      used_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id BIGSERIAL PRIMARY KEY,
+      user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      details JSONB,
+      ip TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS audit_log_created_at ON audit_log(created_at DESC);
+  `);
+  console.log('[db] Tablas inicializadas');
+}
+initDb().catch(e => console.error('[db] Error inicializando tablas:', e.message));
+
+async function auditLog(userId, action, details = {}, ip = null) {
+  try {
+    await pool.query(
+      'INSERT INTO audit_log (user_id, action, details, ip) VALUES ($1, $2, $3, $4)',
+      [userId || null, action, JSON.stringify(details), ip]
+    );
+  } catch(e) {
+    console.error('[audit]', e.message);
+  }
+}
 
 const app = express();
+app.set('trust proxy', 1); // Railway runs behind a proxy
+
+// CORS — solo permite el dominio propio + localhost para dev
+const allowedOrigins = [
+  'https://ml-panel-testing-testing.up.railway.app',
+  'http://localhost:3000',
+  'http://localhost:8080',
+];
+app.use(cors({
+  origin: (origin, callback) => {
+    // Permitir requests sin origin (curl, Postman, mismo servidor)
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error('Origen no permitido por CORS'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'x-session-token'],
+  exposedHeaders: ['X-New-Token'],
+  credentials: false,
+}));
 const SERVER_START = new Date().toISOString();
 const DEPLOY_COMMIT = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0,7) || 'local';
 
 app.get('/api/version', (req, res) => res.json({ started: SERVER_START, commit: DEPLOY_COMMIT, uptime: Math.round(process.uptime()) + 's' }));
+app.get('/api/db-test', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT NOW() as t');
+    res.json({ ok: true, time: r.rows[0].t });
+  } catch(e) {
+    const msg = e.message || e.code || String(e);
+    const dbUrl = process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:([^:@]+)@/, ':***@') : 'NO CONFIGURADO';
+    res.json({ ok: false, error: msg, code: e.code, dbUrl });
+  }
+});
 
 // Security headers
 app.use(helmet({
-  contentSecurityPolicy: false, // disabled because of inline scripts in index.html
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net"],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "fonts.googleapis.com"],
+      fontSrc: ["'self'", "fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: ["'self'", "cdn.jsdelivr.net"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      frameAncestors: ["'none'"],
+    },
+  },
   crossOriginEmbedderPolicy: false,
 }));
 
@@ -35,15 +133,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rate limiting on auth endpoints
+// Rate limiting en endpoints de autenticación
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // max 20 login attempts per 15 min
-  message: { error: 'Demasiados intentos. Esperá 15 minutos.' },
+  windowMs: 15 * 60 * 1000,        // ventana de 15 minutos
+  max: 5,                            // máx 5 intentos por IP
+  message: { error: 'Demasiados intentos fallidos. Esperá 15 minutos e intentá de nuevo.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skipSuccessfulRequests: true,      // los logins exitosos no cuentan
 });
 app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
 app.use('/auth/google', authLimiter);
 
 // General rate limiting
@@ -58,34 +158,21 @@ app.use(generalLimiter);
 app.use(express.json({ limit: '25mb' }));
 const PORT = process.env.PORT || 3000;
 
-// ── Sesiones (persistidas en disco) ──
-const SESSIONS_FILE = path.join(__dirname, 'data', 'sessions.json');
-const sessions = new Map();
-
-// Cargar sesiones de disco al arrancar
-try {
-  if (fs.existsSync(SESSIONS_FILE)) {
-    const saved = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'));
-    for (const [k, v] of Object.entries(saved)) {
-      if (v.expiresAt > Date.now()) sessions.set(k, v);
-    }
-    console.log(`[sessions] ${sessions.size} sesiones cargadas de disco`);
-  }
-} catch {}
-
-function saveSessions() {
-  try {
-    const obj = {};
-    for (const [k, v] of sessions) obj[k] = v;
-    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(obj), 'utf8');
-  } catch {}
+// ── Sesiones (PostgreSQL) ──
+async function createSession(userId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 horas
+  await pool.query('INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3)', [token, userId, expiresAt]);
+  return token;
 }
 
-function getSession(token) {
-  const s = sessions.get(token);
-  if (!s) return null;
-  if (s.expiresAt < Date.now()) { sessions.delete(token); saveSessions(); return null; }
-  return s;
+async function getSession(token) {
+  if (!token) return null;
+  const r = await pool.query(
+    'SELECT s.user_id, u.id, u.email, u.name, u.picture, u.role FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.token = $1 AND s.expires_at > NOW()',
+    [token]
+  );
+  return r.rows[0] || null;
 }
 
 const { CLIENT_ID, CLIENT_SECRET, REDIRECT_URI, ANTHROPIC_API_KEY } = process.env;
@@ -329,11 +416,12 @@ app.get('/callback', async (req, res) => {
   }
 });
 
-function requireToken(req, res, next) {
-  // Verificar sesión de usuario
-  const sessionTok = req.headers['x-session-token'] || req.query._token;
-  if (sessionTok && !getSession(sessionTok)) {
-    return res.status(401).json({ error: 'Sesión inválida' });
+async function requireToken(req, res, next) {
+  const sessionTok = req.headers['x-session-token'];
+  if (sessionTok) {
+    const session = await getSession(sessionTok).catch(() => null);
+    if (!session) return res.status(401).json({ error: 'Sesión inválida' });
+    req.user = session;
   }
   if (!tokenData?.access_token) {
     const isHtml = req.headers.accept?.includes('text/html');
@@ -1715,15 +1803,19 @@ const ODOO_API_KEY = process.env.ODOO_API_KEY;
 const ODOO_STAGING_HOST    = process.env.ODOO_STAGING_HOST || ODOO_HOST;
 const ODOO_STAGING_DB      = process.env.ODOO_STAGING_DB || ODOO_DB;
 const ODOO_STAGING_API_KEY = process.env.ODOO_STAGING_API_KEY || ODOO_API_KEY;
+const ODOO_STAGING_USER    = process.env.ODOO_STAGING_USER || ODOO_USER;
 
 console.log(`[odoo] producción: ${ODOO_HOST} / ${ODOO_DB}`);
 console.log(`[odoo] staging: ${ODOO_STAGING_HOST} / ${ODOO_STAGING_DB}`);
 
 // JSON-RPC call to Odoo (más rápido que XML-RPC)
 let jsonRpcId = 1;
-async function odooCall(path, method, params, host = ODOO_HOST) {
-  const protocol = host.includes('odoo.com') ? 'https' : 'http';
-  const url = `${protocol}://${host}/jsonrpc`;
+async function odooCall(path, method, params, host = ODOO_HOST, httpsAgent = undefined) {
+  // Si el host ya incluye protocolo (ej: "https://..."), lo extraemos
+  const hasProto = /^https?:\/\//.test(host);
+  const protocol = hasProto ? host.split('://')[0] : 'https';
+  const cleanHost = hasProto ? host.replace(/^https?:\/\//, '').replace(/\/$/, '') : host.replace(/\/$/, '');
+  const url = `${protocol}://${cleanHost}/jsonrpc`;
 
   // Map XML-RPC style calls to JSON-RPC format
   const body = {
@@ -1735,7 +1827,7 @@ async function odooCall(path, method, params, host = ODOO_HOST) {
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const r = await axios.post(url, body, { headers: { 'Content-Type': 'application/json' }, timeout: 120000 });
+      const r = await axios.post(url, body, { headers: { 'Content-Type': 'application/json' }, timeout: 120000, ...(httpsAgent ? { httpsAgent } : {}) });
       if (r.data.error) throw new Error(r.data.error.data?.message || r.data.error.message || JSON.stringify(r.data.error));
       return r.data.result;
     } catch (e) {
@@ -1746,15 +1838,23 @@ async function odooCall(path, method, params, host = ODOO_HOST) {
   }
 }
 
+// Staging usa XML-RPC directo (el servidor de Opentech no expone /jsonrpc)
 function odooCallStaging(path, method, params) {
-  return odooCall(path, method, params, ODOO_STAGING_HOST);
+  const rawHost = ODOO_STAGING_HOST.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const useSSL  = !ODOO_STAGING_HOST.startsWith('http://');
+  const client  = useSSL
+    ? xmlrpc.createSecureClient({ host: rawHost, path, rejectUnauthorized: false })
+    : xmlrpc.createClient({ host: rawHost, path });
+  return new Promise((resolve, reject) => {
+    client.methodCall(method, params, (err, val) => err ? reject(err) : resolve(val));
+  });
 }
 
 async function odooAuth() {
   return odooCall('/xmlrpc/2/common', 'authenticate', [ODOO_DB, ODOO_USER, ODOO_API_KEY, {}]);
 }
 async function odooAuthStaging() {
-  return odooCallStaging('/xmlrpc/2/common', 'authenticate', [ODOO_STAGING_DB, ODOO_USER, ODOO_STAGING_API_KEY, {}]);
+  return odooCallStaging('/xmlrpc/2/common', 'authenticate', [ODOO_STAGING_DB, ODOO_STAGING_USER, ODOO_STAGING_API_KEY, {}]);
 }
 
 // API endpoint to tell frontend which DB is connected
@@ -2253,7 +2353,7 @@ app.get('/api/odoo/sync-status', requireAdmin, (req, res) => {
   res.json({ status: _syncStatus, progress: _syncProgress, log: _syncLog, lastUpdate, productCount });
 });
 
-app.get('/api/odoo/buscar-partner', async (req, res) => {
+app.get('/api/odoo/buscar-partner', requireUser, async (req, res) => {
   try {
     const q = req.query.q || '';
     if (!q) return res.json([]);
@@ -2289,7 +2389,7 @@ app.get('/api/odoo/imagen/:id', async (req, res) => {
   try {
     if (fs.existsSync(filePath)) {
       res.setHeader('Content-Type', 'image/png');
-      res.setHeader('Cache-Control', 'public, max-age=604800');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
       return res.end(fs.readFileSync(filePath));
     }
     const uid = await odooAuth();
@@ -2308,6 +2408,17 @@ app.get('/api/odoo/imagen/:id', async (req, res) => {
   } catch (err) {
     res.status(500).end();
   }
+});
+
+// Subir imagen local para un producto (se guarda en data/images/{id}.png)
+app.post('/api/productos/:id/imagen', requireUser, upload.single('imagen'), (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+  if (!req.file) return res.status(400).json({ error: 'No se recibió imagen' });
+  const filePath = path.join(IMG_CACHE_DIR, `${id}.png`);
+  fs.writeFileSync(filePath, req.file.buffer);
+  console.log(`[imagen] producto ${id} actualizado localmente (${req.file.size} bytes)`);
+  res.json({ ok: true, url: `/api/odoo/imagen/${id}` });
 });
 
 function upgradeMlThumb(url) {
@@ -2611,7 +2722,7 @@ app.post('/api/catalog/import-cache', requireToken, (req, res) => {
   }
 });
 
-app.get('/api/odoo/productos', async (req, res) => {
+app.get('/api/odoo/productos', requireUser, async (req, res) => {
   try {
     if (req.query.refresh === 'true' && !process.env.RAILWAY_ENVIRONMENT) {
       buildCatalogoCache(true).catch(e => console.error('[catalogo] refresh error:', e.message));
@@ -2954,7 +3065,7 @@ app.get('/api/stock/cruce-nombre', requireToken, async (req, res) => {
   }
 });
 
-app.get('/api/odoo/cruce', async (req, res) => {
+app.get('/api/odoo/cruce', requireUser, async (req, res) => {
   try {
     const products = await getOdooProducts(req.query.refresh === 'true');
 
@@ -2995,7 +3106,7 @@ app.get('/api/odoo/cruce', async (req, res) => {
 });
 
 // ── Cotización desde foto ────────────────────────────────────────
-app.post('/api/odoo/cotizacion-foto', express.json({ limit: '20mb' }), async (req, res) => {
+app.post('/api/odoo/cotizacion-foto', requireUser, express.json({ limit: '20mb' }), async (req, res) => {
   try {
     const { image_base64, media_type } = req.body;
     if (!image_base64) return res.status(400).json({ error: 'Se requiere image_base64' });
@@ -3120,7 +3231,7 @@ Si no encontrás algún campo ponelo como null.`,
   }
 });
 
-app.post('/api/odoo/cotizacion-crear', express.json(), async (req, res) => {
+app.post('/api/odoo/cotizacion-crear', requireUser, express.json(), async (req, res) => {
   try {
     const { partner_id, lineas, notas } = req.body;
     if (!partner_id) return res.status(400).json({ error: 'Se requiere partner_id' });
@@ -3233,15 +3344,19 @@ app.get('/api/odoo/pedido-mayorista/:id', requireToken, async (req, res) => {
 });
 
 // ── Confirmar orden + crear factura + remito ─────────────────────
-app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res) => {
+app.post('/api/odoo/cotizacion-confirmar-full', requireUser, express.json(), async (req, res) => {
   try {
     const { partner_id, lineas, notas, forma_pago, dias_vencimiento } = req.body;
     if (!partner_id) return res.status(400).json({ error: 'Se requiere partner_id' });
     if (!lineas?.length) return res.status(400).json({ error: 'Se requieren líneas' });
 
-    const uid = await odooAuthStaging();
+    // Auth con Odoo staging
+    let uid;
+    try { uid = await odooAuthStaging(); }
+    catch (e) { return res.status(502).json({ error: `[auth staging] ${e.message}` }); }
+    if (!uid) return res.status(502).json({ error: '[auth staging] Odoo no devolvió UID' });
 
-    // 1. Crear orden de venta
+    // Crear cotización (borrador) — NO se confirma ni factura desde acá
     const order_lines = lineas.map(l => [0, 0, {
       product_id:      l.product_id,
       name:            l.product_name,
@@ -3252,70 +3367,34 @@ app.post('/api/odoo/cotizacion-confirmar-full', express.json(), async (req, res)
       ...(l.descuento ? { discount: l.descuento } : {}),
     }]);
 
-    const orderId = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'create',
-      [{ partner_id, pricelist_id: 2, date_order: new Date().toISOString().replace('T', ' ').slice(0, 19), note: notas || '', order_line: order_lines }],
-    ]);
+    // Notas incluyen forma de pago para referencia en Odoo
+    const notaCompleta = [
+      notas || '',
+      forma_pago === 'credito' ? `Pago: Crédito ${dias_vencimiento} días` : 'Pago: Contado',
+    ].filter(Boolean).join('\n');
 
-    // 2. Confirmar orden
-    await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'action_confirm', [[orderId]],
-    ]);
-
-    // 3. Leer orden confirmada (nombre + pickings)
-    const [order] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'read',
-      [[orderId]], { fields: ['name', 'amount_total', 'picking_ids'] },
-    ]);
-
-    // 4. Crear factura desde la orden
-    const invoiceIds = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', '_create_invoices',
-      [[orderId]], { final: false },
-    ]);
-
-    if (!invoiceIds?.length) return res.status(500).json({ error: 'No se pudo crear la factura' });
-    const invoiceId = invoiceIds[0];
-
-    // 5. Ajustar fecha de vencimiento si es crédito
-    if (forma_pago === 'credito' && dias_vencimiento) {
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + parseInt(dias_vencimiento));
-      await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'write',
-        [[invoiceId], { invoice_date_due: dueDate.toISOString().slice(0, 10) }],
+    let orderId;
+    try {
+      orderId = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'create',
+        [{ partner_id, pricelist_id: 2, date_order: new Date().toISOString().replace('T', ' ').slice(0, 19), note: notaCompleta, order_line: order_lines }],
       ]);
-    }
+    } catch(e) { return res.status(502).json({ error: `[crear orden] ${e.message}` }); }
 
-    // 6. Validar/postear la factura
-    await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'action_post', [[invoiceId]],
-    ]);
-
-    // 7. Leer nombre de factura
-    const [invoice] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'read',
-      [[invoiceId]], { fields: ['name', 'amount_total', 'invoice_date_due'] },
-    ]);
-
-    // 8. Leer remito(s)
-    let pickings = [];
-    if (order.picking_ids?.length) {
-      pickings = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'stock.picking', 'read',
-        [order.picking_ids], { fields: ['name', 'state'] },
+    // Leer nombre asignado
+    let order;
+    try {
+      [order] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'read',
+        [[orderId]], { fields: ['name', 'amount_total'] },
       ]);
-    }
+    } catch(e) { return res.status(502).json({ error: `[leer orden] ${e.message}` }); }
 
     res.json({
       success:      true,
       order_id:     orderId,
       order_name:   order.name,
       amount_total: order.amount_total,
-      invoice_id:   invoiceId,
-      invoice_name: invoice.name,
-      invoice_due:  invoice.invoice_date_due,
-      pickings:     pickings.map(p => ({ name: p.name, state: p.state })),
     });
   } catch (err) {
     console.error('[cotizacion-confirmar-full] error:', err.message);
@@ -3466,88 +3545,68 @@ Respondé ÚNICAMENTE con JSON válido, sin texto adicional:
   }
 });
 
-// ── Usuarios y sesiones ──────────────────────────────────────────
-const USERS_FILE = path.join(__dirname, 'data', 'users.json');
-
-function hashPassword(password, salt) {
-  return crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-}
-function loadUsers() {
+// ── Usuarios y sesiones (PostgreSQL) ─────────────────────────────
+async function requireUser(req, res, next) {
+  const token = req.headers['x-session-token'];
+  if (!token) return res.status(401).json({ error: 'Sesión inválida' });
   try {
-    if (fs.existsSync(USERS_FILE)) return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-  } catch(e) {}
-  return [];
-}
-function saveUsers(data) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(data, null, 2), 'utf8');
-}
-
-// Crear admin por defecto si no hay usuarios
-(function ensureAdmin() {
-  const users = loadUsers();
-  if (!users.length) {
-    const salt = crypto.randomBytes(16).toString('hex');
-    users.push({
-      id:       crypto.randomUUID(),
-      username: 'admin',
-      name:     'Administrador',
-      role:     'admin',
-      salt,
-      hash:     hashPassword('admin123', salt),
-      createdAt: new Date().toISOString(),
-    });
-    saveUsers(users);
-    console.log('[usuarios] Usuario admin creado — password: admin123  (cambialo después)');
+    const session = await getSession(token);
+    if (!session) return res.status(401).json({ error: 'Sesión inválida o expirada' });
+    req.user = session;
+    // Rotación de token en cada request autenticado
+    const newToken = await createSession(session.user_id || session.id);
+    await pool.query('DELETE FROM sessions WHERE token = $1', [token]);
+    res.setHeader('X-New-Token', newToken);
+    next();
+  } catch (e) {
+    res.status(500).json({ error: 'Error de autenticación' });
   }
-})();
-
-function createSession(userId) {
-  const token = crypto.randomBytes(32).toString('hex');
-  sessions.set(token, { userId, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
-  saveSessions();
-  return token;
 }
-function requireUser(req, res, next) {
-  const token = req.headers['x-session-token'] || req.query._token;
-  const session = token ? getSession(token) : null;
-  if (!session) return res.status(401).json({ error: 'Sesión inválida' });
-  const users = loadUsers();
-  const user = users.find(u => u.id === session.userId);
-  if (!user) return res.status(401).json({ error: 'Usuario no encontrado' });
-  req.user = user;
-  next();
-}
-function requireAdmin(req, res, next) {
-  requireUser(req, res, () => {
-    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Sin permiso' });
+async function requireAdmin(req, res, next) {
+  await requireUser(req, res, () => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Sin permiso de administrador' });
     next();
   });
 }
 
-// POST /api/auth/login
-app.post('/api/auth/login', (req, res) => {
-  const { username, password } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'Faltan credenciales' });
-  const users = loadUsers();
-  const user  = users.find(u => u.username === username);
-  if (!user) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
-  const h = hashPassword(password, user.salt);
-  if (h !== user.hash) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
-  const token = createSession(user.id);
-  res.json({ token, user: { id: user.id, username: user.username, name: user.name, role: user.role } });
+// POST /api/auth/login (email + contraseña — solo para usuarios registrados con invite)
+app.post('/api/auth/login', express.json(), async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: 'Faltan credenciales' });
+    const r = await pool.query('SELECT * FROM users WHERE email = $1 AND password_hash IS NOT NULL', [email]);
+    if (!r.rows.length) {
+      await auditLog(null, 'login_failed', { email, reason: 'not_found' }, req.ip);
+      return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+    }
+    const user = r.rows[0];
+    const [salt, hash] = user.password_hash.split(':');
+    const check = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+    if (check !== hash) {
+      await auditLog(user.id, 'login_failed', { email, reason: 'wrong_password' }, req.ip);
+      return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+    }
+    const token = await createSession(user.id);
+    await auditLog(user.id, 'login', { email }, req.ip);
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  } catch(e) {
+    const msg = e.message || e.code || (e.errors && e.errors[0]?.message) || String(e);
+    console.error('[login] Error DB:', msg);
+    res.status(500).json({ error: 'Error DB: ' + msg });
+  }
 });
 
 // POST /api/auth/logout
-app.post('/api/auth/logout', (req, res) => {
+app.post('/api/auth/logout', async (req, res) => {
   const token = req.headers['x-session-token'];
-  if (token) sessions.delete(token);
+  if (token) await pool.query('DELETE FROM sessions WHERE token = $1', [token]).catch(() => {});
   res.json({ ok: true });
 });
 
 // GET /api/auth/me
 app.get('/api/auth/me', requireUser, (req, res) => {
-  const { id, username, name, role, email } = req.user;
-  res.json({ id, username, name, role, email });
+  const { id, name, role, email, picture } = req.user;
+  res.json({ id, name, role, email, picture });
 });
 
 // ── Google OAuth ──
@@ -3565,6 +3624,7 @@ app.get('/auth/google', (req, res) => {
     scope: 'openid email profile',
     access_type: 'online',
     prompt: 'select_account',
+    state: req.query.invite || '',
   });
   res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
 });
@@ -3583,129 +3643,201 @@ app.get('/auth/google/callback', async (req, res) => {
     });
     const { access_token } = tokenRes.data;
 
-    // Get user info
+    // Get user info from Google
     const userRes = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
       headers: { Authorization: `Bearer ${access_token}` },
     });
-    const { email, name, picture } = userRes.data;
+    const { id: googleId, email, name, picture } = userRes.data;
+    const inviteToken = req.query.state || '';
 
-    // Check if email is authorized
-    const users = loadUsers();
-    let user = users.find(u => u.email === email);
+    // ¿Ya existe el usuario?
+    const existingRes = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const isNewUser = !existingRes.rows.length;
 
-    if (!user) {
-      // Check allowed emails list
-      const ALLOWED_FILE = path.join(__dirname, 'data', 'allowed_emails.json');
-      let allowed = [];
-      try { allowed = fs.existsSync(ALLOWED_FILE) ? JSON.parse(fs.readFileSync(ALLOWED_FILE, 'utf8')) : []; } catch {}
+    if (isNewUser) {
+      // Usuario nuevo: verificar invite válido
+      const countRes = await pool.query('SELECT COUNT(*) FROM users');
+      const isFirst = parseInt(countRes.rows[0].count) === 0;
 
-      if (!allowed.includes(email)) {
-        return res.send('<html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;"><div style="text-align:center;"><h2>Acceso denegado</h2><p>' + email + ' no está autorizado.</p><a href="/">Volver</a></div></body></html>');
+      if (!isFirst) {
+        // No es el primero → necesita invite válido
+        if (!inviteToken) return res.redirect('/invite-required');
+        const invRes = await pool.query(
+          'SELECT * FROM invites WHERE token = $1 AND used_by IS NULL AND expires_at > NOW()',
+          [inviteToken]
+        );
+        if (!invRes.rows.length) return res.redirect('/invite-expired');
       }
-
-      // Create user automatically
-      const salt = crypto.randomBytes(16).toString('hex');
-      user = {
-        id: crypto.randomUUID(),
-        username: email.split('@')[0],
-        name: name || email,
-        email,
-        picture,
-        role: 'user',
-        salt,
-        hash: hashPassword(crypto.randomBytes(32).toString('hex'), salt), // random password
-        createdAt: new Date().toISOString(),
-        googleAuth: true,
-      };
-      users.push(user);
-      saveUsers(users);
-      console.log('[auth] nuevo usuario Google:', email);
-    } else {
-      // Update name/picture
-      if (name && !user.name) user.name = name;
-      if (picture) user.picture = picture;
-      user.email = email;
-      user.googleAuth = true;
-      saveUsers(users);
     }
 
-    // Create session
-    const sessionTok = createSession(user.id);
+    // Primer usuario es admin
+    const countRes2 = await pool.query('SELECT COUNT(*) FROM users');
+    const isFirst2 = parseInt(countRes2.rows[0].count) === 0;
+
+    // Crear o actualizar usuario
+    const upsertRes = await pool.query(`
+      INSERT INTO users (google_id, email, name, picture, role)
+      VALUES ($1, $2, $3, $4, COALESCE((SELECT role FROM users WHERE email = $2), $5))
+      ON CONFLICT (email) DO UPDATE SET google_id = $1, name = $3, picture = $4
+      RETURNING *
+    `, [googleId, email, name || email, picture, isFirst2 ? 'admin' : 'user']);
+
+    const user = upsertRes.rows[0];
+
+    // Marcar invite como usado si aplica
+    if (isNewUser && inviteToken) {
+      await pool.query('UPDATE invites SET used_by = $1 WHERE token = $2', [user.id, inviteToken]);
+    }
+
+    console.log('[auth] login Google:', email, '- rol:', user.role);
+
+    // Crear sesión en DB
+    const sessionTok = await createSession(user.id);
     res.send(`<html><body><script>
       localStorage.setItem('session_token', '${sessionTok}');
       window.location.href = '/';
     </script></body></html>`);
   } catch (e) {
     console.error('[auth] Google OAuth error:', e.message);
-    res.status(500).send('Error de autenticación: ' + e.message);
+    res.status(500).send('Error de autenticación: ' + esc(e.message));
   }
 });
 
-// API para gestionar emails autorizados (admin)
-const ALLOWED_EMAILS_FILE = path.join(__dirname, 'data', 'allowed_emails.json');
-function loadAllowedEmails() { try { return fs.existsSync(ALLOWED_EMAILS_FILE) ? JSON.parse(fs.readFileSync(ALLOWED_EMAILS_FILE, 'utf8')) : ['alpuy.mateo@gmail.com']; } catch { return ['alpuy.mateo@gmail.com']; } }
-function saveAllowedEmails(list) { fs.writeFileSync(ALLOWED_EMAILS_FILE, JSON.stringify(list, null, 2)); }
-
-// Initialize file if not exists
-if (!fs.existsSync(ALLOWED_EMAILS_FILE)) saveAllowedEmails(['alpuy.mateo@gmail.com']);
-
-app.get('/api/auth/allowed-emails', requireAdmin, (req, res) => {
-  res.json(loadAllowedEmails());
+// ── Sistema de Invitaciones ───────────────────────────────────────
+// Crear invite (admin)
+app.post('/api/invites', requireAdmin, express.json(), async (req, res) => {
+  const { label, hours = 48 } = req.body || {};
+  const token = crypto.randomBytes(24).toString('hex');
+  const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+  await pool.query(
+    'INSERT INTO invites (token, created_by, label, expires_at) VALUES ($1, $2, $3, $4)',
+    [token, req.user.id, label || null, expiresAt]
+  );
+  await auditLog(req.user.id, 'invite_created', { label: label || null, hours, expires_at: expiresAt }, req.ip);
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  res.json({ token, link: `${baseUrl}/invite/${token}`, expires_at: expiresAt });
 });
 
-app.post('/api/auth/allowed-emails', requireAdmin, (req, res) => {
-  const { email, action } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email requerido' });
-  let list = loadAllowedEmails();
-  if (action === 'add' && !list.includes(email)) list.push(email);
-  if (action === 'remove') list = list.filter(e => e !== email);
-  saveAllowedEmails(list);
-  res.json({ ok: true, emails: list });
+// Listar invites (admin)
+app.get('/api/invites', requireAdmin, async (req, res) => {
+  const r = await pool.query(`
+    SELECT i.token, i.label, i.expires_at, i.created_at,
+           u.name AS used_by_name, u.email AS used_by_email
+    FROM invites i
+    LEFT JOIN users u ON i.used_by = u.id
+    ORDER BY i.created_at DESC
+  `);
+  res.json(r.rows);
 });
 
-// GET /api/users  (admin)
-app.get('/api/users', requireAdmin, (req, res) => {
-  res.json(loadUsers().map(({ id, username, name, role, createdAt }) => ({ id, username, name, role, createdAt })));
-});
-
-// POST /api/users  (admin)
-app.post('/api/users', requireAdmin, (req, res) => {
-  const { username, name, password, role } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'username y password son requeridos' });
-  const users = loadUsers();
-  if (users.find(u => u.username === username)) return res.status(409).json({ error: 'El usuario ya existe' });
-  const salt = crypto.randomBytes(16).toString('hex');
-  const user = { id: crypto.randomUUID(), username, name: name || username, role: role || 'user', salt, hash: hashPassword(password, salt), createdAt: new Date().toISOString() };
-  users.push(user);
-  saveUsers(users);
-  res.json({ id: user.id, username: user.username, name: user.name, role: user.role });
-});
-
-// PUT /api/users/:id  (admin — cambia nombre, rol o password)
-app.put('/api/users/:id', requireAdmin, (req, res) => {
-  const users = loadUsers();
-  const idx   = users.findIndex(u => u.id === req.params.id);
-  if (idx < 0) return res.status(404).json({ error: 'Usuario no encontrado' });
-  const { name, role, password } = req.body || {};
-  if (name)     users[idx].name = name;
-  if (role)     users[idx].role = role;
-  if (password) {
-    const salt = crypto.randomBytes(16).toString('hex');
-    users[idx].salt = salt;
-    users[idx].hash = hashPassword(password, salt);
-  }
-  saveUsers(users);
-  res.json({ id: users[idx].id, username: users[idx].username, name: users[idx].name, role: users[idx].role });
-});
-
-// DELETE /api/users/:id  (admin)
-app.delete('/api/users/:id', requireAdmin, (req, res) => {
-  const users = loadUsers();
-  if (users.find(u => u.id === req.params.id)?.role === 'admin' &&
-      users.filter(u => u.role === 'admin').length === 1)
-    return res.status(400).json({ error: 'No podés eliminar el único admin' });
-  saveUsers(users.filter(u => u.id !== req.params.id));
+// Revocar invite (admin)
+app.delete('/api/invites/:token', requireAdmin, async (req, res) => {
+  await pool.query('DELETE FROM invites WHERE token = $1', [req.params.token]);
+  await auditLog(req.user.id, 'invite_revoked', { token: req.params.token }, req.ip);
   res.json({ ok: true });
+});
+
+// Validar invite (público — para la página de registro)
+app.get('/api/invites/:token/check', async (req, res) => {
+  const r = await pool.query(
+    'SELECT token, label, expires_at, used_by FROM invites WHERE token = $1',
+    [req.params.token]
+  );
+  if (!r.rows.length) return res.status(404).json({ valid: false, reason: 'not_found' });
+  const inv = r.rows[0];
+  if (inv.used_by) return res.json({ valid: false, reason: 'used' });
+  if (new Date(inv.expires_at) < new Date()) return res.json({ valid: false, reason: 'expired' });
+  res.json({ valid: true, label: inv.label, expires_at: inv.expires_at });
+});
+
+// Validación de complejidad de contraseña
+function validatePassword(password) {
+  if (!password || password.length < 8) return 'La contraseña debe tener al menos 8 caracteres';
+  if (!/[A-Z]/.test(password)) return 'La contraseña debe incluir al menos una mayúscula';
+  if (!/[0-9]/.test(password)) return 'La contraseña debe incluir al menos un número';
+  return null;
+}
+
+// Registro con email/contraseña + invite (público)
+app.post('/api/auth/register', express.json(), async (req, res) => {
+  const { invite_token, name, email, password } = req.body || {};
+  if (!invite_token || !name || !email || !password)
+    return res.status(400).json({ error: 'Faltan campos requeridos' });
+  const pwError = validatePassword(password);
+  if (pwError) return res.status(400).json({ error: pwError });
+
+  // Validar invite
+  const invRes = await pool.query(
+    'SELECT * FROM invites WHERE token = $1 AND used_by IS NULL AND expires_at > NOW()',
+    [invite_token]
+  );
+  if (!invRes.rows.length) return res.status(400).json({ error: 'Invitación inválida o expirada' });
+
+  // Verificar que el email no exista
+  const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+  if (existing.rows.length) return res.status(409).json({ error: 'El email ya está registrado' });
+
+  // Crear usuario
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+  const countRes = await pool.query('SELECT COUNT(*) FROM users');
+  const role = parseInt(countRes.rows[0].count) === 0 ? 'admin' : 'user';
+
+  const userRes = await pool.query(
+    'INSERT INTO users (email, name, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING *',
+    [email, name, `${salt}:${hash}`, role]
+  );
+  const user = userRes.rows[0];
+
+  // Marcar invite como usado
+  await pool.query('UPDATE invites SET used_by = $1 WHERE token = $2', [user.id, invite_token]);
+
+  await auditLog(user.id, 'register', { email, role }, req.ip);
+
+  // Crear sesión
+  const token = await createSession(user.id);
+  res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+});
+
+// ── Usuarios (admin) ──────────────────────────────────────────────
+app.get('/api/users', requireAdmin, async (req, res) => {
+  const r = await pool.query('SELECT id, email, name, picture, role, created_at FROM users ORDER BY created_at');
+  res.json(r.rows);
+});
+
+// PUT /api/users/:id — solo cambia el rol
+app.put('/api/users/:id', requireAdmin, express.json(), async (req, res) => {
+  const { role } = req.body || {};
+  if (!role) return res.status(400).json({ error: 'role requerido' });
+  const r = await pool.query('UPDATE users SET role = $1 WHERE id = $2 RETURNING id, email, name, role', [role, req.params.id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'Usuario no encontrado' });
+  await auditLog(req.user.id, 'user_role_changed', { target_id: req.params.id, target_email: r.rows[0].email, new_role: role }, req.ip);
+  res.json(r.rows[0]);
+});
+
+// DELETE /api/users/:id
+app.delete('/api/users/:id', requireAdmin, async (req, res) => {
+  const admins = await pool.query("SELECT id FROM users WHERE role = 'admin'");
+  const target = await pool.query('SELECT role FROM users WHERE id = $1', [req.params.id]);
+  if (!target.rows.length) return res.status(404).json({ error: 'Usuario no encontrado' });
+  if (target.rows[0].role === 'admin' && admins.rows.length === 1)
+    return res.status(400).json({ error: 'No podés eliminar el único admin' });
+  await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
+  res.json({ ok: true });
+});
+
+// ── Log de actividad (admin) ──────────────────────────────────────
+app.get('/api/audit-log', requireAdmin, async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+  const r = await pool.query(`
+    SELECT a.id, a.action, a.details, a.ip, a.created_at,
+           u.email AS user_email, u.name AS user_name
+    FROM audit_log a
+    LEFT JOIN users u ON a.user_id = u.id
+    ORDER BY a.created_at DESC
+    LIMIT $1
+  `, [limit]);
+  res.json(r.rows);
 });
 
 // ── ML: comisiones por categoría (cache en disco) ────────────────
@@ -8092,7 +8224,9 @@ app.get('/api/ihome-mapping', requireToken, (req, res) => {
 });
 
 app.get('/api/product-image/:filename', (req, res) => {
-  const filePath = path.join(PRODUCT_IMAGES_DIR, req.params.filename);
+  const filename = path.basename(req.params.filename); // elimina ../ y rutas
+  const filePath = path.join(PRODUCT_IMAGES_DIR, filename);
+  if (!filePath.startsWith(PRODUCT_IMAGES_DIR + path.sep)) return res.status(403).end();
   if (fs.existsSync(filePath)) return res.sendFile(filePath);
   res.status(404).end();
 });
@@ -8271,6 +8405,95 @@ app.get('/api/trends/regions', requireToken, async (req, res) => {
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── Páginas de invite ─────────────────────────────────────────────
+const invitePage = (token) => `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Registro — MA Importaciones</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}.card{background:white;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,0.1);padding:40px;width:100%;max-width:420px}.logo{text-align:center;margin-bottom:28px}.logo h1{font-size:20px;font-weight:800;color:#111827}.logo p{font-size:13px;color:#6b7280;margin-top:4px}.form-group{margin-bottom:16px}label{display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px}input{width:100%;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;outline:none;transition:border-color 0.2s}input:focus{border-color:#6366f1}.btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;transition:opacity 0.2s}.btn-primary{background:#111827;color:white}.btn-primary:hover{opacity:0.85}.error{background:#fee2e2;color:#dc2626;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none}.pw-reqs{margin-top:8px;display:none;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb}.req{font-size:12px;color:#9ca3af;margin:3px 0;display:flex;align-items:center;gap:6px}.req.ok{color:#16a34a}.req.fail{color:#dc2626}.req::before{content:'○';font-size:10px}.req.ok::before{content:'✓'}.req.fail::before{content:'✗'}</style>
+</head><body>
+<div class="card">
+  <div class="logo">
+    <h1>MA Importaciones</h1>
+    <p>Fuiste invitado a unirte al panel</p>
+  </div>
+  <div id="error" class="error"></div>
+  <div>
+    <form onsubmit="register(event)">
+      <div class="form-group"><label>Nombre</label><input id="r-name" type="text" placeholder="Tu nombre" required></div>
+      <div class="form-group"><label>Email</label><input id="r-email" type="email" placeholder="tu@email.com" required></div>
+      <div class="form-group"><label>Contraseña</label><input id="r-pass" type="password" placeholder="Mínimo 8 caracteres" required oninput="checkPw(this.value)">
+        <div id="pw-reqs" class="pw-reqs">
+          <div id="req-len" class="req">Mínimo 8 caracteres</div>
+          <div id="req-upper" class="req">Al menos una mayúscula (A-Z)</div>
+          <div id="req-num" class="req">Al menos un número (0-9)</div>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary" id="r-btn">Crear cuenta</button>
+    </form>
+  </div>
+</div>
+<script>
+const INVITE = '${token}';
+function checkPw(v) {
+  const reqs = document.getElementById('pw-reqs');
+  reqs.style.display = v.length ? '' : 'none';
+  const setReq = (id, ok) => {
+    const el = document.getElementById(id);
+    el.className = 'req ' + (ok ? 'ok' : (v.length ? 'fail' : ''));
+  };
+  setReq('req-len', v.length >= 8);
+  setReq('req-upper', /[A-Z]/.test(v));
+  setReq('req-num', /[0-9]/.test(v));
+}
+async function register(e) {
+  e.preventDefault();
+  const btn = document.getElementById('r-btn');
+  const errEl = document.getElementById('error');
+  const pass = document.getElementById('r-pass').value;
+  errEl.style.display = 'none';
+  if (pass.length < 8 || !/[A-Z]/.test(pass) || !/[0-9]/.test(pass)) {
+    checkPw(pass);
+    errEl.textContent = 'La contraseña no cumple los requisitos'; errEl.style.display = '';
+    return;
+  }
+  btn.textContent = 'Creando cuenta...'; btn.disabled = true;
+  try {
+    const r = await fetch('/api/auth/register', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ invite_token: INVITE, name: document.getElementById('r-name').value, email: document.getElementById('r-email').value, password: pass })
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    localStorage.setItem('session_token', d.token);
+    window.location.href = '/';
+  } catch(err) {
+    errEl.textContent = err.message; errEl.style.display = '';
+    btn.textContent = 'Crear cuenta'; btn.disabled = false;
+  }
+}
+// Validar invite al cargar
+fetch('/api/invites/${token}/check').then(r=>r.json()).then(d=>{
+  if (!d.valid) window.location.href = d.reason === 'used' ? '/invite-used' : '/invite-expired';
+});
+</script>
+</body></html>`;
+
+app.get('/invite/:token', (req, res) => {
+  res.send(invitePage(req.params.token));
+});
+
+app.get('/invite-required', (req, res) => {
+  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Acceso restringido</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f9fafb;}div{text-align:center;background:white;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);}</style></head><body><div><h2 style="color:#dc2626">Acceso restringido</h2><p style="color:#6b7280;margin:12px 0">Necesitás una invitación para registrarte.</p><p style="color:#6b7280;font-size:13px">Pedile el link de invitación a un administrador.</p></div></body></html>`);
+});
+
+app.get('/invite-expired', (req, res) => {
+  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Invitación expirada</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f9fafb;}div{text-align:center;background:white;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);}</style></head><body><div><h2 style="color:#d97706">Invitación expirada o ya usada</h2><p style="color:#6b7280;margin:12px 0">Este link de invitación ya no es válido.</p><p style="color:#6b7280;font-size:13px">Pedile un nuevo link a un administrador.</p></div></body></html>`);
+});
+
+app.get('/invite-used', (req, res) => {
+  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Invitación usada</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f9fafb;}div{text-align:center;background:white;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);}</style></head><body><div><h2 style="color:#d97706">Invitación ya utilizada</h2><p style="color:#6b7280;margin:12px 0">Este link ya fue usado para crear una cuenta.</p><p style="color:#6b7280;font-size:13px">Pedile un nuevo link a un administrador.</p></div></body></html>`);
 });
 
 app.listen(PORT, () => {
