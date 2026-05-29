@@ -5407,6 +5407,12 @@ function openVariantsPopup(uid, variants) {
 // ── Override de categoría ─────────────────────────────────────────
 let _coProductId = null;
 let _coImgFile = null;
+let _updatedImages = {}; // {productId: timestamp} — cache-bust after upload
+
+function getImgSrc(id, thumbnail) {
+  if (_updatedImages[id]) return '/api/odoo/imagen/' + id + '?t=' + _updatedImages[id];
+  return thumbnail || '/api/odoo/imagen/' + id;
+}
 
 function coPreviewImg(file) {
   if (!file) return;
@@ -5436,7 +5442,9 @@ async function coUploadImg() {
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     // Actualizar thumb en el modal y en la grilla
-    const newSrc = `/api/odoo/imagen/${_coProductId}?t=${Date.now()}`;
+    const _uploadTs = Date.now();
+    const newSrc = `/api/odoo/imagen/${_coProductId}?t=${_uploadTs}`;
+    _updatedImages[_coProductId] = _uploadTs;  // persiste para re-renders
     document.getElementById('co-thumb').src = newSrc;
     const mainImg = document.getElementById('cv_' + (document.getElementById('co-sku-input').value.replace(/\W/g,'_')) + '_main');
     if (mainImg) mainImg.src = newSrc;
@@ -6363,7 +6371,7 @@ function renderCatalogo() {
           ${sub.items.map((p,i) => catalogoModo === 'pedir'
             ? `<div class="clist-row" onclick="addToCatPedidoById(${p.id})" id="cat-row-${p.id}" style="cursor:pointer;"
                 ontouchstart="this.style.background='#dcfce7'" ontouchend="this.style.background=''">
-                <img class="clist-img" src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
+                <img class="clist-img" src="${getImgSrc(p.id, p.ml_thumbnail)}" loading="lazy"
                   onerror="if(this.dataset.fb){this.style.opacity='0';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}">
                 <div style="flex:1;min-width:0;">
                   <div class="clist-name">${p.name}</div>
@@ -6375,7 +6383,7 @@ function renderCatalogo() {
                 <div style="background:#111827;color:white;border-radius:6px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0;">+</div>
               </div>`
             : `<div class="clist-row">
-                <img id="cat-img-${p.id}" class="clist-img" src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
+                <img id="cat-img-${p.id}" class="clist-img" src="${getImgSrc(p.id, p.ml_thumbnail)}" loading="lazy"
                   onerror="if(this.dataset.fb){this.style.opacity='0';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}">
                 <div style="flex:1;min-width:0;">
                   <div class="clist-name">${p.name}</div>
@@ -6456,7 +6464,7 @@ function renderCatalogo() {
             ? p0.name.replace(/[-–]\s*(VER|ROS|AMA|GRI|BLA|NEG|ROJ|AZU|NAR|VIO|BEI|MAR|CRE|TUR|AZL|GRS|PLT|BCO|BLN|BLC|BLQ|BLU|RED|GRN|YEL|BRN|PNK|GLD|SLV)\b.*/i, '').trim()
             : p0.name;
           // Guardar meta para el modal
-          catCardMeta[base] = { name: displayName, thumb: p0.ml_thumbnail || '/api/odoo/imagen/'+p0.id, subKey, variants };
+          catCardMeta[base] = { name: displayName, thumb: getImgSrc(p0.id, p0.ml_thumbnail), subKey, variants };
 
           const minPrice = Math.min(...variants.map(v => v.price||0));
           const maxPrice = Math.max(...variants.map(v => v.price||0));
@@ -6464,12 +6472,12 @@ function renderCatalogo() {
             ? `desde $${Math.round(minPrice).toLocaleString('es-UY')}`
             : `$${Math.round(p0.price||0).toLocaleString('es-UY')}`;
 
-          const variantsData = JSON.stringify(variants.map(v=>({img:v.ml_thumbnail||'/api/odoo/imagen/'+v.id,sku:v.sku||'',stock:v.stock??0,price:v.price||0,id:v.id}))).replace(/"/g,'&quot;');
+          const variantsData = JSON.stringify(variants.map(v=>({img:getImgSrc(v.id,v.ml_thumbnail),sku:v.sku||'',stock:v.stock??0,price:v.price||0,id:v.id}))).replace(/"/g,'&quot;');
           const thumbsHtml = isGroup ? `
             <div style="display:flex;flex-direction:column;gap:4px;margin-left:6px;flex-shrink:0;">
               ${variants.slice(0,3).map((v,i) => `
                 <img class="cat-thumb${i===0?' active':''}" id="${uid}_th_${i}"
-                  src="${v.ml_thumbnail || '/api/odoo/imagen/'+v.id}" loading="lazy"
+                  src="${getImgSrc(v.id, v.ml_thumbnail)}" loading="lazy"
                   onerror="this.style.opacity='0.2'"
                   onclick="catSelectVariant('${uid}',${i},${variantsData})"
                   title="${v.sku||''}">
@@ -6491,7 +6499,7 @@ function renderCatalogo() {
             ${editBtn}
             <div style="display:flex;padding:12px 12px 0;">
               <div style="flex:1;min-width:0;height:170px;display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:6px;overflow:hidden;">
-                <img id="${uid}_main" class="cat-card-img" src="${p0.ml_thumbnail || '/api/odoo/imagen/'+p0.id}" loading="lazy"
+                <img id="${uid}_main" class="cat-card-img" src="${getImgSrc(p0.id, p0.ml_thumbnail)}" loading="lazy"
                   onerror="if(this.dataset.fb){this.style.opacity='0.15';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p0.id}';}" alt="${displayName}"
                   style="max-width:90%;max-height:155px;object-fit:contain;mix-blend-mode:multiply;">
               </div>
