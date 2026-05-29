@@ -11150,6 +11150,11 @@ async function loadPerdidos() {
     _perdidosData = await r.json();
     _perdidosMonth = 0;
 
+    if (!_perdidosData.months || !_perdidosData.months.length) {
+      kpis.innerHTML = '<div class="table-card" style="text-align:center;color:#9ca3af;padding:32px;">No hay datos de Zureo cargados. Contactá al administrador.</div>';
+      return;
+    }
+
     // KPIs resumen
     const totalItems = _perdidosData.months.reduce((s, m) => s + m.count, 0);
     const totalLost = _perdidosData.months.reduce((s, m) => s + m.totalLost, 0);

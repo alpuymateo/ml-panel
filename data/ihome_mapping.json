@@ -5,9 +5,9 @@
     "cbm_dims": "40x25x20"
   },
   "11002": {
-    "cbm_per_unit": 0.038,
-    "cbm_source": "ia",
-    "cbm_dims": "55x45x15"
+    "cbm_per_unit": 0.015,
+    "cbm_source": "corregido",
+    "cbm_dims": "Basado en 11105 real: 0.015/ud"
   },
   "11004": {
     "cbm_per_unit": 0.018,
@@ -20,14 +20,14 @@
     "cbm_dims": "24x16x8"
   },
   "11102": {
-    "cbm_per_unit": 0.042,
-    "cbm_source": "ia",
-    "cbm_dims": "60x50x14"
+    "cbm_per_unit": 0.015,
+    "cbm_source": "corregido",
+    "cbm_dims": "Basado en 11105 real: 0.015/ud"
   },
   "11103": {
-    "cbm_per_unit": 0.024,
-    "cbm_source": "ia",
-    "cbm_dims": "20x15x8"
+    "cbm_per_unit": 0.015,
+    "cbm_source": "corregido",
+    "cbm_dims": "Basado en 11105 real: 0.015/ud"
   },
   "11105": {
     "ihome": "MA198",
@@ -66,9 +66,10 @@
     "cbm_dims": "20x20x20"
   },
   "12002": {
-    "cbm_per_unit": 0.012,
-    "cbm_source": "ia",
-    "cbm_dims": "25x22x22"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "25x22x22",
+    "cbm_note": "Stock muy alto + CBM alto = probablemente bulk/caja de muchos"
   },
   "12003": {
     "cbm_per_unit": 0.02,
@@ -465,34 +466,40 @@
     "cbm_per_unit": 0.0002
   },
   "13901": {
-    "cbm_per_unit": 0.85,
-    "cbm_source": "ia",
-    "cbm_dims": "180x90x52"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "180x90x52",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "13902": {
-    "cbm_per_unit": 0.68,
-    "cbm_source": "ia",
-    "cbm_dims": "160x90x52"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "160x90x52",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "14000": {
-    "cbm_per_unit": 0.84,
-    "cbm_source": "ia",
-    "cbm_dims": "140x80x75"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "140x80x75",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "14001": {
-    "cbm_per_unit": 0.84,
-    "cbm_source": "ia",
-    "cbm_dims": "140x80x75"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "140x80x75",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "14002": {
-    "cbm_per_unit": 0.84,
-    "cbm_source": "ia",
-    "cbm_dims": "140x80x75"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "140x80x75",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "14004": {
-    "cbm_per_unit": 0.192,
-    "cbm_source": "ia",
-    "cbm_dims": "120x60x27"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "120x60x27",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "14006": {
     "cbm_per_unit": 0.45,
@@ -500,19 +507,22 @@
     "cbm_dims": "80x60x10"
   },
   "14012": {
-    "cbm_per_unit": 1.008,
-    "cbm_source": "ia",
-    "cbm_dims": "160x90x75"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "160x90x75",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "14013": {
-    "cbm_per_unit": 0.192,
-    "cbm_source": "ia",
-    "cbm_dims": "120x60x27"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "120x60x27",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "14017": {
-    "cbm_per_unit": 0.144,
-    "cbm_source": "ia",
-    "cbm_dims": "50x45x6.4"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "50x45x6.4",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "14802": {
     "cbm_per_unit": 0.216,
@@ -530,9 +540,10 @@
     "cbm_dims": "90x55x8"
   },
   "15701": {
-    "cbm_per_unit": 0.21,
-    "cbm_source": "ia",
-    "cbm_dims": "70x70x100"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "70x70x100",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "15800": {
     "cbm_per_unit": 0.27,
@@ -798,9 +809,9 @@
     "cbm_dims": "85x52x31"
   },
   "19421": {
-    "cbm_per_unit": 0.015,
-    "cbm_source": "ia",
-    "cbm_dims": "25x20x30"
+    "cbm_per_unit": 0.000015,
+    "cbm_source": "corregido",
+    "cbm_dims": "0.015 CBM / 1000 uds"
   },
   "19427": {
     "cbm_per_unit": 0.072,
@@ -830,9 +841,10 @@
     "cbm_per_unit": 0.062
   },
   "19434": {
-    "cbm_per_unit": 0.32,
-    "cbm_source": "ia",
-    "cbm_dims": "55x45x13"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "55x45x13",
+    "cbm_note": "Producto MDF/chico que va empaquetado en bulk"
   },
   "19436": {
     "cbm_per_unit": 0.5,
@@ -1844,14 +1856,16 @@
     "cbm_dims": "35x22x10"
   },
   "23045": {
-    "cbm_per_unit": 0.06,
-    "cbm_source": "ia",
-    "cbm_dims": "45x28x10"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "45x28x10",
+    "cbm_note": "Cortina/guirnalda enrollada, CBM debería ser mucho menor"
   },
   "23046": {
-    "cbm_per_unit": 0.28,
-    "cbm_source": "ia",
-    "cbm_dims": "90x50x10"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "90x50x10",
+    "cbm_note": "Cortina/guirnalda enrollada, CBM debería ser mucho menor"
   },
   "23103": {
     "cbm_per_unit": 0.002,
@@ -2105,9 +2119,10 @@
     "cbm_dims": "50x50x24"
   },
   "31017": {
-    "cbm_per_unit": 0.018,
-    "cbm_source": "ia",
-    "cbm_dims": "30x25x25"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "30x25x25",
+    "cbm_note": "Stock muy alto + CBM alto = probablemente bulk/caja de muchos"
   },
   "31501": {
     "cbm_per_unit": 0.35,
@@ -2140,9 +2155,10 @@
     "cbm_dims": "10x8x3"
   },
   "35000": {
-    "cbm_per_unit": 0.025,
-    "cbm_source": "ia",
-    "cbm_dims": "50x40x12"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "50x40x12",
+    "cbm_note": "Producto MDF/chico que va empaquetado en bulk"
   },
   "35001": {
     "cbm_per_unit": 0.01,
@@ -2150,19 +2166,22 @@
     "cbm_dims": "38x28x9"
   },
   "35002": {
-    "cbm_per_unit": 0.014,
-    "cbm_source": "ia",
-    "cbm_dims": "42x30x11"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "42x30x11",
+    "cbm_note": "Stock muy alto + CBM alto = probablemente bulk/caja de muchos"
   },
   "35003": {
-    "cbm_per_unit": 0.15,
-    "cbm_source": "ia",
-    "cbm_dims": "40x25x15"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "40x25x15",
+    "cbm_note": "Stock muy alto + CBM alto = probablemente bulk/caja de muchos"
   },
   "35004": {
-    "cbm_per_unit": 0.12,
-    "cbm_source": "ia",
-    "cbm_dims": "80x60x25"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "80x60x25",
+    "cbm_note": "Stock muy alto + CBM alto = probablemente bulk/caja de muchos"
   },
   "35005": {
     "cbm_per_unit": 0.016,
@@ -2175,9 +2194,10 @@
     "cbm_dims": "35x25x14"
   },
   "35009": {
-    "cbm_per_unit": 0.045,
-    "cbm_source": "ia",
-    "cbm_dims": "50x30x30"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "50x30x30",
+    "cbm_note": "Stock muy alto + CBM alto = probablemente bulk/caja de muchos"
   },
   "36000": {
     "cbm_per_unit": 0.072,
@@ -2250,9 +2270,10 @@
     "cbm_dims": "53x42x15"
   },
   "36016": {
-    "cbm_per_unit": 0.078,
-    "cbm_source": "ia",
-    "cbm_dims": "103x76x10"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "103x76x10",
+    "cbm_note": "Stock muy alto + CBM alto = probablemente bulk/caja de muchos"
   },
   "36017": {
     "cbm_per_unit": 0.045,
@@ -2390,9 +2411,10 @@
     "cbm_dims": "110x90x12"
   },
   "37000": {
-    "cbm_per_unit": 0.013,
-    "cbm_source": "ia",
-    "cbm_dims": "40x32x10"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "40x32x10",
+    "cbm_note": "Producto MDF/chico que va empaquetado en bulk"
   },
   "37001": {
     "cbm_per_unit": 0.038,
@@ -2410,14 +2432,16 @@
     "cbm_dims": "42x35x11"
   },
   "37005": {
-    "cbm_per_unit": 0.018,
-    "cbm_source": "ia",
-    "cbm_dims": "30x20x30"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "30x20x30",
+    "cbm_note": "Producto MDF/chico que va empaquetado en bulk"
   },
   "37006": {
-    "cbm_per_unit": 0.012,
-    "cbm_source": "ia",
-    "cbm_dims": "40x30x10"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "40x30x10",
+    "cbm_note": "Producto MDF/chico que va empaquetado en bulk"
   },
   "37008": {
     "cbm_per_unit": 0.009,
@@ -2460,14 +2484,16 @@
     "cbm_dims": "40x32x14"
   },
   "37016": {
-    "cbm_per_unit": 0.015,
-    "cbm_source": "ia",
-    "cbm_dims": "40x35x11"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "40x35x11",
+    "cbm_note": "Stock muy alto + CBM alto = probablemente bulk/caja de muchos"
   },
   "37018": {
-    "cbm_per_unit": 0.015,
-    "cbm_source": "ia",
-    "cbm_dims": "42x32x11"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "42x32x11",
+    "cbm_note": "Producto MDF/chico que va empaquetado en bulk"
   },
   "37020": {
     "cbm_per_unit": 0.008,
@@ -2485,14 +2511,16 @@
     "cbm_dims": "60x30x25"
   },
   "37028": {
-    "cbm_per_unit": 0.015,
-    "cbm_source": "ia",
-    "cbm_dims": "42x32x11"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "42x32x11",
+    "cbm_note": "Stock muy alto + CBM alto = probablemente bulk/caja de muchos"
   },
   "37031": {
-    "cbm_per_unit": 0.012,
-    "cbm_source": "ia",
-    "cbm_dims": "40x30x10"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "40x30x10",
+    "cbm_note": "Stock muy alto + CBM alto = probablemente bulk/caja de muchos"
   },
   "37034": {
     "cbm_per_unit": 0.008,
@@ -2520,9 +2548,10 @@
     "cbm_dims": "40x35x30"
   },
   "38005": {
-    "cbm_per_unit": 0.185,
-    "cbm_source": "ia",
-    "cbm_dims": "65x80x55"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "65x80x55",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "38006": {
     "cbm_per_unit": 0.095,
@@ -4691,19 +4720,22 @@
     "cbm_dims": "45x32x22"
   },
   "98098": {
-    "cbm_per_unit": 0.17,
-    "cbm_source": "ia",
-    "cbm_dims": "106x160x10"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "106x160x10",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "98099": {
-    "cbm_per_unit": 0.23,
-    "cbm_source": "ia",
-    "cbm_dims": "132x213x8"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "132x213x8",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "98100": {
-    "cbm_per_unit": 0.28,
-    "cbm_source": "ia",
-    "cbm_dims": "132x245x8"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "132x245x8",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "98102": {
     "cbm_per_unit": 0.01,
@@ -4736,9 +4768,10 @@
     "cbm_dims": "20x15x18"
   },
   "98120": {
-    "cbm_per_unit": 0.35,
-    "cbm_source": "ia",
-    "cbm_dims": "220x140x10"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "220x140x10",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "98122": {
     "cbm_per_unit": 0.022,
@@ -4816,9 +4849,10 @@
     "cbm_dims": "25x20x12"
   },
   "98159": {
-    "cbm_per_unit": 1.2,
-    "cbm_source": "ia",
-    "cbm_dims": "120x70x75"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "120x70x75",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "98163": {
     "cbm_per_unit": 0.015,
@@ -4926,9 +4960,10 @@
     "cbm_dims": "200x90x17"
   },
   "98215": {
-    "cbm_per_unit": 0.18,
-    "cbm_source": "ia",
-    "cbm_dims": "200x140x17"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "200x140x17",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "98217": {
     "cbm_per_unit": 0.08,
@@ -4946,34 +4981,40 @@
     "cbm_dims": "22x18x10"
   },
   "98220": {
-    "cbm_per_unit": 0.55,
-    "cbm_source": "ia",
-    "cbm_dims": "140x70x60"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "140x70x60",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "98221": {
-    "cbm_per_unit": 0.55,
-    "cbm_source": "ia",
-    "cbm_dims": "140x70x60"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "140x70x60",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "98222": {
-    "cbm_per_unit": 0.55,
-    "cbm_source": "ia",
-    "cbm_dims": "140x70x60"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "140x70x60",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "98223": {
-    "cbm_per_unit": 0.55,
-    "cbm_source": "ia",
-    "cbm_dims": "140x70x60"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "140x70x60",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "98224": {
-    "cbm_per_unit": 0.55,
-    "cbm_source": "ia",
-    "cbm_dims": "140x70x60"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "140x70x60",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "98225": {
-    "cbm_per_unit": 0.55,
-    "cbm_source": "ia",
-    "cbm_dims": "140x70x60"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "140x70x60",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "98226": {
     "cbm_per_unit": 0.018,
@@ -5096,9 +5137,10 @@
     "cbm_dims": "18x15x12"
   },
   "98254": {
-    "cbm_per_unit": 0.015,
-    "cbm_source": "ia",
-    "cbm_dims": "15x15x15"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "15x15x15",
+    "cbm_note": "Stock muy alto + CBM alto = probablemente bulk/caja de muchos"
   },
   "98255": {
     "cbm_per_unit": 0.025,
@@ -9294,69 +9336,82 @@
     "cbm_dims": "10x8x15"
   },
   "22206-GRI": {
-    "cbm_per_unit": 0.22,
-    "cbm_source": "ia",
-    "cbm_dims": "140x220x5"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "140x220x5",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "22206-ROS": {
-    "cbm_per_unit": 0.22,
-    "cbm_source": "ia",
-    "cbm_dims": "140x220x5"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "140x220x5",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "22211-MAR": {
-    "cbm_per_unit": 0.17,
-    "cbm_source": "ia",
-    "cbm_dims": "106x160x5"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "106x160x5",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "22211-VIO": {
-    "cbm_per_unit": 0.17,
-    "cbm_source": "ia",
-    "cbm_dims": "106x160x5"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "106x160x5",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "22211-VER": {
-    "cbm_per_unit": 0.17,
-    "cbm_source": "ia",
-    "cbm_dims": "106x160x5"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "106x160x5",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "22211-AMA": {
-    "cbm_per_unit": 0.17,
-    "cbm_source": "ia",
-    "cbm_dims": "106x160x5"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "106x160x5",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "22211-GRI": {
-    "cbm_per_unit": 0.17,
-    "cbm_source": "ia",
-    "cbm_dims": "106x160x5"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "106x160x5",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "22211-GRI-OSC": {
-    "cbm_per_unit": 0.17,
-    "cbm_source": "ia",
-    "cbm_dims": "106x160x5"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "106x160x5",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "22211-BLA": {
-    "cbm_per_unit": 0.17,
-    "cbm_source": "ia",
-    "cbm_dims": "106x160x5"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "106x160x5",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "22212-MAR": {
-    "cbm_per_unit": 0.22,
-    "cbm_source": "ia",
-    "cbm_dims": "140x220x5"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "140x220x5",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "22212-GRI": {
-    "cbm_per_unit": 0.22,
-    "cbm_source": "ia",
-    "cbm_dims": "140x220x5"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "140x220x5",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "22212-GOS": {
-    "cbm_per_unit": 0.22,
-    "cbm_source": "ia",
-    "cbm_dims": "140x220x5"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "140x220x5",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "22212-BLA": {
-    "cbm_per_unit": 0.22,
-    "cbm_source": "ia",
-    "cbm_dims": "140x220x5"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "140x220x5",
+    "cbm_note": "Textil comprimible, CBM real mucho menor"
   },
   "33706-VER": {
     "cbm_per_unit": 0.02,
@@ -10244,39 +10299,46 @@
     "cbm_dims": "36x30x8"
   },
   "13305-ROJ": {
-    "cbm_per_unit": 0.45,
-    "cbm_source": "ia",
-    "cbm_dims": "60x55x75"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "60x55x75",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "15700-ROJ": {
-    "cbm_per_unit": 0.55,
-    "cbm_source": "ia",
-    "cbm_dims": "70x70x80"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "70x70x80",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "15700-NEG": {
-    "cbm_per_unit": 0.55,
-    "cbm_source": "ia",
-    "cbm_dims": "70x70x80"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "70x70x80",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "588-2": {
-    "cbm_per_unit": 0.25,
-    "cbm_source": "ia",
-    "cbm_dims": "50x50x60"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "50x50x60",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "13103-BEI": {
-    "cbm_per_unit": 0.42,
-    "cbm_source": "ia",
-    "cbm_dims": "65x65x75"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "65x65x75",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "13200-BLA": {
-    "cbm_per_unit": 0.18,
-    "cbm_source": "ia",
-    "cbm_dims": "50x50x85"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "50x50x85",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "13200-NEG": {
-    "cbm_per_unit": 0.18,
-    "cbm_source": "ia",
-    "cbm_dims": "50x50x85"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "50x50x85",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "48215-S": {
     "cbm_per_unit": 0.012,
@@ -10374,14 +10436,16 @@
     "cbm_dims": "80x60x20"
   },
   "13105-BLA": {
-    "cbm_per_unit": 0.48,
-    "cbm_source": "ia",
-    "cbm_dims": "140x80x90"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "140x80x90",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "13105-NEG": {
-    "cbm_per_unit": 0.48,
-    "cbm_source": "ia",
-    "cbm_dims": "140x80x90"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "140x80x90",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "577-0": {
     "cbm_per_unit": 0.027,
@@ -10659,9 +10723,10 @@
     "cbm_dims": "120x80x75"
   },
   "PZ-SILLA-TAL": {
-    "cbm_per_unit": 0.12,
-    "cbm_source": "ia",
-    "cbm_dims": "55x50x90"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "55x50x90",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "PZ-SILLA-LEXI": {
     "cbm_per_unit": 0.1,
@@ -10729,9 +10794,10 @@
     "cbm_dims": "60x40x5"
   },
   "PZ-SILLAS JAINE": {
-    "cbm_per_unit": 0.11,
-    "cbm_source": "ia",
-    "cbm_dims": "52x48x88"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "52x48x88",
+    "cbm_note": "Silla/banqueta apilable, CBM por unidad debería ser menor"
   },
   "PZ-ACOLCHADOS-JAINE": {
     "cbm_per_unit": 0.04,
@@ -10739,14 +10805,15 @@
     "cbm_dims": "48x48x10"
   },
   "23006-FRI": {
-    "cbm_per_unit": 0.08,
-    "cbm_source": "ia",
-    "cbm_dims": "200x200x10"
+    "cbm_per_unit": 0,
+    "cbm_source": "ia_descartado",
+    "cbm_dims": "200x200x10",
+    "cbm_note": "Cortina/guirnalda enrollada, CBM debería ser mucho menor"
   },
   "23007-FRI": {
-    "cbm_per_unit": 0.18,
-    "cbm_source": "ia",
-    "cbm_dims": "300x300x15"
+    "cbm_per_unit": 0.0018,
+    "cbm_source": "corregido",
+    "cbm_dims": "0.18 CBM / 100 uds"
   },
   "54022-ROS": {
     "cbm_per_unit": 0.015,
