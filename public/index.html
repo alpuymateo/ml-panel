@@ -2102,6 +2102,9 @@
           <option value="abc">ABC prioridad</option>
           <option value="categ">Por categor&iacute;a</option>
         </select>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:#6b7280;cursor:pointer;white-space:nowrap;">
+          <input type="checkbox" id="os-f-ocultos" onchange="renderOsItems()"> Mostrar ocultos
+        </label>
         <span id="os-count" style="font-size:12px;color:#6b7280;"></span>
       </div>
       <div id="os-kpis" style="margin-bottom:16px;"></div>
@@ -9871,8 +9874,27 @@ function renderOsItem(i, items, c) {
 }
 
 let _osAllItems = []; // All items from planificador
+let _hiddenSkus = new Set();
 let _osConfig = null;
 let _osZafral = [];
+
+function ocultarSku(sku) {
+  _hiddenSkus.add(sku);
+  // Remove from DOM immediately without full re-render
+  const el = document.querySelector('[data-sku="'+sku+'"]');
+  if (el) el.style.display = 'none';
+  // Save in background
+  fetch('/api/hidden-skus', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ sku, action: 'hide' }) });
+  // Update count
+  const countEl = document.getElementById('os-count');
+  if (countEl) { const n = parseInt(countEl.textContent) || 0; countEl.textContent = (n-1) + ' productos'; }
+}
+
+function desocultarSku(sku) {
+  _hiddenSkus.delete(sku);
+  fetch('/api/hidden-skus', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ sku, action: 'show' }) });
+  renderOsItems();
+}
 
 function renderOsItems() {
   const content = document.getElementById('os-content');
@@ -9884,6 +9906,7 @@ function renderOsItems() {
   const fXyz = document.getElementById('os-f-xyz')?.value || '';
   const fOrigen = document.getElementById('os-f-origen')?.value || '';
   const fSort = document.getElementById('os-f-sort')?.value || 'gap';
+  const mostrarOcultos = document.getElementById('os-f-ocultos')?.checked || false;
 
   const zafralSkus = new Set(_osZafral.map(z => z.sku));
 
@@ -9891,6 +9914,7 @@ function renderOsItems() {
   const skusEnOrden = new Set(_ordenItems.map(i => i.sku));
 
   let items = _osAllItems.filter(i => {
+    if (!mostrarOcultos && _hiddenSkus.has(i.sku)) return false;
     if (fTipo === 'absoluto') {
       // Sin ningún filtro — todos los productos
     } else if (fTipo === 'todos') {
@@ -10026,7 +10050,7 @@ function renderOsItems() {
       <div style="display:flex;gap:10px;align-items:center;cursor:pointer;" onclick="const el=document.getElementById('${detId}');el.style.display=el.style.display==='none'?'':'none';">
         ${thumb}
         <div style="flex:1;min-width:0;">
-          <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name}</div>
+          <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.name} <span class="os-hide-btn" data-sku="${i.sku}" data-action="${_hiddenSkus.has(i.sku)?'show':'hide'}" onclick="event.stopPropagation();this.dataset.action==='hide'?ocultarSku(this.dataset.sku):desocultarSku(this.dataset.sku);" style="font-size:9px;color:${_hiddenSkus.has(i.sku)?'#059669':'#9ca3af'};cursor:pointer;font-weight:400;">${_hiddenSkus.has(i.sku)?'mostrar':'ocultar'}</span></div>
           <div style="font-size:10px;color:#9ca3af;">${i.sku} · ${i.categ || ''} · <span style="padding:1px 5px;border-radius:4px;font-size:9px;font-weight:600;background:${i.origen==='Brasil'?'#dcfce7':'#fef3c7'};color:${i.origen==='Brasil'?'#166534':'#92400e'};">${i.origen} ${i.lead_days}d</span> → ${i.target_label} · <span style="padding:1px 4px;border-radius:3px;font-weight:700;font-size:9px;background:${abcColor}15;color:${abcColor};">${i.abc}</span><span style="padding:1px 4px;border-radius:3px;font-weight:700;font-size:9px;background:${xyzColor}15;color:${xyzColor};margin-left:2px;">${i.xyz||''}</span> ${i.months_with_sales||0}/6m · máx ${i.max_month||0} ${tags.join(' ')}</div>
         </div>
         <div style="text-align:right;flex-shrink:0;">
@@ -10137,6 +10161,9 @@ async function loadOrdenSugerida() {
     _osZafral = d.zafral || [];
     _osAllItems = d.items || [];
     window._osItems = _osAllItems;
+
+    // Cargar SKUs ocultos
+    try { const hr = await fetch('/api/hidden-skus', { headers: authHeaders() }); _hiddenSkus = new Set(await hr.json()); } catch { _hiddenSkus = new Set(); }
 
     const c = d.config;
     const items = _osAllItems.filter(i => i.gap > 0 && i.avg_month > 0 && i.seasonal_factor > 0);
@@ -12202,6 +12229,11 @@ async function loadPerdidos() {
     const r = await fetch(`/api/perdidos?min=${minQty}&filter=${stockFilter}`, { headers: authHeaders() });
     _perdidosData = await r.json();
     _perdidosMonth = 0;
+
+    if (!_perdidosData.months || !_perdidosData.months.length) {
+      kpis.innerHTML = '<div class="table-card" style="text-align:center;color:#9ca3af;padding:32px;">No hay datos de Zureo cargados. Contactá al administrador.</div>';
+      return;
+    }
 
     // KPIs resumen
     const totalItems = _perdidosData.months.reduce((s, m) => s + m.count, 0);
