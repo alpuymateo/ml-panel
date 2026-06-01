@@ -3152,25 +3152,33 @@ app.get('/api/odoo/cruce', requireUser, async (req, res) => {
 });
 
 // ── Cotización desde foto ────────────────────────────────────────
-app.post('/api/odoo/cotizacion-foto', requireUser, express.json({ limit: '20mb' }), async (req, res) => {
+app.post('/api/odoo/cotizacion-foto', requireUser, express.json({ limit: '50mb' }), async (req, res) => {
   try {
-    const { image_base64, media_type } = req.body;
-    if (!image_base64) return res.status(400).json({ error: 'Se requiere image_base64' });
+    // Acepta array de imágenes (multi-hoja) o imagen única (legacy)
+    let images = req.body.images;
+    if (!images && req.body.image_base64) {
+      images = [{ base64: req.body.image_base64, media_type: req.body.media_type || 'image/jpeg' }];
+    }
+    if (!images?.length) return res.status(400).json({ error: 'Se requiere al menos una imagen' });
 
-    // 1. Claude lee la imagen
+    const multiHoja = images.length > 1;
+
+    // 1. Claude lee las imágenes
+    const imageContent = images.map(img => ({
+      type: 'image',
+      source: { type: 'base64', media_type: img.media_type || 'image/jpeg', data: img.base64 },
+    }));
+
     const msg = await anthropic.messages.create({
       model: 'claude-opus-4-6',
       max_tokens: 1024,
       messages: [{
         role: 'user',
         content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: media_type || 'image/jpeg', data: image_base64 },
-          },
+          ...imageContent,
           {
             type: 'text',
-            text: `Analizá esta imagen de un pedido escrito a mano. Extraé:
+            text: `Analizá ${multiHoja ? 'estas ' + images.length + ' imágenes que son las hojas de UN MISMO pedido escrito a mano. Uní todos los productos en una sola lista.' : 'esta imagen de un pedido escrito a mano.'} Extraé:
 1. Nombre del cliente (suele estar arriba)
 2. Lista de productos con: SKU completo (incluyendo variante de color/temperatura), cantidad y precio si aparece
 

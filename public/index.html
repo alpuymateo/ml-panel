@@ -1021,25 +1021,27 @@
       <div style="background:white;border-radius:16px;width:90%;max-width:780px;max-height:90vh;overflow-y:auto;padding:32px;position:relative;">
         <button onclick="closeCotizacionModal()" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:#6b7280;">✕</button>
 
-        <!-- Paso 1: subir foto -->
+        <!-- Paso 1: subir fotos (puede ser más de una hoja) -->
         <div id="cot-step-1">
           <h2 style="font-size:18px;font-weight:700;margin-bottom:6px;">Nueva cotización desde foto</h2>
-          <p style="color:#6b7280;font-size:13px;margin-bottom:20px;">Subí una foto del pedido escrito a mano. Claude va a leer el cliente, los SKUs y las cantidades.</p>
+          <p style="color:#6b7280;font-size:13px;margin-bottom:20px;">Subí las fotos del pedido. Si el pedido ocupa más de una hoja, agregá todas las fotos — Claude las une en un solo pedido.</p>
           <div id="cot-drop-zone" onclick="document.getElementById('cot-file-input').click()"
-            style="border:2px dashed #d1d5db;border-radius:12px;padding:40px;text-align:center;cursor:pointer;transition:border-color 0.2s;"
+            style="border:2px dashed #d1d5db;border-radius:12px;padding:32px;text-align:center;cursor:pointer;transition:border-color 0.2s;"
             ondragover="event.preventDefault();this.style.borderColor='#7c3aed'"
             ondragleave="this.style.borderColor='#d1d5db'"
             ondrop="handleCotDrop(event)">
-            <div style="font-size:40px;margin-bottom:12px;">📷</div>
-            <div style="font-size:14px;font-weight:600;color:#374151;">Hacé clic o arrastrá una imagen</div>
-            <div style="font-size:12px;color:#9ca3af;margin-top:4px;">JPG, PNG, HEIC</div>
+            <div style="font-size:36px;margin-bottom:10px;">📷</div>
+            <div style="font-size:14px;font-weight:600;color:#374151;">Hacé clic o arrastrá las imágenes</div>
+            <div style="font-size:12px;color:#9ca3af;margin-top:4px;">JPG, PNG, HEIC · Podés seleccionar varias a la vez</div>
           </div>
-          <input id="cot-file-input" type="file" accept="image/*" style="display:none" onchange="handleCotFile(this.files[0])">
-          <div id="cot-preview" style="display:none;margin-top:16px;text-align:center;">
-            <img id="cot-img" style="max-height:300px;max-width:100%;border-radius:8px;border:1px solid #e5e7eb;">
-            <div style="margin-top:12px;">
-              <button onclick="analizarFoto()" id="cot-btn-analizar" style="padding:10px 24px;background:#7c3aed;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;">🔍 Analizar con Claude</button>
-            </div>
+          <input id="cot-file-input" type="file" accept="image/*" multiple style="display:none" onchange="addCotImages(this.files)">
+
+          <!-- Miniaturas de las fotos cargadas -->
+          <div id="cot-images-list" style="display:none;margin-top:16px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;"></div>
+
+          <!-- Botón analizar -->
+          <div id="cot-analyze-wrap" style="display:none;margin-top:16px;text-align:center;">
+            <button onclick="analizarFoto()" id="cot-btn-analizar" style="padding:10px 24px;background:#7c3aed;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;">🔍 Analizar con Claude</button>
           </div>
           <div id="cot-step1-error" style="color:#ef4444;font-size:13px;margin-top:12px;display:none;"></div>
         </div>
@@ -1048,9 +1050,7 @@
         <div id="cot-step-2" style="display:none;">
           <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;">Confirmá los datos extraídos</h2>
 
-          <div id="cot-step2-preview" style="margin-bottom:16px;text-align:center;display:none;">
-            <img id="cot-step2-img" src="" style="max-width:100%;max-height:220px;border-radius:8px;border:1px solid #e5e7eb;object-fit:contain;">
-          </div>
+          <div id="cot-step2-preview" style="margin-bottom:16px;display:none;gap:8px;flex-wrap:wrap;justify-content:center;"></div>
 
           <div style="margin-bottom:16px;">
             <label style="font-size:12px;font-weight:600;color:#6b7280;display:block;margin-bottom:6px;">CLIENTE</label>
@@ -4393,21 +4393,24 @@ async function loadAuditLog() {
 
 // ── Modal cotización desde foto ──────────────────────────────────
 let cotExtracted = null;
+let _cotImages = []; // [{src, base64, media_type}]
 
 function openCotizacionModal() {
   document.getElementById('modal-cotizacion').style.display = 'flex';
   resetCotModal();
-  // Asegurar que odooData esté cargado para poder buscar productos y partners
   if (!odooData) loadOdoo();
 }
 function closeCotizacionModal() {
   document.getElementById('modal-cotizacion').style.display = 'none';
 }
 function resetCotModal() {
+  _cotImages = [];
   document.getElementById('cot-step-1').style.display = '';
   document.getElementById('cot-step-2').style.display = 'none';
   document.getElementById('cot-step-3').style.display = 'none';
-  document.getElementById('cot-preview').style.display = 'none';
+  document.getElementById('cot-images-list').style.display = 'none';
+  document.getElementById('cot-images-list').innerHTML = '';
+  document.getElementById('cot-analyze-wrap').style.display = 'none';
   document.getElementById('cot-file-input').value = '';
   document.getElementById('cot-step1-error').style.display = 'none';
   cotExtracted = null;
@@ -4417,38 +4420,67 @@ function goBackStep1() {
   document.getElementById('cot-step-1').style.display = '';
 }
 
-function handleCotFile(file) {
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    document.getElementById('cot-img').src = e.target.result;
-    document.getElementById('cot-preview').style.display = '';
-  };
-  reader.readAsDataURL(file);
+function addCotImages(files) {
+  Array.from(files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const src = e.target.result;
+      const [meta, b64] = src.split(',');
+      const media_type = meta.match(/data:(.*);base64/)[1];
+      _cotImages.push({ src, base64: b64, media_type });
+      renderCotImagesList();
+    };
+    reader.readAsDataURL(file);
+  });
+  document.getElementById('cot-file-input').value = '';
 }
+
+function removeCotImage(i) {
+  _cotImages.splice(i, 1);
+  renderCotImagesList();
+}
+
+function renderCotImagesList() {
+  const list = document.getElementById('cot-images-list');
+  const wrap = document.getElementById('cot-analyze-wrap');
+  if (!_cotImages.length) {
+    list.style.display = 'none';
+    wrap.style.display = 'none';
+    return;
+  }
+  list.style.display = 'flex';
+  wrap.style.display = '';
+  list.innerHTML = _cotImages.map((img, i) => `
+    <div style="position:relative;flex-shrink:0;">
+      <img src="${img.src}" style="height:120px;max-width:160px;border-radius:8px;border:1px solid #e5e7eb;object-fit:contain;background:#f9fafb;">
+      <button onclick="removeCotImage(${i})" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.55);color:white;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;">✕</button>
+      <div style="text-align:center;font-size:10px;color:#9ca3af;margin-top:3px;">Hoja ${i+1}</div>
+    </div>`).join('') + `
+    <div onclick="document.getElementById('cot-file-input').click()"
+      style="height:120px;width:80px;border:2px dashed #d1d5db;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:#9ca3af;font-size:11px;gap:4px;flex-shrink:0;">
+      <span style="font-size:22px;">+</span>Agregar
+    </div>`;
+}
+
 function handleCotDrop(e) {
   e.preventDefault();
   document.getElementById('cot-drop-zone').style.borderColor = '#d1d5db';
-  const file = e.dataTransfer.files[0];
-  if (file) handleCotFile(file);
+  if (e.dataTransfer.files.length) addCotImages(e.dataTransfer.files);
 }
 
 async function analizarFoto() {
+  if (!_cotImages.length) return;
   const btn = document.getElementById('cot-btn-analizar');
   const errEl = document.getElementById('cot-step1-error');
   errEl.style.display = 'none';
-  btn.textContent = '⏳ Analizando...';
+  btn.textContent = `⏳ Analizando ${_cotImages.length > 1 ? _cotImages.length + ' hojas' : ''}...`;
   btn.disabled = true;
 
   try {
-    const imgSrc = document.getElementById('cot-img').src; // data:image/...;base64,...
-    const [meta, b64] = imgSrc.split(',');
-    const media_type = meta.match(/data:(.*);base64/)[1];
-
     const res = await fetch('/api/odoo/cotizacion-foto', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ image_base64: b64, media_type }),
+      body: JSON.stringify({ images: _cotImages.map(i => ({ base64: i.base64, media_type: i.media_type })) }),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
@@ -4465,13 +4497,12 @@ async function analizarFoto() {
 }
 
 function renderStep2(data) {
-  // Foto preview
-  const imgSrc = document.getElementById('cot-img').src;
+  // Fotos preview
   const previewDiv = document.getElementById('cot-step2-preview');
-  const previewImg = document.getElementById('cot-step2-img');
-  if (imgSrc && imgSrc !== window.location.href) {
-    previewImg.src = imgSrc;
-    previewDiv.style.display = '';
+  if (_cotImages.length) {
+    previewDiv.style.display = 'flex';
+    previewDiv.innerHTML = _cotImages.map((img, i) => `
+      <img src="${img.src}" style="max-height:160px;max-width:${_cotImages.length > 1 ? '48%' : '100%'};border-radius:8px;border:1px solid #e5e7eb;object-fit:contain;">`).join('');
   } else {
     previewDiv.style.display = 'none';
   }
