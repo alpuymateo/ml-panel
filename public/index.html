@@ -4527,7 +4527,10 @@ function renderStep2(data) {
   const lineasEl = document.getElementById('cot-lineas');
   lineasEl.innerHTML = data.lineas.map((l, i) => `
     <div style="display:grid;grid-template-columns:90px 1fr 90px 70px 100px 36px;gap:8px;align-items:start;margin-bottom:8px;">
-      <input id="cot-l-sku-${i}" value="${l.sku}" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:monospace;margin-top:1px;" onchange="onCotSkuChange(${i}, this.value.trim())" onkeydown="if(event.key==='Enter'){this.blur();}" title="Editá el SKU y presioná Enter para buscar el producto">
+      <div style="position:relative;margin-top:1px;">
+        <input id="cot-l-sku-${i}" value="${l.sku}" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:monospace;width:100%;" oninput="searchCotSku(${i}, this.value.trim())" onkeydown="if(event.key==='Enter'||event.key==='Tab'){searchCotSku(${i},this.value.trim(),true);}" title="Escribí el SKU para buscar el producto">
+        <div id="cot-l-sku-drop-${i}" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid #e5e7eb;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:200;max-height:200px;overflow-y:auto;min-width:280px;"></div>
+      </div>
       ${l.found
         ? `<input value="${l.product_name || ''}" id="cot-l-name-${i}" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;">`
         : `<div style="position:relative;">
@@ -4594,6 +4597,56 @@ function searchCotProduct(i, q) {
       saveCotFormState();
       const p = drop._matches[parseInt(el.dataset.mi)];
       selectCotProduct(i, p.id, p.name, p.price, p.sku, p.uom_id, p.tax_ids);
+    });
+  });
+  drop.style.display = '';
+}
+
+function searchCotSku(i, val, autoSelect = false) {
+  const drop = document.getElementById(`cot-l-sku-drop-${i}`);
+  if (!drop) return;
+  if (!val || val.length < 2 || !odooData) { drop.style.display = 'none'; return; }
+  const ql = val.toLowerCase();
+  const exact = [], starts = [], rest = [];
+  for (const cat of odooData.categories) {
+    for (const p of cat.items) {
+      if (!p.sku) continue;
+      const sk = p.sku.toLowerCase();
+      if (sk === ql) exact.push(p);
+      else if (sk.startsWith(ql)) starts.push(p);
+      else if (sk.includes(ql)) rest.push(p);
+    }
+  }
+  const matches = [...exact, ...starts, ...rest].slice(0, 10);
+  // Auto-seleccionar si hay exacto único o si el usuario presionó Enter/Tab
+  if (autoSelect && matches.length === 1) {
+    const p = matches[0];
+    drop.style.display = 'none';
+    saveCotFormState();
+    selectCotProduct(i, p.id, p.name, p.price, p.sku, p.uom_id, p.tax_ids);
+    return;
+  }
+  if (exact.length === 1 && !autoSelect) {
+    // Hay match exacto — resaltar el input pero no seleccionar aún
+    const inp = document.getElementById(`cot-l-sku-${i}`);
+    if (inp) { inp.style.borderColor = '#059669'; inp.style.background = '#f0fdf4'; }
+  }
+  if (!matches.length) { drop.style.display = 'none'; return; }
+  drop.innerHTML = matches.map((p, mi) => `
+    <div data-mi="${mi}"
+      style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid #f3f4f6;display:flex;gap:10px;align-items:baseline;"
+      onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
+      <span style="font-family:monospace;color:#7c3aed;font-weight:700;white-space:nowrap;">${p.sku}</span>
+      <span style="color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}</span>
+    </div>`).join('');
+  drop._matches = matches;
+  drop.querySelectorAll('[data-mi]').forEach(el => {
+    el.addEventListener('mousedown', e => {
+      e.preventDefault(); // evita que el input pierda foco antes del click
+      saveCotFormState();
+      const p = drop._matches[parseInt(el.dataset.mi)];
+      selectCotProduct(i, p.id, p.name, p.price, p.sku, p.uom_id, p.tax_ids);
+      drop.style.display = 'none';
     });
   });
   drop.style.display = '';
