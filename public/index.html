@@ -6553,7 +6553,9 @@ function renderCatalogo() {
         const cards = groupOrder.map((base, cardIdx) => {
           const variants = groups[base];
           const pinnedSku = catalogPinned[base];
-          const p0 = (pinnedSku && variants.find(v => v.sku === pinnedSku)) || variants[0];
+          const p0idx = pinnedSku ? variants.findIndex(v => v.sku === pinnedSku) : 0;
+          const p0 = (p0idx >= 0 ? variants[p0idx] : null) || variants[0];
+          const activeThIdx = p0idx >= 0 ? p0idx : 0;
           const isGroup = variants.length > 1;
           const uid = 'cv_' + base.replace(/\W/g,'_');
 
@@ -6574,7 +6576,7 @@ function renderCatalogo() {
           const thumbsHtml = isGroup ? `
             <div style="display:flex;flex-direction:column;gap:4px;margin-left:6px;flex-shrink:0;">
               ${variants.slice(0,3).map((v,i) => `
-                <img class="cat-thumb${i===0?' active':''}" id="${uid}_th_${i}"
+                <img class="cat-thumb${i===activeThIdx?' active':''}" id="${uid}_th_${i}"
                   src="${getImgSrc(v.id, v.ml_thumbnail)}" loading="lazy"
                   onerror="this.style.opacity='0.2'"
                   onclick="catSelectVariant('${uid}',${i},${variantsData})"
