@@ -3237,40 +3237,47 @@ app.post('/api/odoo/cotizacion-crear', requireUser, express.json(), async (req, 
     if (!partner_id) return res.status(400).json({ error: 'Se requiere partner_id' });
     if (!lineas?.length) return res.status(400).json({ error: 'Se requieren líneas de productos' });
 
-    // ⚠️ ESCRITURA → usa STAGING, nunca producción
-    const uid = await odooAuthStaging();
+    const token = process.env.ODOO_REST_TOKEN_STAGING;
+    if (!token) return res.status(500).json({ error: 'ODOO_REST_TOKEN_STAGING no configurado' });
 
-    const order_lines = lineas.map(l => [0, 0, {
-      product_id:      l.product_id,
-      name:            l.product_name,
-      product_uom_qty: l.cantidad,
-      price_unit:      l.precio,
-      product_uom:     l.uom_id?.[0] || 1,
-      tax_id:          [[6, 0, l.tax_ids || []]],
-      ...(l.descuento ? { discount: l.descuento } : {}),
-    }]);
+    const baseUrl = ODOO_STAGING_HOST.replace(/\/$/, '');
+    const external_ref = 'mlpanel-' + Date.now();
 
-    const orderId = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'create',
-      [{
-        partner_id,
-        pricelist_id: 2, // MAYORISTA UYU
-        date_order:   new Date().toISOString().replace('T', ' ').slice(0, 19),
-        note:         notas || '',
-        order_line:   order_lines,
-      }],
-    ]);
+    const body = {
+      external_ref,
+      partner_id,
+      pricelist_id: 2, // MAYORISTA UYU
+      note:         notas || '',
+      confirm:      true,
+      lines: lineas.map(l => ({
+        product_id: l.product_id,
+        name:       l.product_name,
+        quantity:   l.cantidad,
+        price_unit: l.precio,
+        ...(l.descuento ? { discount: l.descuento } : {}),
+      })),
+    };
 
-    // Leer el nombre asignado
-    const [order] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'read',
-      [[orderId]], { fields: ['name', 'amount_total', 'partner_id'] },
-    ]);
+    const https = require('https');
+    const r = await axios.post(`${baseUrl}/api/ventas/order`, body, {
+      headers: { 'X-API-Token': token, 'Content-Type': 'application/json' },
+      httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+    });
 
-    res.json({ success: true, order_id: orderId, order_name: order.name, amount_total: order.amount_total });
+    const d = r.data;
+    if (d.status !== 'OK') throw new Error(d.message || 'Error al crear pedido');
+
+    const order = d.data || {};
+    res.json({
+      success:      true,
+      order_id:     order.id || null,
+      order_name:   order.name || order.display_name || external_ref,
+      amount_total: order.amount_total || 0,
+    });
   } catch (err) {
-    console.error('[cotizacion-crear] error:', err.message);
-    res.status(500).json({ error: err.message });
+    const msg = err.response?.data?.message || err.message;
+    console.error('[cotizacion-crear] error:', msg);
+    res.status(500).json({ error: msg });
   }
 });
 
