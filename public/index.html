@@ -6007,7 +6007,7 @@ async function loadCatalogo() {
   }
   // Cargar overrides, orden, pinned, labels, custom subs y orden de subs
   try {
-    const [rOv, rSt, rPn, rLb, rCs, rSs, rMp, rImgs] = await Promise.all([
+    const [rOv, rSt, rPn, rLb, rCs, rSs, rMp] = await Promise.all([
       fetch('/api/catalog/overrides',        { headers: authHeaders() }),
       fetch('/api/catalog/sort',             { headers: authHeaders() }),
       fetch('/api/catalog/pinned',           { headers: authHeaders() }),
@@ -6015,7 +6015,6 @@ async function loadCatalogo() {
       fetch('/api/catalog/custom-subs',      { headers: authHeaders() }),
       fetch('/api/catalog/sub-sort',         { headers: authHeaders() }),
       fetch('/api/catalog/manual-products',  { headers: authHeaders() }),
-      fetch('/api/product-images',           { headers: authHeaders() }),
     ]);
     catalogOverrides       = await rOv.json();
     catalogSortOverrides   = await rSt.json();
@@ -6024,7 +6023,9 @@ async function loadCatalogo() {
     catalogCustomSubs      = await rCs.json();
     catalogSubSort         = await rSs.json();
     catalogManualProducts  = await rMp.json();
-    Object.assign(_updatedImages, await rImgs.json()); // repobla cache de imágenes personalizadas
+    // Repoblar imágenes personalizadas (no bloquea si falla)
+    fetch('/api/product-images', { headers: authHeaders() })
+      .then(r => r.json()).then(imgs => Object.assign(_updatedImages, imgs)).catch(() => {});
   } catch(e) { catalogOverrides = {}; catalogSortOverrides = {}; catalogPinned = {}; catalogLabels = {}; catalogCustomSubs = []; catalogSubSort = {}; catalogManualProducts = []; }
   // Poblar selector con macro-categorías
   const catSel = document.getElementById('catalogo-cat');

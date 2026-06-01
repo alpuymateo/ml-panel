@@ -2428,10 +2428,14 @@ app.get('/api/odoo/imagen/:id', async (req, res) => {
 
 // Lista de productos con imagen personalizada en PG (para repoblar _updatedImages al cargar)
 app.get('/api/product-images', requireUser, async (req, res) => {
-  const rows = await pool.query('SELECT product_id, EXTRACT(EPOCH FROM updated_at)*1000 AS ts FROM product_images');
-  const result = {};
-  rows.rows.forEach(r => { result[r.product_id] = Math.round(r.ts); });
-  res.json(result);
+  try {
+    const rows = await pool.query('SELECT product_id, EXTRACT(EPOCH FROM updated_at)*1000 AS ts FROM product_images');
+    const result = {};
+    rows.rows.forEach(r => { result[r.product_id] = Math.round(r.ts); });
+    res.json(result);
+  } catch(e) {
+    res.json({});
+  }
 });
 
 // Subir imagen para un producto — guarda en disco, PostgreSQL y Odoo staging
