@@ -4608,7 +4608,7 @@ async function searchCotPartner(q) {
   _cotPartnerId = null;
   if (!q || q.length < 2) { drop.style.display = 'none'; return; }
   try {
-    const res = await fetch(`/api/odoo/buscar-partner?q=${encodeURIComponent(q)}`);
+    const res = await fetch(`/api/odoo/buscar-partner?q=${encodeURIComponent(q)}`, { headers: authHeaders() });
     const data = await res.json();
     if (!data.length) { drop.style.display = 'none'; return; }
     drop.innerHTML = data.map(p => `
@@ -4965,7 +4965,7 @@ async function searchCatCliente(q) {
   catPedido.partner_id = null;
   if (!q || q.length < 2) { drop.style.display = 'none'; return; }
   try {
-    const res = await fetch(`/api/odoo/buscar-partner?q=${encodeURIComponent(q)}`);
+    const res = await fetch(`/api/odoo/buscar-partner?q=${encodeURIComponent(q)}`, { headers: authHeaders() });
     const data = await res.json();
     if (!data.length) { drop.style.display = 'none'; return; }
     drop.innerHTML = data.map(p => `
