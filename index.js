@@ -55,6 +55,11 @@ async function initDb() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS audit_log_created_at ON audit_log(created_at DESC);
+    CREATE TABLE IF NOT EXISTS product_images (
+      product_id INTEGER PRIMARY KEY,
+      image_data BYTEA NOT NULL,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
   console.log('[db] Tablas inicializadas');
 }
@@ -2387,11 +2392,22 @@ app.get('/api/odoo/imagen/:id', async (req, res) => {
   if (isNaN(id)) return res.status(400).end();
   const filePath = path.join(IMG_CACHE_DIR, `${id}.png`);
   try {
+    // 1. Disco local
     if (fs.existsSync(filePath)) {
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Cache-Control', 'public, max-age=3600');
       return res.end(fs.readFileSync(filePath));
     }
+    // 2. PostgreSQL (imagen subida manualmente — sobrevive restarts)
+    const pgRow = await pool.query('SELECT image_data FROM product_images WHERE product_id = $1', [id]);
+    if (pgRow.rows.length) {
+      const buf = pgRow.rows[0].image_data;
+      fs.writeFileSync(filePath, buf); // recrea el cache local
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.end(buf);
+    }
+    // 3. Odoo producción (imagen original)
     const uid = await odooAuth();
     const rows = await odooCall('/xmlrpc/2/object', 'execute_kw', [
       ODOO_DB, uid, ODOO_API_KEY, 'product.product', 'search_read',
@@ -2410,14 +2426,44 @@ app.get('/api/odoo/imagen/:id', async (req, res) => {
   }
 });
 
-// Subir imagen local para un producto (se guarda en data/images/{id}.png)
-app.post('/api/productos/:id/imagen', requireUser, upload.single('imagen'), (req, res) => {
+// Subir imagen para un producto — guarda en disco, PostgreSQL y Odoo staging
+app.post('/api/productos/:id/imagen', requireUser, upload.single('imagen'), async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
   if (!req.file) return res.status(400).json({ error: 'No se recibió imagen' });
+
+  const buf = req.file.buffer;
+
+  // 1. Disco local (cache rápido)
   const filePath = path.join(IMG_CACHE_DIR, `${id}.png`);
-  fs.writeFileSync(filePath, req.file.buffer);
-  console.log(`[imagen] producto ${id} actualizado localmente (${req.file.size} bytes)`);
+  fs.writeFileSync(filePath, buf);
+
+  // 2. PostgreSQL (persiste entre restarts de Railway)
+  try {
+    await pool.query(
+      'INSERT INTO product_images (product_id, image_data, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (product_id) DO UPDATE SET image_data = EXCLUDED.image_data, updated_at = NOW()',
+      [id, buf]
+    );
+    console.log(`[imagen] producto ${id} guardado en PostgreSQL (${buf.length} bytes)`);
+  } catch (e) {
+    console.error(`[imagen] error guardando en PG: ${e.message}`);
+  }
+
+  // 3. Odoo staging (escribe image_1920 en product.product)
+  try {
+    const uid = await odooAuthStaging();
+    const b64 = buf.toString('base64');
+    await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY,
+      'product.product', 'write',
+      [[id], { image_1920: b64 }],
+    ]);
+    console.log(`[imagen] producto ${id} actualizado en Odoo staging`);
+  } catch (e) {
+    console.error(`[imagen] error subiendo a Odoo staging: ${e.message}`);
+    // No es fatal — la imagen ya quedó en PG y disco
+  }
+
   res.json({ ok: true, url: `/api/odoo/imagen/${id}` });
 });
 
