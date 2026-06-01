@@ -4711,7 +4711,10 @@ async function searchCotPartner(q) {
 
 function selectCotPartner(id, name) {
   _cotPartnerId = id;
-  document.getElementById('cot-partner-search').value = name;
+  const inp = document.getElementById('cot-partner-search');
+  inp.value = name;
+  inp.style.borderColor = '#e5e7eb';
+  inp.style.background = 'white';
   document.getElementById('cot-partner-drop').style.display = 'none';
 }
 
