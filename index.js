@@ -2426,6 +2426,20 @@ app.get('/api/odoo/imagen/:id', async (req, res) => {
   }
 });
 
+// Borrar imagen personalizada de un producto (vuelve a la de Odoo)
+app.delete('/api/productos/:id/imagen', requireUser, async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+  try {
+    await pool.query('DELETE FROM product_images WHERE product_id = $1', [id]);
+    const filePath = path.join(IMG_CACHE_DIR, `${id}.png`);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    res.json({ ok: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Lista de productos con imagen personalizada en PG (para repoblar _updatedImages al cargar)
 app.get('/api/product-images', requireUser, async (req, res) => {
   try {

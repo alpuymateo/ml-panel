@@ -5520,6 +5520,29 @@ function coSetImgTarget(id, sku) {
   document.getElementById('co-img-status').textContent = '';
   const skuLabel = document.getElementById('co-img-target-sku');
   if (skuLabel) skuLabel.textContent = sku ? '— ' + sku : '';
+  // Mostrar botón restaurar solo si tiene imagen personalizada
+  const resetWrap = document.getElementById('co-img-reset-wrap');
+  if (resetWrap) resetWrap.style.display = _updatedImages[id] ? '' : 'none';
+}
+
+async function coResetImg() {
+  if (!_coProductId) return;
+  if (!confirm('¿Restaurar la imagen original de Odoo? Se borrará la imagen subida.')) return;
+  try {
+    await fetch(`/api/productos/${_coProductId}/imagen`, { method: 'DELETE', headers: authHeaders() });
+    delete _updatedImages[_coProductId];
+    document.getElementById('co-img-reset-wrap').style.display = 'none';
+    // Actualizar imagen en el modal y en la grilla
+    const newSrc = `/api/odoo/imagen/${_coProductId}?t=${Date.now()}`;
+    document.getElementById('co-thumb').src = newSrc;
+    const uid = 'cv_' + (document.getElementById('co-sku-input').value.replace(/\W/g,'_'));
+    const mainImg = document.getElementById(uid + '_main');
+    if (mainImg) mainImg.src = newSrc;
+    document.getElementById('co-img-status').style.color = '#059669';
+    document.getElementById('co-img-status').textContent = '✓ Restaurada';
+  } catch(e) {
+    alert('Error al restaurar: ' + e.message);
+  }
 }
 
 function coPreviewImg(file) {
@@ -5609,6 +5632,9 @@ function openCatOverride(skuBase, currentMacro, currentSub) {
     const skuLabel = document.getElementById('co-img-target-sku');
     if (skuLabel) skuLabel.textContent = '';
   }
+  // Mostrar botón restaurar si tiene imagen personalizada
+  const resetWrap = document.getElementById('co-img-reset-wrap');
+  if (resetWrap) resetWrap.style.display = _updatedImages[_coProductId] ? '' : 'none';
   // Macros
   const macroSel = document.getElementById('co-macro');
   macroSel.innerHTML = CATALOGO_MACRO.map(m => `<option value="${m.nombre}" ${m.nombre===currentMacro?'selected':''}>${m.nombre}</option>`).join('');
@@ -13420,6 +13446,9 @@ showPage = function(page) {
           📷 Hacé clic o arrastrá una imagen
         </div>
         <input id="co-img-input" type="file" accept="image/*" style="display:none" onchange="coPreviewImg(this.files[0])">
+        <div id="co-img-reset-wrap" style="display:none;margin-top:6px;text-align:right;">
+          <button onclick="coResetImg()" style="background:none;border:none;font-size:11px;color:#dc2626;cursor:pointer;text-decoration:underline;">↺ Restaurar imagen original de Odoo</button>
+        </div>
         <div id="co-img-preview" style="display:none;margin-top:8px;display:flex;align-items:center;gap:10px;">
           <img id="co-img-preview-img" style="height:60px;border-radius:6px;object-fit:contain;border:1px solid #e5e7eb;">
           <div style="flex:1;min-width:0;">
