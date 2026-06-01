@@ -1075,7 +1075,8 @@
               <span></span>
             </div>
           </div>
-          <div id="cot-lineas" style="margin-bottom:16px;"></div>
+          <div id="cot-lineas" style="margin-bottom:8px;"></div>
+          <button onclick="addCotLinea()" style="width:100%;padding:8px;background:#f9fafb;border:1px dashed #d1d5db;border-radius:6px;font-size:12px;font-weight:600;color:#6b7280;cursor:pointer;margin-bottom:16px;">+ Agregar producto</button>
 
           <div style="margin-bottom:16px;">
             <label style="font-size:12px;font-weight:600;color:#6b7280;display:block;margin-bottom:6px;">NOTAS</label>
@@ -4561,6 +4562,16 @@ function saveCotFormState() {
     if (qty)   l.cantidad = parseFloat(qty.value)   || l.cantidad;
     if (price) l.precio   = parseFloat(price.value) || l.precio;
   });
+}
+
+function addCotLinea() {
+  if (!cotExtracted) return;
+  saveCotFormState();
+  cotExtracted.lineas.push({ sku: '', cantidad: 1, precio: 0, color: '', found: false, product_id: null, product_name: null, uom_id: null, tax_ids: [] });
+  renderStep2(cotExtracted);
+  // Foco en el SKU de la nueva línea
+  const i = cotExtracted.lineas.length - 1;
+  setTimeout(() => document.getElementById(`cot-l-sku-${i}`)?.focus(), 50);
 }
 
 function removeCotLinea(i) {
