@@ -5512,6 +5512,16 @@ function getImgSrc(id, thumbnail) {
   return thumbnail || '/api/odoo/imagen/' + id;
 }
 
+function coSetImgTarget(id, sku) {
+  _coProductId = id;
+  _coImgFile = null;
+  document.getElementById('co-img-preview').style.display = 'none';
+  document.getElementById('co-img-input').value = '';
+  document.getElementById('co-img-status').textContent = '';
+  const skuLabel = document.getElementById('co-img-target-sku');
+  if (skuLabel) skuLabel.textContent = sku ? '— ' + sku : '';
+}
+
 function coPreviewImg(file) {
   if (!file) return;
   _coImgFile = file;
@@ -5557,7 +5567,6 @@ async function coUploadImg() {
 
 function openCatOverride(skuBase, currentMacro, currentSub) {
   const meta = catCardMeta[skuBase] || {};
-  _coProductId = meta.variants?.[0]?.id || null;
   _coImgFile = null;
   document.getElementById('co-img-preview').style.display = 'none';
   document.getElementById('co-img-input').value = '';
@@ -5579,19 +5588,26 @@ function openCatOverride(skuBase, currentMacro, currentSub) {
   // Variantes para elegir imagen
   const metaVariants = (meta.variants || []);
   const pinnedSku = catalogPinned[skuBase];
+  const activeVariant = (pinnedSku && metaVariants.find(v => v.sku === pinnedSku)) || metaVariants[0];
+  _coProductId = activeVariant?.id || null;
   const variantPickerEl = document.getElementById('co-variant-picker');
   if (metaVariants.length > 1) {
     variantPickerEl.style.display = 'block';
     variantPickerEl.querySelector('.co-vp-thumbs').innerHTML = metaVariants.map(v => {
       const img = v.ml_thumbnail || '/api/odoo/imagen/' + v.id;
-      const active = (pinnedSku ? v.sku === pinnedSku : v === metaVariants[0]);
-      return `<div onclick="pinVariant('${skuBase}','${v.sku}')" title="${v.sku}"
+      const active = activeVariant && v.id === activeVariant.id;
+      return `<div onclick="pinVariant('${skuBase}','${v.sku}');coSetImgTarget(${v.id},'${v.sku}')" title="${v.sku}"
         style="cursor:pointer;border-radius:6px;overflow:hidden;border:2px solid ${active?'#111827':'#e5e7eb'};flex-shrink:0;width:52px;height:52px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;">
         <img src="${img}" style="width:46px;height:46px;object-fit:contain;mix-blend-mode:multiply;" onerror="this.style.opacity='0.2'">
       </div>`;
     }).join('');
+    // Mostrar SKU activo en el label de imagen
+    const skuLabel = document.getElementById('co-img-target-sku');
+    if (skuLabel) skuLabel.textContent = activeVariant?.sku ? '— ' + activeVariant.sku : '';
   } else {
     variantPickerEl.style.display = 'none';
+    const skuLabel = document.getElementById('co-img-target-sku');
+    if (skuLabel) skuLabel.textContent = '';
   }
   // Macros
   const macroSel = document.getElementById('co-macro');
@@ -13391,7 +13407,7 @@ showPage = function(page) {
       </div>
       <!-- Imagen -->
       <div style="margin-bottom:14px;">
-        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">Imagen del producto</label>
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">Imagen del producto <span id="co-img-target-sku" style="font-family:monospace;color:#7c3aed;font-weight:800;font-size:11px;text-transform:none;letter-spacing:0;"></span></label>
         <div id="co-img-drop"
           style="border:2px dashed #e5e7eb;border-radius:8px;padding:10px 14px;text-align:center;cursor:pointer;font-size:12px;color:#6b7280;transition:border-color 0.2s;"
           onclick="document.getElementById('co-img-input').click()"
