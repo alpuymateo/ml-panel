@@ -1528,7 +1528,7 @@ Preguntas:
 ${rawQuestions.map(q => `ID ${q.id}: "${q.text}"`).join('\n')}`;
 
         const r = await anthropic.messages.create({
-          model: 'claude-haiku-4-5',
+          model: 'claude-haiku-4-5-20251001',
           max_tokens: 4096,
           messages: [{ role: 'user', content: prompt }],
         });
@@ -2658,7 +2658,7 @@ app.post('/api/odoo/cotizacion-foto', express.json({ limit: '20mb' }), async (re
 
     // 1. Claude lee la imagen
     const msg = await anthropic.messages.create({
-      model: 'claude-opus-4-6',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
       messages: [{
         role: 'user',
@@ -2857,7 +2857,7 @@ app.post('/webhook/whatsapp', express.urlencoded({ extended: false }), async (re
 
     // Claude lee la imagen
     const msg = await anthropic.messages.create({
-      model: 'claude-opus-4-6',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
       messages: [{
         role: 'user',
@@ -3510,7 +3510,7 @@ ${JSON.stringify(validItems, null, 2)}
 Respondé SOLO con un array JSON válido, sin texto adicional. No uses comillas dobles dentro de los strings — usá comillas simples o reemplazalas con espacios. No uses saltos de línea dentro de los valores de string.`;
 
     const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -3748,7 +3748,7 @@ ${kb.reglas_generales.slice(0, 8).map(r => '- ' + r).join('\n')}` : '';
     const lastBuyerMsg = [...messages].reverse().find(m => m.from_buyer);
 
     const r = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 400,
       messages: [{
         role: 'user',
@@ -3906,7 +3906,7 @@ app.get('/api/config/reglas/interpretar', requireToken, async (req, res) => {
   if (!reglas.length) return res.json({ interpretacion: '' });
   try {
     const r = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 400,
       messages: [{
         role: 'user',
@@ -4059,7 +4059,7 @@ ${kb.reglas_generales.slice(0, 10).map(r => '- ' + r).join('\n')}` : '';
           similares.map(e => `P: ${e.pregunta}\nR: ${e.respuesta}`).join('\n---\n');
       }
       const r = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 250,
         messages: [{
           role: 'user',
@@ -4313,7 +4313,7 @@ ${similares.map(e => `P: ${e.pregunta}\nR: ${e.respuesta}`).join('\n---\n')}
     const itemText = itemCtx ? buildItemContextText(itemCtx) : `Producto: ${titulo || 'no especificado'}`;
 
     const r = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 300,
       messages: [{
         role: 'user',
@@ -4767,7 +4767,7 @@ Respondé SOLO con JSON:
 }`;
 
     const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -4856,7 +4856,7 @@ IMPORTANTE:
 - keywords_ml DEBE ser un array de 3 formas DISTINTAS de buscar el producto en MercadoLibre URUGUAY. Usá palabras SIMPLES y CORTAS como buscaría un uruguayo (ej: "organizador cajones", "luz led sensor", "cepillo limpieza"). NO uses traducciones literales del inglés. Pensá en cómo se llama el producto en una ferretería o bazar de Uruguay.`;
 
     const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -5045,7 +5045,7 @@ IMPORTANTE:
 - keywords_ml DEBE ser un array de 3 formas DISTINTAS de buscar el producto en MercadoLibre URUGUAY. Usá palabras SIMPLES y CORTAS como buscaría un uruguayo en un bazar o ferretería (ej: "organizador cajones", "luz led sensor movimiento", "cepillo limpieza"). NO uses traducciones literales del inglés ni nombres técnicos.`;
 
       const msg = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 4096,
         messages: [{ role: 'user', content: prompt }],
       });
@@ -5988,6 +5988,37 @@ app.get('/api/perdidos', requireToken, (req, res) => {
     }
   } catch {}
 
+  // Build Odoo sales by SKU+month from catalogo cache for months after Zureo (>= 2025-09)
+  const odooSalesBySku = {}; // sku → { 'YYYY-MM': qty }
+  let catData = _catalogoCache;
+  if (!catData?.categories) {
+    try { catData = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'catalogo_cache.json'), 'utf8')); } catch {}
+  }
+  if (catData?.categories) {
+    for (const cat of catData.categories) {
+      for (const item of cat.items) {
+        if (item.sku && item.sales_by_month) {
+          odooSalesBySku[item.sku] = item.sales_by_month;
+        }
+      }
+    }
+  }
+
+  // Descomponer ventas de packs a componentes unitarios
+  const packBom = loadPackBom();
+  // Build reverse map: component SKU → [{packSku, qty}]
+  const componentToPacks = {};
+  for (const [packSku, pack] of Object.entries(packBom)) {
+    for (const comp of (pack.components || [])) {
+      if (comp.sku) {
+        if (!componentToPacks[comp.sku]) componentToPacks[comp.sku] = [];
+        componentToPacks[comp.sku].push({ packSku, qty: comp.qty || 1 });
+      }
+    }
+  }
+
+  const ZUREO_CUTOFF = '2025-08'; // último mes con datos de Zureo
+
   const monthResults = [];
   for (let i = 0; i < 12; i++) {
     const d = new Date(curYear, curMonth - 1 - i, 1);
@@ -5995,30 +6026,78 @@ app.get('/api/perdidos', requireToken, (req, res) => {
     const y = d.getFullYear();
     const key = `${y}-${pad(m)}`;
     const keyPrev = `${y - 1}-${pad(m)}`;
+    const useOdooForCurrent = key > ZUREO_CUTOFF;
 
     let lost = [];
+    let decreased = [];
     for (const [code, item] of Object.entries(itemData)) {
       const prev = item.months[keyPrev];
-      const curr = item.months[key];
-      if (prev && prev.qty >= minQty && (!curr || curr.qty === 0)) {
+      if (!prev || prev.qty < minQty) continue;
+
+      // Ventas del mes actual: Zureo si disponible, sino Odoo
+      let currQty = 0;
+      if (!useOdooForCurrent) {
+        const curr = item.months[key];
+        currQty = curr?.qty || 0;
+      } else {
+        // Buscar en Odoo por SKU (mapeo zureo→odoo)
         const mapping = zureoOdooMap[code];
         const odooSku = mapping?.odooSku || code;
-        // Try exact, then base code for summed variants
-        const odooExact = odooStockMap[odooSku] || odooStockMap[code];
-        const odooBase = odooBaseStock[code] || odooBaseStock[odooSku];
-        const odooStock = odooBase?.stock ?? odooExact?.stock ?? null;
-        const odooName = mapping?.odooName || odooBase?.name || odooExact?.name || null;
-        const mlItem = cachedStock.find(s => s.sku === odooSku || s.sku === code);
-
-        lost.push({
-          code, name: item.name,
-          prevQty: prev.qty, prevTotal: Math.round(prev.total),
-          odooSku, odooName,
-          odooStock,
-          mlStock: mlItem?.stock ?? null,
-          mlId: mlItem?.id || null,
-        });
+        // Sumar variantes del mismo base SKU
+        const baseCode = odooSku.replace(/-[A-Z]{2,}$/, '');
+        let totalOdooQty = 0;
+        // Ventas directas del unitario
+        for (const [sku, months] of Object.entries(odooSalesBySku)) {
+          if (sku === odooSku || sku === code || sku.startsWith(baseCode + '-') || sku === baseCode) {
+            totalOdooQty += months[key] || 0;
+          }
+        }
+        // Ventas via packs (descomponer)
+        const packs = componentToPacks[odooSku] || componentToPacks[code] || [];
+        for (const p of packs) {
+          const packMonths = odooSalesBySku[p.packSku];
+          if (packMonths?.[key]) {
+            totalOdooQty += packMonths[key] * p.qty;
+          }
+        }
+        currQty = totalOdooQty;
       }
+
+      const mapping2 = zureoOdooMap[code];
+      const odooSku = mapping2?.odooSku || code;
+      const odooExact = odooStockMap[odooSku] || odooStockMap[code];
+      const odooBase = odooBaseStock[code] || odooBaseStock[odooSku];
+      const odooStock = odooBase?.stock ?? odooExact?.stock ?? null;
+      const odooName = mapping2?.odooName || odooBase?.name || odooExact?.name || null;
+
+      // Producto vendió menos que el año pasado (para filtro "menos")
+      if (currQty > 0 && currQty < prev.qty) {
+        const pctDrop = Math.round((1 - currQty / prev.qty) * 100);
+        const currTotal = Math.round(prev.total * (currQty / prev.qty)); // estimado proporcional
+        const lostTotal = Math.round(prev.total) - currTotal;
+        decreased.push({
+          code, name: item.name,
+          prevQty: prev.qty, currQty, prevTotal: Math.round(prev.total),
+          currTotal, lostTotal,
+          pctDrop,
+          odooSku, odooName, odooStock,
+          mlStock: cachedStock.find(s => s.sku === odooSku || s.sku === code)?.stock ?? null,
+          mlId: (cachedStock.find(s => s.sku === odooSku || s.sku === code))?.id || null,
+        });
+        continue;
+      }
+
+      if (currQty > 0) continue; // vendió igual o más → no perdido
+      const mlItem = cachedStock.find(s => s.sku === odooSku || s.sku === code);
+
+      lost.push({
+        code, name: item.name,
+        prevQty: prev.qty, prevTotal: Math.round(prev.total),
+        odooSku, odooName,
+        odooStock,
+        mlStock: mlItem?.stock ?? null,
+        mlId: mlItem?.id || null,
+      });
     }
 
     // Filter by stock
@@ -6026,6 +6105,7 @@ app.get('/api/perdidos', requireToken, (req, res) => {
     if (filter === 'con_stock') lost = lost.filter(i => (i.odooStock > 0) || (i.mlStock > 0));
 
     lost.sort((a, b) => b.prevTotal - a.prevTotal);
+    decreased.sort((a, b) => b.pctDrop - a.pctDrop);
     const totalLost = lost.reduce((s, i) => s + i.prevTotal, 0);
 
     monthResults.push({
@@ -6033,10 +6113,210 @@ app.get('/api/perdidos', requireToken, (req, res) => {
       vs: monthNames[m] + ' ' + (y - 1),
       count: lost.length, totalLost,
       items: lost,
+      decreased,
     });
   }
 
   res.json({ months: monthResults });
+});
+
+// ── Estacionalidad: detectar productos zafrales ──────────────────
+const SEASONAL_CATEGORIES = [
+  { keywords: ['guia de luces','guirnalda','luciernaga','bombita vintage','bombita edison'], season: 'verano', months: [9,10,11,12,1,2], label: 'Iluminación exterior' },
+  { keywords: ['carpa','reposera','silla plegable','camping','sombrilla','hamaca','conservadora','mesa plegable'], season: 'verano', months: [10,11,12,1,2,3], label: 'Camping/Exterior' },
+  { keywords: ['pileta','inflable','piscina'], season: 'verano', months: [11,12,1,2], label: 'Piletas' },
+  { keywords: ['ventilador','aire acondicionado','soporte aire'], season: 'verano', months: [11,12,1,2,3], label: 'Climatización verano' },
+  { keywords: ['biciclet','monopatin','scooter','rollers'], season: 'verano', months: [9,10,11,12,1,2], label: 'Ciclismo/Movilidad' },
+  { keywords: ['estufa','calefactor','calefaccion','calentador'], season: 'invierno', months: [4,5,6,7,8], label: 'Calefacción' },
+  { keywords: ['manta','frazada','acolchado','sobre de dormir','polar'], season: 'invierno', months: [4,5,6,7,8], label: 'Abrigo' },
+  { keywords: ['navidad','papa noel','arbol navidad','pesebre','navide'], season: 'verano', months: [11,12], label: 'Navidad' },
+  { keywords: ['gazebo','toldo','malla sombra','sombra'], season: 'verano', months: [10,11,12,1,2], label: 'Sombra exterior' },
+  { keywords: ['caminadora','bici fija','fitness','gym','pesa','mancuerna'], season: 'invierno', months: [3,4,5,6,7,8], label: 'Fitness' },
+  { keywords: ['foco solar','farol solar','luz solar','panel solar'], season: 'verano', months: [9,10,11,12,1,2], label: 'Solar' },
+  { keywords: ['tender','tendedero'], season: 'invierno', months: [3,4,5,6,7,8,9], label: 'Lavandería' },
+];
+
+function detectSeasonalCategory(name, categ) {
+  const n = (name || '').toLowerCase();
+  const c = (categ || '').toLowerCase();
+  for (const sc of SEASONAL_CATEGORIES) {
+    if (sc.keywords.some(k => n.includes(k) || c.includes(k))) return sc;
+  }
+  return null;
+}
+
+app.get('/api/estacionalidad', requireToken, (req, res) => {
+  if (!zureoData) return res.json({ items: [] });
+
+  const now = new Date();
+  const curMonth = now.getMonth() + 1; // 1-12
+  const leadDays = parseInt(req.query.lead_days) || 120;
+  const monthNames = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+  // Build Odoo sales + stock
+  let catData = _catalogoCache;
+  if (!catData?.categories) {
+    try { catData = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'catalogo_cache.json'), 'utf8')); } catch {}
+  }
+  const odooSalesBySku = {};
+  const odooStockBySku = {};
+  if (catData?.categories) {
+    for (const cat of catData.categories) {
+      for (const item of cat.items) {
+        if (item.sku) {
+          if (item.sales_by_month) odooSalesBySku[item.sku] = item.sales_by_month;
+          odooStockBySku[item.sku] = { stock: item.stock, name: item.name, categ: cat.name, thumbnail: item.ml_thumbnail };
+        }
+      }
+    }
+  }
+
+  // Pack BOM decomposition
+  const packBom = loadPackBom();
+  const componentToPacks = {};
+  for (const [packSku, pack] of Object.entries(packBom)) {
+    for (const comp of (pack.components || [])) {
+      if (comp.sku) {
+        if (!componentToPacks[comp.sku]) componentToPacks[comp.sku] = [];
+        componentToPacks[comp.sku].push({ packSku, qty: comp.qty || 1 });
+      }
+    }
+  }
+
+  // Months to analyze: next 4 months (what to buy for)
+  const targetMonths = [];
+  for (let i = 0; i < 4; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + Math.ceil(leadDays/30) + i, 1);
+    targetMonths.push({ month: d.getMonth() + 1, label: monthNames[d.getMonth()+1] + ' ' + d.getFullYear() });
+  }
+
+  const ZUREO_CUTOFF = '2025-08';
+  const items = [];
+
+  for (const [code, item] of Object.entries(zureoData.items)) {
+    if (packBom[code]) continue; // skip packs
+
+    const mapping = zureoOdooMap[code];
+    const odooSku = mapping?.odooSku || code;
+
+    // Build monthly sales array (all months we have)
+    const allMonths = Object.keys(item.months).sort();
+    if (allMonths.length < 6) continue; // need enough data
+
+    // Get sales by calendar month (1-12) across all years
+    const byCalMonth = {}; // month (1-12) → [qty, qty, ...]
+    for (const [key, data] of Object.entries(item.months)) {
+      const m = parseInt(key.split('-')[1]);
+      if (!byCalMonth[m]) byCalMonth[m] = [];
+      byCalMonth[m].push(data.qty);
+    }
+
+    // Add Odoo data for months after Zureo
+    const baseCode = odooSku.replace(/-[A-Z]{2,}$/, '');
+    for (const [sku, months] of Object.entries(odooSalesBySku)) {
+      if (sku === odooSku || sku === code || sku.startsWith(baseCode + '-') || sku === baseCode) {
+        for (const [key, qty] of Object.entries(months)) {
+          if (key > ZUREO_CUTOFF && qty > 0) {
+            const m = parseInt(key.split('-')[1]);
+            if (!byCalMonth[m]) byCalMonth[m] = [];
+            byCalMonth[m].push(qty);
+          }
+        }
+      }
+    }
+    // Add pack sales decomposed
+    const packs = componentToPacks[odooSku] || componentToPacks[code] || [];
+    for (const p of packs) {
+      const packMonths = odooSalesBySku[p.packSku];
+      if (!packMonths) continue;
+      for (const [key, qty] of Object.entries(packMonths)) {
+        if (key > ZUREO_CUTOFF && qty > 0) {
+          const m = parseInt(key.split('-')[1]);
+          if (!byCalMonth[m]) byCalMonth[m] = [];
+          byCalMonth[m].push(qty * p.qty);
+        }
+      }
+    }
+
+    // Calculate avg per calendar month
+    const avgByMonth = {};
+    let totalAvg = 0;
+    for (let m = 1; m <= 12; m++) {
+      const vals = byCalMonth[m] || [];
+      avgByMonth[m] = vals.length > 0 ? Math.round(vals.reduce((s,v)=>s+v,0) / vals.length) : 0;
+      totalAvg += avgByMonth[m];
+    }
+    if (totalAvg === 0) continue;
+
+    // Detect seasonality: coefficient of variation across months
+    const monthAvgs = Object.values(avgByMonth);
+    const mean = totalAvg / 12;
+    const variance = monthAvgs.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / 12;
+    const cv = mean > 0 ? Math.sqrt(variance) / mean : 0;
+
+    // Seasonal = CV > 0.5 (high variation between months)
+    const isSeasonal = cv > 0.5;
+
+    // Peak months (above 1.5x average)
+    const peakMonths = [];
+    for (let m = 1; m <= 12; m++) {
+      if (avgByMonth[m] > mean * 1.5) peakMonths.push(m);
+    }
+
+    // Target months: what we need to buy for
+    let targetQty = 0;
+    let targetLabel = [];
+    for (const tm of targetMonths) {
+      const avg = avgByMonth[tm.month] || 0;
+      targetQty += avg;
+      if (avg > 0) targetLabel.push(tm.label + ': ' + avg);
+    }
+
+    // Stock info
+    const odooInfo = odooStockBySku[odooSku] || odooStockBySku[code] || {};
+    const stock = odooInfo.stock || 0;
+    const suggested = Math.max(0, Math.ceil(targetQty * 1.3) - stock);
+
+    // Detect seasonal category by product name/category (sentido común)
+    const seasonalCat = detectSeasonalCategory(item.name, odooInfo.categ);
+    const finalSeasonal = isSeasonal || !!seasonalCat;
+    const finalSeasonType = seasonalCat ? seasonalCat.season
+      : peakMonths.some(m => [11,12,1,2].includes(m)) ? 'verano'
+      : peakMonths.some(m => [5,6,7,8].includes(m)) ? 'invierno' : 'otro';
+    const seasonLabel = seasonalCat?.label || null;
+    const finalPeakMonths = seasonalCat ? seasonalCat.months : peakMonths;
+
+    if (targetQty === 0 && !finalSeasonal) continue;
+
+    items.push({
+      code, sku: odooSku, name: item.name,
+      categ: odooInfo.categ || '',
+      thumbnail: odooInfo.thumbnail || null,
+      stock,
+      avgByMonth, // 1-12 averages
+      totalAvg: Math.round(totalAvg),
+      cv: Math.round(cv * 100) / 100,
+      isSeasonal: finalSeasonal,
+      peakMonths: finalPeakMonths,
+      peakLabel: seasonLabel || finalPeakMonths.map(m => monthNames[m]).join(', '),
+      targetQty: Math.round(targetQty),
+      targetLabel,
+      suggested,
+      seasonType: finalSeasonType,
+      seasonCategory: seasonLabel,
+    });
+  }
+
+  // Sort by target opportunity (suggested qty × we need it)
+  items.sort((a, b) => b.suggested - a.suggested);
+
+  res.json({
+    items,
+    targetMonths,
+    totalSeasonal: items.filter(i => i.isSeasonal).length,
+    totalWithSuggestion: items.filter(i => i.suggested > 0).length,
+    leadDays,
+  });
 });
 
 // ── CBM consumidos por mes (local/POS) ──────────────────────────
@@ -6442,7 +6722,7 @@ app.post('/api/pi/leer', requireToken, upload.single('file'), async (req, res) =
 
         console.log(`[pi/ia] Processing sheet: ${sheetName}`);
         const msg = await anthropic.messages.create({
-          model: 'claude-sonnet-4-6',
+          model: 'claude-haiku-4-5-20251001',
           max_tokens: 8192,
           messages: [{ role: 'user', content: `Extraé los productos de esta hoja de una Proforma Invoice.
 
