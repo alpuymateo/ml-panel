@@ -6543,6 +6543,9 @@ function renderCatalogo() {
     cont.innerHTML = `<style>
       .cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:1px;background:#e0e0e0;}
       .cat-card{background:#fff;display:flex;flex-direction:column;padding:0 0 16px;cursor:default;}
+      .cat-card.drag-over{outline:2px dashed #6366f1;outline-offset:-2px;background:#f5f3ff;}
+      .cat-card[draggable="true"]{cursor:grab;}
+      .cat-card[draggable="true"]:active{cursor:grabbing;}
       .cat-card-img-wrap{width:100%;height:190px;display:flex;align-items:center;justify-content:center;background:#f5f5f5;margin-bottom:12px;overflow:hidden;}
       .cat-card-img{max-width:85%;max-height:170px;object-fit:contain;display:block;mix-blend-mode:multiply;}
       .cat-card-body{padding:0 14px;}
@@ -6640,7 +6643,7 @@ function renderCatalogo() {
                   style="position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.9);border:1px solid #e5e7eb;border-radius:5px;padding:3px 6px;font-size:10px;color:#6b7280;cursor:pointer;font-weight:600;z-index:2;" title="Editar">✎ <span style="font-size:9px;">${cardIdx+1}</span></button>`
             : '';
           return `
-          <div class="cat-card" style="position:relative;">
+          <div class="cat-card" data-uid="${uid}" style="position:relative;">
             ${editBtn}
             <div style="display:flex;padding:12px 12px 0;">
               <div style="flex:1;min-width:0;height:170px;display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:6px;overflow:hidden;">
@@ -6665,12 +6668,60 @@ function renderCatalogo() {
         });
         return `
         ${subHeader(sub.nombre, groupOrder.length, subKey, sub.customId, subIdx)}
-        <div class="cat-grid" style="margin-bottom:16px;">
+        <div class="cat-grid" data-subkey="${subKey}" style="margin-bottom:16px;">
           ${cards.join('')}
         </div>`;
       }).join('')}`;
     }).join('')}`;
+    initCatalogoDragDrop();
   }
+}
+
+function initCatalogoDragDrop() {
+  if (catalogoModo !== 'ver') return;
+  document.querySelectorAll('.cat-grid[data-subkey]').forEach(grid => {
+    let dragSrc = null;
+    Array.from(grid.children).forEach(card => {
+      card.draggable = true;
+      card.addEventListener('dragstart', e => {
+        dragSrc = card;
+        e.dataTransfer.effectAllowed = 'move';
+        setTimeout(() => card.style.opacity = '0.4', 0);
+      });
+      card.addEventListener('dragend', () => {
+        card.style.opacity = '';
+        grid.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over'));
+      });
+      card.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+      card.addEventListener('dragenter', e => { e.preventDefault(); if (dragSrc !== card) card.classList.add('drag-over'); });
+      card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+      card.addEventListener('drop', async e => {
+        e.preventDefault(); e.stopPropagation();
+        if (dragSrc && dragSrc !== card) {
+          const all = Array.from(grid.children);
+          const si = all.indexOf(dragSrc), di = all.indexOf(card);
+          grid.insertBefore(dragSrc, si < di ? card.nextSibling : card);
+          await saveCatalogoDragOrder(grid);
+        }
+        card.classList.remove('drag-over');
+      });
+    });
+  });
+}
+
+async function saveCatalogoDragOrder(grid) {
+  const subKey = grid.dataset.subkey;
+  if (!subKey) return;
+  const newOrder = Array.from(grid.children).map(c => {
+    const entry = (catGridUidMap[subKey] || []).find(e => e.uid === c.dataset.uid);
+    return entry?.base;
+  }).filter(Boolean);
+  catalogSortOverrides[subKey] = newOrder;
+  await fetch('/api/catalog/sort', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: subKey, order: newOrder })
+  });
 }
 
 // ══ ML: SIN DESCUENTO ════════════════════════════════════════════
