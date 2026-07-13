@@ -303,9 +303,9 @@
   <div class="login-card">
     <div class="login-logo">🛒</div>
     <h1>ML Panel</h1>
-    <p>Ingresá con tu usuario y contraseña</p>
+    <p>Ingresá con tu email y contraseña</p>
     <div id="login-error" style="display:none;background:#fee2e2;color:#991b1b;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
-    <input id="login-username" type="text" placeholder="Usuario" autocomplete="username"
+    <input id="login-username" type="email" placeholder="Email" autocomplete="email"
       style="display:block;width:100%;padding:12px 14px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;font-family:Inter,sans-serif;margin-bottom:10px;box-sizing:border-box;"
       onkeydown="if(event.key==='Enter')doLogin()">
     <input id="login-password" type="password" placeholder="Contraseña" autocomplete="current-password"
@@ -553,6 +553,9 @@
       <div class="nav-group-items admin-only" id="nav-admin" style="display:none;">
         <div class="nav-item" data-page="usuarios" onclick="showPage('usuarios')">
           <span class="nav-icon">👥</span> Usuarios
+        </div>
+        <div class="nav-item" data-page="auditlog" onclick="showPage('auditlog')">
+          <span class="nav-icon">📋</span> Log de actividad
         </div>
       </div>
 
@@ -1018,25 +1021,27 @@
       <div style="background:white;border-radius:16px;width:90%;max-width:780px;max-height:90vh;overflow-y:auto;padding:32px;position:relative;">
         <button onclick="closeCotizacionModal()" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:#6b7280;">✕</button>
 
-        <!-- Paso 1: subir foto -->
+        <!-- Paso 1: subir fotos (puede ser más de una hoja) -->
         <div id="cot-step-1">
           <h2 style="font-size:18px;font-weight:700;margin-bottom:6px;">Nueva cotización desde foto</h2>
-          <p style="color:#6b7280;font-size:13px;margin-bottom:20px;">Subí una foto del pedido escrito a mano. Claude va a leer el cliente, los SKUs y las cantidades.</p>
+          <p style="color:#6b7280;font-size:13px;margin-bottom:20px;">Subí las fotos del pedido. Si el pedido ocupa más de una hoja, agregá todas las fotos — Claude las une en un solo pedido.</p>
           <div id="cot-drop-zone" onclick="document.getElementById('cot-file-input').click()"
-            style="border:2px dashed #d1d5db;border-radius:12px;padding:40px;text-align:center;cursor:pointer;transition:border-color 0.2s;"
+            style="border:2px dashed #d1d5db;border-radius:12px;padding:32px;text-align:center;cursor:pointer;transition:border-color 0.2s;"
             ondragover="event.preventDefault();this.style.borderColor='#7c3aed'"
             ondragleave="this.style.borderColor='#d1d5db'"
             ondrop="handleCotDrop(event)">
-            <div style="font-size:40px;margin-bottom:12px;">📷</div>
-            <div style="font-size:14px;font-weight:600;color:#374151;">Hacé clic o arrastrá una imagen</div>
-            <div style="font-size:12px;color:#9ca3af;margin-top:4px;">JPG, PNG, HEIC</div>
+            <div style="font-size:36px;margin-bottom:10px;">📷</div>
+            <div style="font-size:14px;font-weight:600;color:#374151;">Hacé clic o arrastrá las imágenes</div>
+            <div style="font-size:12px;color:#9ca3af;margin-top:4px;">JPG, PNG, HEIC · Podés seleccionar varias a la vez</div>
           </div>
-          <input id="cot-file-input" type="file" accept="image/*" style="display:none" onchange="handleCotFile(this.files[0])">
-          <div id="cot-preview" style="display:none;margin-top:16px;text-align:center;">
-            <img id="cot-img" style="max-height:300px;max-width:100%;border-radius:8px;border:1px solid #e5e7eb;">
-            <div style="margin-top:12px;">
-              <button onclick="analizarFoto()" id="cot-btn-analizar" style="padding:10px 24px;background:#7c3aed;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;">🔍 Analizar con Claude</button>
-            </div>
+          <input id="cot-file-input" type="file" accept="image/*" multiple style="display:none" onchange="addCotImages(this.files)">
+
+          <!-- Miniaturas de las fotos cargadas -->
+          <div id="cot-images-list" style="display:none;margin-top:16px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;"></div>
+
+          <!-- Botón analizar -->
+          <div id="cot-analyze-wrap" style="display:none;margin-top:16px;text-align:center;">
+            <button onclick="analizarFoto()" id="cot-btn-analizar" style="padding:10px 24px;background:#7c3aed;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;">🔍 Analizar con Claude</button>
           </div>
           <div id="cot-step1-error" style="color:#ef4444;font-size:13px;margin-top:12px;display:none;"></div>
         </div>
@@ -1045,9 +1050,7 @@
         <div id="cot-step-2" style="display:none;">
           <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;">Confirmá los datos extraídos</h2>
 
-          <div id="cot-step2-preview" style="margin-bottom:16px;text-align:center;display:none;">
-            <img id="cot-step2-img" src="" style="max-width:100%;max-height:220px;border-radius:8px;border:1px solid #e5e7eb;object-fit:contain;">
-          </div>
+          <div id="cot-step2-preview" style="margin-bottom:16px;display:none;gap:8px;flex-wrap:wrap;justify-content:center;"></div>
 
           <div style="margin-bottom:16px;">
             <label style="font-size:12px;font-weight:600;color:#6b7280;display:block;margin-bottom:6px;">CLIENTE</label>
@@ -1061,30 +1064,61 @@
             </div>
           </div>
 
-          <div style="margin-bottom:8px;">
+          <div style="margin-bottom:6px;">
             <label style="font-size:12px;font-weight:600;color:#6b7280;">LÍNEAS DE PRODUCTOS</label>
+            <div style="display:grid;grid-template-columns:90px 1fr 90px 70px 100px 36px;gap:8px;margin-top:6px;padding:0 2px;">
+              <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;">SKU</span>
+              <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;">Nombre</span>
+              <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;">Color</span>
+              <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;text-align:center;">Cant.</span>
+              <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;text-align:right;">Precio</span>
+              <span></span>
+            </div>
           </div>
-          <div id="cot-lineas" style="margin-bottom:16px;"></div>
+          <div id="cot-lineas" style="margin-bottom:8px;"></div>
+          <button onclick="addCotLinea()" style="width:100%;padding:8px;background:#f9fafb;border:1px dashed #d1d5db;border-radius:6px;font-size:12px;font-weight:600;color:#6b7280;cursor:pointer;margin-bottom:16px;">+ Agregar producto</button>
 
           <div style="margin-bottom:16px;">
             <label style="font-size:12px;font-weight:600;color:#6b7280;display:block;margin-bottom:6px;">NOTAS</label>
             <textarea id="cot-notas" rows="2" style="width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;resize:vertical;"></textarea>
           </div>
 
-          <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <!-- Forma de pago -->
+          <div style="background:#f9fafb;border-radius:10px;padding:14px 16px;margin-bottom:14px;">
+            <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Forma de pago</div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
+                <input type="radio" name="cot-forma-pago" value="contado" id="cot-fp-contado" onchange="toggleVencimiento()" style="accent-color:#111827;"> Contado
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
+                <input type="radio" name="cot-forma-pago" value="credito" id="cot-fp-credito" onchange="toggleVencimiento()" checked style="accent-color:#111827;"> Crédito
+              </label>
+              <div id="cot-dias-wrap" style="display:flex;align-items:center;gap:6px;margin-left:8px;">
+                <span style="font-size:13px;color:#6b7280;">Días:</span>
+                <input type="number" id="cot-dias-venc" value="30" min="1" max="365" style="width:60px;padding:5px 8px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;text-align:center;">
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
             <button onclick="goBackStep1()" style="padding:10px 20px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;">← Volver</button>
-            <button onclick="crearCotizacion()" id="cot-btn-crear" style="padding:10px 24px;background:#059669;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;">✅ Crear cotización en Odoo</button>
+            <button onclick="crearCotizacion()" id="cot-btn-crear" style="padding:10px 20px;background:#6b7280;color:white;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;">Guardar borrador</button>
+            <button onclick="confirmarYFacturar()" id="cot-btn-full" style="padding:10px 24px;background:#059669;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:700;">✅ Confirmar y facturar</button>
           </div>
           <div id="cot-step2-error" style="color:#ef4444;font-size:13px;margin-top:12px;display:none;"></div>
         </div>
 
         <!-- Paso 3: resultado -->
-        <div id="cot-step-3" style="display:none;text-align:center;padding:20px 0;">
-          <div style="font-size:56px;margin-bottom:16px;">🎉</div>
-          <h2 style="font-size:20px;font-weight:700;margin-bottom:8px;">¡Cotización creada!</h2>
-          <div id="cot-result-name" style="font-size:28px;font-weight:800;color:#7c3aed;margin-bottom:8px;"></div>
-          <div id="cot-result-total" style="font-size:16px;color:#6b7280;margin-bottom:24px;"></div>
-          <button onclick="closeCotizacionModal()" style="padding:12px 28px;background:#7c3aed;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;">Cerrar</button>
+        <div id="cot-step-3" style="display:none;padding:20px 0;">
+          <div style="text-align:center;margin-bottom:20px;">
+            <div style="font-size:48px;margin-bottom:10px;">✅</div>
+            <h2 id="cot-result-title" style="font-size:18px;font-weight:700;margin-bottom:4px;">¡Listo!</h2>
+            <div id="cot-result-total" style="font-size:14px;color:#6b7280;"></div>
+          </div>
+          <div id="cot-result-cards" style="display:grid;gap:10px;margin-bottom:20px;"></div>
+          <div style="text-align:center;">
+            <button onclick="closeCotizacionModal()" style="padding:12px 28px;background:#111827;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;">Cerrar</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1160,15 +1194,28 @@
       <div id="catalogo-content" style="margin-top:8px;">
         <div class="loading"><span class="spinner"></span>Cargando catálogo...</div>
       </div>
+
     </div>
 
     <!-- ── Pedidos Mayoristas ── -->
     <div id="page-pedidos-may" style="display:none">
-      <div class="page-header">
-        <h1>Pedidos Mayoristas</h1>
-        <p id="ped-may-subtitle">Órdenes creadas desde el catálogo</p>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+        <div>
+          <h1 style="font-size:22px;font-weight:800;margin:0;">Pedidos Mayoristas</h1>
+          <p style="font-size:13px;color:#6b7280;margin:4px 0 0;">Órdenes de venta con lista mayorista</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="ped-may-filter" onchange="loadPedidosMay()" style="padding:8px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+            <option value="">Todos</option>
+            <option value="draft">Borrador</option>
+            <option value="sale">Confirmado</option>
+            <option value="done">Hecho</option>
+            <option value="cancel">Cancelado</option>
+          </select>
+          <button onclick="loadPedidosMay()" style="padding:8px 14px;background:#111827;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">↻ Actualizar</button>
+        </div>
       </div>
-      <div id="ped-may-content"><div class="loading">Sin pedidos aún.</div></div>
+      <div id="ped-may-content"><div class="loading"><span class="spinner"></span>Cargando...</div></div>
     </div>
 
     <!-- ══ Oportunidades ══ -->
@@ -1321,7 +1368,7 @@
           <h1>Usuarios</h1>
           <p>Gestión de acceso al panel</p>
         </div>
-        <button class="btn-refresh" onclick="showUserForm()" style="background:#4361ee;color:white;border:none;">+ Nuevo usuario</button>
+        <button class="btn-refresh" onclick="loadUsersPage()" style="background:#f3f4f6;color:#374151;border:none;">↻ Actualizar</button>
       </div>
       <div class="table-card">
         <div id="users-table-content"><div class="loading"><span class="spinner"></span>Cargando...</div></div>
@@ -1340,36 +1387,53 @@
         <div id="sync-push-status" style="margin-top:8px;"></div>
       </div>
 
-      <!-- Emails autorizados Google -->
+      <!-- Invitaciones -->
       <div class="card" style="margin-bottom:16px;">
-        <div style="font-size:14px;font-weight:700;margin-bottom:8px;">Emails autorizados (Google Login)</div>
-        <div id="allowed-emails-list" style="margin-bottom:8px;"></div>
-        <div style="display:flex;gap:8px;">
-          <input type="email" id="new-allowed-email" placeholder="email@ejemplo.com" style="flex:1;padding:8px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;" onkeydown="if(event.key==='Enter')addAllowedEmail()">
-          <button onclick="addAllowedEmail()" style="padding:8px 14px;background:#059669;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">+ Agregar</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-size:14px;font-weight:700;">Invitaciones de registro</div>
+          <button onclick="openInviteForm()" style="padding:6px 14px;background:#4361ee;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">+ Nueva invitación</button>
+        </div>
+        <div id="invites-list"><div style="color:#9ca3af;font-size:12px;">Cargando...</div></div>
+      </div>
+
+      <!-- Modal nueva invitación -->
+      <div id="invite-modal" style="display:none;position:fixed;inset:0;background:#0006;z-index:1001;align-items:center;justify-content:center;">
+        <div style="background:white;border-radius:16px;padding:24px;width:100%;max-width:400px;margin:16px;">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;">Nueva invitación</h3>
+          <div style="margin-bottom:12px;">
+            <label style="font-size:12px;color:#6b7280;font-weight:600;">Etiqueta (opcional)</label>
+            <input id="invite-label" type="text" placeholder="Ej: Para Pedro López"
+              style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
+          </div>
+          <div style="margin-bottom:20px;">
+            <label style="font-size:12px;color:#6b7280;font-weight:600;">Validez</label>
+            <select id="invite-hours" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
+              <option value="24">24 horas</option>
+              <option value="48" selected>48 horas</option>
+              <option value="168">7 días</option>
+              <option value="720">30 días</option>
+            </select>
+          </div>
+          <div id="invite-result" style="display:none;margin-bottom:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;">
+            <div style="font-size:12px;color:#059669;font-weight:600;margin-bottom:6px;">Link generado — copiá y enviá</div>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input id="invite-link-input" type="text" readonly style="flex:1;padding:6px 8px;border:1px solid #bbf7d0;border-radius:6px;font-size:11px;background:white;font-family:monospace;">
+              <button onclick="copyInviteLink()" style="padding:6px 12px;background:#059669;color:white;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">Copiar</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button onclick="closeInviteForm()" style="padding:8px 16px;border:1px solid #e5e7eb;border-radius:8px;background:white;cursor:pointer;font-size:14px;">Cerrar</button>
+            <button onclick="createInvite()" id="invite-gen-btn" style="padding:8px 20px;background:#4361ee;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;">Generar</button>
+          </div>
         </div>
       </div>
 
       <!-- Modal usuario -->
       <div id="user-modal" style="display:none;position:fixed;inset:0;background:#0006;z-index:1000;align-items:center;justify-content:center;">
-        <div style="background:white;border-radius:16px;padding:24px;width:100%;max-width:420px;margin:16px;">
-          <h3 id="user-modal-title" style="font-size:16px;font-weight:700;margin-bottom:16px;">Nuevo usuario</h3>
+        <div style="background:white;border-radius:16px;padding:24px;width:100%;max-width:380px;margin:16px;">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">Editar usuario</h3>
           <input type="hidden" id="edit-user-id">
-          <div style="margin-bottom:12px;">
-            <label style="font-size:12px;color:#6b7280;font-weight:600;">Nombre completo</label>
-            <input id="edit-user-name" type="text" placeholder="Ej: Juan García"
-              style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
-          </div>
-          <div style="margin-bottom:12px;">
-            <label style="font-size:12px;color:#6b7280;font-weight:600;">Usuario</label>
-            <input id="edit-user-username" type="text" placeholder="Ej: juan"
-              style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
-          </div>
-          <div style="margin-bottom:12px;">
-            <label style="font-size:12px;color:#6b7280;font-weight:600;">Contraseña <span id="pass-hint" style="color:#9ca3af;">(dejar vacío para no cambiar)</span></label>
-            <input id="edit-user-password" type="password" placeholder="••••••••"
-              style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
-          </div>
+          <div id="edit-user-info" style="font-size:13px;color:#6b7280;margin-bottom:16px;"></div>
           <div style="margin-bottom:20px;">
             <label style="font-size:12px;color:#6b7280;font-weight:600;">Rol</label>
             <select id="edit-user-role" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;box-sizing:border-box;">
@@ -1382,6 +1446,20 @@
             <button onclick="saveUser()" style="padding:8px 20px;background:#4361ee;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;">Guardar</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ══ Log de actividad ══ -->
+    <div id="page-auditlog" style="display:none">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;">
+        <div>
+          <h1>Log de actividad</h1>
+          <p>Accesos, registros y cambios de administración</p>
+        </div>
+        <button class="btn-refresh" onclick="loadAuditLog()" style="background:#f3f4f6;color:#374151;border:none;">↻ Actualizar</button>
+      </div>
+      <div class="table-card">
+        <div id="audit-log-content"><div class="loading"><span class="spinner"></span>Cargando...</div></div>
       </div>
     </div>
 
@@ -2389,6 +2467,26 @@
 </div>
 
 <script>
+// Interceptor global de fetch — rota el token de sesión automáticamente
+(function() {
+  const _fetch = window.fetch;
+  window.fetch = async function(...args) {
+    const res = await _fetch(...args);
+    const newToken = res.headers.get('X-New-Token');
+    if (newToken) {
+      sessionToken = newToken;
+      localStorage.setItem('session_token', newToken);
+    }
+    return res;
+  };
+})();
+
+// Sanitización HTML — previene XSS en todo innerHTML dinámico
+function esc(str) {
+  if (str == null) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 let currentOffset = 0;
 const PAGE_SIZE = 50;
 let totalOrders = 0;
@@ -2464,7 +2562,7 @@ const navGroupMap = {
   'nav-ml': ['ml-estrategia','ml-sin-descuento','ml-ofertas','ml-analizar','ml-preguntas','ml-postventa','ml-reglas'],
   'nav-integracion': ['odoo','odooml'],
   'nav-importaciones': ['importaciones','imp-todas','imp-buscar','imp-detalle','imp-pi'],
-  'nav-admin': ['usuarios'],
+  'nav-admin': ['usuarios', 'auditlog'],
 };
 
 function showPage(page) {
@@ -2541,7 +2639,6 @@ function showPage(page) {
     odooMLLoaded = true;
   }
   if (page === 'catalogo' && !catalogoLoaded) {
-    document.getElementById('catalogo-stock').value = 'con_stock';
     loadCatalogo();
   }
   if (page === 'ml-estrategia') { loadEstrategia(); }
@@ -2554,6 +2651,9 @@ function showPage(page) {
   }
   if (page === 'usuarios') {
     loadUsersPage();
+  }
+  if (page === 'auditlog') {
+    loadAuditLog();
   }
   if (page === 'comparador') {
     document.getElementById('comparador-month').value = new Date().getMonth() + 1;
@@ -2906,7 +3006,7 @@ async function pollSync() {
     const logsEl = document.getElementById('sync-logs');
     if (data.logs?.length) {
       logsEl.style.display = '';
-      logsEl.innerHTML = data.logs.map(l => `<div><span style="color:#6b7280;">${l.time.slice(11,19)}</span> ${l.msg}</div>`).join('');
+      logsEl.innerHTML = data.logs.map(l => `<div><span style="color:#6b7280;">${esc(l.time.slice(11,19))}</span> ${esc(l.msg)}</div>`).join('');
       logsEl.scrollTop = logsEl.scrollHeight;
     }
 
@@ -2999,7 +3099,7 @@ function buildStockRow(item) {
   return `<tr>
     <td>${thumb}</td>
     <td class="item-title">
-      <span title="${item.title}">${item.title}</span>${pausedBadge}
+      <span title="${esc(item.title)}">${esc(item.title)}</span>${pausedBadge}
       <div style="font-size:11px;color:#9ca3af;margin-top:2px;">${item.sku ? 'SKU: ' + item.sku : ''}${expandBtn}${mlLink}</div>${incomingHtml}
     </td>
     <td style="text-align:center;font-weight:600;">${item.stock.toLocaleString('es-UY')}</td>
@@ -3096,8 +3196,8 @@ async function loadCruceNombre() {
             <tr style="border-bottom:1px solid #e5e7eb;${i%2===1?'background:#f9fafb':''}vertical-align:top;">
               <td style="padding:10px 14px;text-align:center;">${scoreBadge(g.score)}</td>
               <td style="padding:10px 14px;">
-                <a href="${g.ml_permalink}" target="_blank" style="color:#1d4ed8;font-weight:600;text-decoration:none;font-size:13px;">${g.ml_title}</a>
-                <div style="font-size:11px;color:#9ca3af;margin-top:2px;">ID: ${g.ml_id}</div>
+                <a href="${esc(g.ml_permalink)}" target="_blank" style="color:#1d4ed8;font-weight:600;text-decoration:none;font-size:13px;">${esc(g.ml_title)}</a>
+                <div style="font-size:11px;color:#9ca3af;margin-top:2px;">ID: ${esc(g.ml_id)}</div>
               </td>
               <td style="padding:10px 14px;text-align:center;font-family:monospace;font-size:12px;color:#7c3aed;">${g.ml_sku || '<span style="color:#d1d5db;">—</span>'}</td>
               <td style="padding:10px 14px;text-align:center;">${statusBadge(g.ml_status)}</td>
@@ -3149,7 +3249,7 @@ async function loadDiscrepancias(subtipo = null) {
           ${rows.map((row, i) => `
             <tr style="border-bottom:1px solid #f3f4f6;${i%2===1?'background:#fafafa':''}">
               <td style="padding:9px 14px;font-family:monospace;font-size:12px;color:#7c3aed;font-weight:600;">${row.sku}</td>
-              <td style="padding:9px 14px;color:#111827;font-weight:500;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${row.odoo_name}</td>
+              <td style="padding:9px 14px;color:#111827;font-weight:500;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(row.odoo_name)}</td>
               <td style="padding:9px 14px;text-align:center;font-weight:700;color:#059669;">${row.odoo_stock}</td>
               <td style="padding:9px 14px;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                 ${row.ml_permalink ? `<a href="${row.ml_permalink}" target="_blank" style="color:#1d4ed8;text-decoration:none;">${row.ml_title||row.ml_id}</a>` : '<span style="color:#9ca3af;">—</span>'}
@@ -3453,7 +3553,7 @@ async function loadVentas(force = false) {
       return `<div class="product-row">
         ${thumb}
         <div class="product-info">
-          <div class="product-name"><a href="${item.permalink||'#'}" target="_blank">${item.title}</a></div>
+          <div class="product-name"><a href="${esc(item.permalink||'#')}" target="_blank">${esc(item.title)}</a></div>
           <div class="product-meta">${meta ? `Publicación ${meta}` : ''}</div>
           <div class="product-price">${fmtCurrency(item.price, currency)}</div>
         </div>
@@ -3849,15 +3949,15 @@ function authHeaders() {
 }
 
 async function doLogin() {
-  const username = document.getElementById('login-username').value.trim();
+  const email    = document.getElementById('login-username').value.trim();
   const password = document.getElementById('login-password').value;
   const errEl    = document.getElementById('login-error');
   errEl.style.display = 'none';
-  if (!username || !password) { errEl.textContent = 'Ingresá usuario y contraseña.'; errEl.style.display = ''; return; }
+  if (!email || !password) { errEl.textContent = 'Ingresá email y contraseña.'; errEl.style.display = ''; return; }
   try {
     const res = await fetch('/api/auth/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Error al ingresar'; errEl.style.display = ''; return; }
@@ -3884,9 +3984,9 @@ async function doLogout() {
 async function afterUserLogin() {
   // Actualizar UI del sidebar con datos del usuario
   const u = currentUser;
-  document.getElementById('user-name').textContent = u.name || u.username;
+  document.getElementById('user-name').textContent = u.name || u.email;
   document.getElementById('user-role').textContent = u.role === 'admin' ? 'Administrador' : 'Usuario';
-  document.getElementById('user-avatar').textContent = (u.name || u.username).charAt(0).toUpperCase();
+  document.getElementById('user-avatar').textContent = (u.name || u.email).charAt(0).toUpperCase();
 
   // Mostrar sección admin si corresponde
   if (u.role === 'admin') {
@@ -3969,6 +4069,45 @@ init();
 // ── Gestión de usuarios ───────────────────────────────────────────
 let _syncPollInterval = null;
 
+async function rebuildCatalog() {
+  const btn = document.getElementById('rebuild-catalog-btn');
+  const status = document.getElementById('sync-push-status');
+  btn.disabled = true;
+  btn.textContent = 'Actualizando...';
+  status.innerHTML = '';
+  try {
+    const r = await fetch('/api/catalog/rebuild', { method: 'POST', headers: authHeaders() });
+    const d = await r.json();
+    if (!r.ok) {
+      status.innerHTML = `<div style="font-size:12px;color:#dc2626;">Error: ${d.error}</div>`;
+      btn.disabled = false; btn.textContent = '↻ Actualizar catálogo'; return;
+    }
+    // Polling de progreso
+    const poll = setInterval(async () => {
+      try {
+        const rs = await fetch('/api/odoo/sync-status', { headers: authHeaders() });
+        const ds = await rs.json();
+        const pct = ds.progress || 0;
+        const lastLine = ds.log?.length ? ds.log[ds.log.length - 1].msg : '';
+        status.innerHTML = `<div style="font-size:12px;color:#059669;">↻ ${pct}% — ${lastLine}</div>`;
+        if (ds.status === 'done' || ds.status === 'error') {
+          clearInterval(poll);
+          btn.disabled = false; btn.textContent = '↻ Actualizar catálogo';
+          if (ds.status === 'done') {
+            status.innerHTML = `<div style="font-size:12px;color:#059669;font-weight:700;">✓ Catálogo actualizado — ${ds.productCount} productos</div>`;
+            loadCatalogo();
+          } else {
+            status.innerHTML = `<div style="font-size:12px;color:#dc2626;">Error: ${lastLine}</div>`;
+          }
+        }
+      } catch(e) { clearInterval(poll); btn.disabled = false; btn.textContent = '↻ Actualizar catálogo'; }
+    }, 2000);
+  } catch(e) {
+    status.innerHTML = `<div style="font-size:12px;color:#dc2626;">Error: ${e.message}</div>`;
+    btn.disabled = false; btn.textContent = '↻ Actualizar catálogo';
+  }
+}
+
 async function syncOdooPush() {
   const btn = document.getElementById('sync-push-btn');
   const status = document.getElementById('sync-push-status');
@@ -4037,32 +4176,91 @@ async function pollSyncStatus() {
   } catch(e) {}
 }
 
-async function loadAllowedEmails() {
+// ── Invitaciones ─────────────────────────────────────────────────
+function openInviteForm() {
+  document.getElementById('invite-modal').style.display = 'flex';
+  document.getElementById('invite-result').style.display = 'none';
+  document.getElementById('invite-label').value = '';
+  document.getElementById('invite-hours').value = '48';
+}
+function closeInviteForm() {
+  document.getElementById('invite-modal').style.display = 'none';
+  loadInvites();
+}
+function copyInviteLink() {
+  const input = document.getElementById('invite-link-input');
+  input.select();
+  document.execCommand('copy');
+  const btn = input.nextElementSibling;
+  btn.textContent = '¡Copiado!';
+  setTimeout(() => btn.textContent = 'Copiar', 2000);
+}
+async function createInvite() {
+  const label = document.getElementById('invite-label').value.trim();
+  const hours = parseInt(document.getElementById('invite-hours').value);
+  const btn = document.getElementById('invite-gen-btn');
+  btn.disabled = true; btn.textContent = 'Generando...';
   try {
-    const res = await fetch('/api/auth/allowed-emails', { headers: authHeaders() });
-    const emails = await res.json();
-    const el = document.getElementById('allowed-emails-list');
-    if (!emails.length) { el.innerHTML = '<div style="color:#9ca3af;font-size:12px;">Sin emails autorizados</div>'; return; }
-    el.innerHTML = emails.map(e => `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f3f4f6;">
-      <span style="font-size:13px;">${e}</span>
-      <button onclick="removeAllowedEmail('${e}')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:12px;">✕</button>
-    </div>`).join('');
-  } catch(e) {}
+    const res = await fetch('/api/invites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ label: label || undefined, hours }),
+    });
+    const data = await res.json();
+    if (!res.ok) return alert(data.error);
+    const link = window.location.origin + '/invite/' + data.token;
+    document.getElementById('invite-link-input').value = link;
+    document.getElementById('invite-result').style.display = 'block';
+  } catch(e) { alert('Error al generar invitación'); }
+  finally { btn.disabled = false; btn.textContent = 'Generar'; }
 }
-
-async function addAllowedEmail() {
-  const input = document.getElementById('new-allowed-email');
-  const email = input.value.trim();
-  if (!email) return;
-  await fetch('/api/auth/allowed-emails', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ email, action: 'add' }) });
-  input.value = '';
-  loadAllowedEmails();
+async function loadInvites() {
+  const el = document.getElementById('invites-list');
+  if (!el) return;
+  try {
+    const res = await fetch('/api/invites', { headers: authHeaders() });
+    const invites = await res.json();
+    if (!invites.length) {
+      el.innerHTML = '<div style="color:#9ca3af;font-size:12px;padding:8px 0;">Sin invitaciones generadas.</div>';
+      return;
+    }
+    const now = Date.now();
+    el.innerHTML = invites.map(inv => {
+      const expired = new Date(inv.expires_at).getTime() < now;
+      const used = !!inv.used_by_email;
+      const statusColor = used ? '#9ca3af' : expired ? '#dc2626' : '#059669';
+      const statusBg = used ? '#f3f4f6' : expired ? '#fee2e2' : '#f0fdf4';
+      const statusText = used ? 'Usada' : expired ? 'Vencida' : 'Activa';
+      const link = window.location.origin + '/invite/' + inv.token;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6;gap:8px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;">${esc(inv.label || '—')}</div>
+          <div style="font-size:11px;color:#9ca3af;margin-top:1px;">
+            ${used ? 'Usada por ' + esc(inv.used_by_name || inv.used_by_email) : 'Vence: ' + new Date(inv.expires_at).toLocaleString('es-UY')}
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="color:${statusColor};background:${statusBg};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;">${statusText}</span>
+          ${!used ? `<button onclick="copyInviteLinkById('${esc(inv.token)}')" style="padding:4px 10px;background:#e0e7ff;border:none;border-radius:6px;font-size:12px;color:#4361ee;cursor:pointer;font-weight:600;">Copiar</button>` : ''}
+          ${!used ? `<button onclick="revokeInvite('${esc(inv.token)}')" style="padding:4px 8px;background:#fee2e2;border:none;border-radius:6px;font-size:12px;color:#dc2626;cursor:pointer;font-weight:600;">✕</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { el.innerHTML = '<div style="color:#dc2626;font-size:12px;">Error al cargar invitaciones</div>'; }
 }
-
-async function removeAllowedEmail(email) {
-  if (!confirm('Quitar ' + email + '?')) return;
-  await fetch('/api/auth/allowed-emails', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ email, action: 'remove' }) });
-  loadAllowedEmails();
+function copyInviteLinkById(token) {
+  const link = window.location.origin + '/invite/' + token;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(link);
+  } else {
+    const t = document.createElement('textarea'); t.value = link;
+    document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t);
+  }
+}
+async function revokeInvite(token) {
+  if (!confirm('¿Revocar esta invitación?')) return;
+  await fetch('/api/invites/' + token, { method: 'DELETE', headers: authHeaders() });
+  loadInvites();
 }
 
 async function loadLastSyncInfo() {
@@ -4085,7 +4283,7 @@ async function loadLastSyncInfo() {
 }
 
 async function loadUsersPage() {
-  loadAllowedEmails();
+  loadInvites();
   loadLastSyncInfo();
   document.getElementById('users-table-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
   const res   = await fetch('/api/users', { headers: authHeaders() });
@@ -4095,54 +4293,40 @@ async function loadUsersPage() {
     return;
   }
   const rows = users.map(u => `<tr>
-    <td style="font-weight:600;">${u.name}</td>
-    <td style="font-family:monospace;color:#6b7280;">${u.username}</td>
+    <td style="font-weight:600;">${esc(u.name || '—')}</td>
+    <td style="font-size:12px;color:#6b7280;">${esc(u.email)}</td>
     <td><span style="background:${u.role==='admin'?'#ede9fe':'#f3f4f6'};color:${u.role==='admin'?'#5b21b6':'#374151'};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;">${u.role==='admin'?'Admin':'Usuario'}</span></td>
-    <td style="font-size:12px;color:#9ca3af;">${u.createdAt ? new Date(u.createdAt).toLocaleDateString('es-UY') : '—'}</td>
+    <td style="font-size:12px;color:#9ca3af;">${u.created_at ? new Date(u.created_at).toLocaleDateString('es-UY') : '—'}</td>
     <td style="display:flex;gap:6px;">
-      <button onclick='editUser(${JSON.stringify(u).replace(/'/g,"&#39;")})' style="background:#e0e7ff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;color:#4361ee;font-size:12px;font-weight:700;">Editar</button>
-      ${u.id !== currentUser?.id ? `<button onclick="deleteUser('${u.id}','${u.name}')" style="background:#fee2e2;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;color:#ef4444;font-size:12px;font-weight:700;">✕</button>` : ''}
+      <button onclick='showUserForm(${JSON.stringify(u).replace(/'/g,"&#39;")})' style="background:#e0e7ff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;color:#4361ee;font-size:12px;font-weight:700;">Editar</button>
+      ${u.id !== currentUser?.id ? `<button onclick="deleteUser('${u.id}','${esc(u.name||u.email)}')" style="background:#fee2e2;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;color:#ef4444;font-size:12px;font-weight:700;">✕</button>` : ''}
     </td>
   </tr>`).join('');
   document.getElementById('users-table-content').innerHTML = `<table>
     <thead><tr>
-      <th>Nombre</th><th>Usuario</th><th>Rol</th><th>Creado</th><th>Acciones</th>
+      <th>Nombre</th><th>Email</th><th>Rol</th><th>Creado</th><th>Acciones</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }
 
 function showUserForm(data) {
-  document.getElementById('user-modal-title').textContent = data ? 'Editar usuario' : 'Nuevo usuario';
-  document.getElementById('edit-user-id').value       = data?.id       || '';
-  document.getElementById('edit-user-name').value     = data?.name     || '';
-  document.getElementById('edit-user-username').value = data?.username || '';
-  document.getElementById('edit-user-password').value = '';
-  document.getElementById('edit-user-role').value     = data?.role     || 'user';
-  document.getElementById('edit-user-username').disabled = !!data;
-  document.getElementById('pass-hint').style.display  = data ? '' : 'none';
+  document.getElementById('edit-user-id').value  = data?.id   || '';
+  document.getElementById('edit-user-role').value = data?.role || 'user';
+  document.getElementById('edit-user-info').textContent = data ? (data.name || data.email || '') : '';
   document.getElementById('user-modal').style.display = 'flex';
 }
-function editUser(data) { showUserForm(data); }
 function closeUserForm() {
   document.getElementById('user-modal').style.display = 'none';
-  document.getElementById('edit-user-username').disabled = false;
 }
 async function saveUser() {
-  const id       = document.getElementById('edit-user-id').value;
-  const name     = document.getElementById('edit-user-name').value.trim();
-  const username = document.getElementById('edit-user-username').value.trim();
-  const password = document.getElementById('edit-user-password').value;
-  const role     = document.getElementById('edit-user-role').value;
-  if (!name) return alert('Ingresá el nombre.');
-  if (!id && !username) return alert('Ingresá un usuario.');
-  if (!id && !password) return alert('Ingresá una contraseña.');
-  const body = id ? { name, role, ...(password ? { password } : {}) }
-                  : { name, username, password, role };
-  const res = await fetch(id ? `/api/users/${id}` : '/api/users', {
-    method: id ? 'PUT' : 'POST',
+  const id   = document.getElementById('edit-user-id').value;
+  const role = document.getElementById('edit-user-role').value;
+  if (!id) return;
+  const res = await fetch(`/api/users/${id}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ role }),
   });
   if (!res.ok) { const e = await res.json(); return alert(e.error); }
   closeUserForm();
@@ -4155,23 +4339,79 @@ async function deleteUser(id, name) {
   loadUsersPage();
 }
 
+// ── Log de actividad ─────────────────────────────────────────────
+const ACTION_LABELS = {
+  login: { label: 'Login', color: '#16a34a', bg: '#f0fdf4' },
+  login_failed: { label: 'Login fallido', color: '#dc2626', bg: '#fef2f2' },
+  register: { label: 'Registro', color: '#2563eb', bg: '#eff6ff' },
+  invite_created: { label: 'Invite creado', color: '#7c3aed', bg: '#f5f3ff' },
+  invite_revoked: { label: 'Invite revocado', color: '#d97706', bg: '#fffbeb' },
+  user_role_changed: { label: 'Rol cambiado', color: '#0891b2', bg: '#ecfeff' },
+};
+async function loadAuditLog() {
+  const el = document.getElementById('audit-log-content');
+  el.innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
+  try {
+    const r = await fetch('/api/audit-log', { headers: authHeaders() });
+    const rows = await r.json();
+    if (!rows.length) { el.innerHTML = '<p style="color:#9ca3af;padding:16px;">Sin registros todavía.</p>'; return; }
+    const fmt = iso => {
+      const d = new Date(iso);
+      return d.toLocaleDateString('es-AR') + ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    };
+    const detailStr = d => {
+      if (!d) return '';
+      const parts = [];
+      if (d.email) parts.push(d.email);
+      if (d.reason) parts.push({ not_found: 'usuario no existe', wrong_password: 'contraseña incorrecta' }[d.reason] || d.reason);
+      if (d.target_email) parts.push('→ ' + d.target_email);
+      if (d.new_role) parts.push('rol: ' + d.new_role);
+      if (d.label) parts.push('etiqueta: ' + d.label);
+      return parts.join(' · ');
+    };
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="border-bottom:2px solid #f3f4f6;">
+        <th style="text-align:left;padding:10px 12px;color:#6b7280;font-weight:600;white-space:nowrap;">Fecha</th>
+        <th style="text-align:left;padding:10px 12px;color:#6b7280;font-weight:600;">Usuario</th>
+        <th style="text-align:left;padding:10px 12px;color:#6b7280;font-weight:600;">Acción</th>
+        <th style="text-align:left;padding:10px 12px;color:#6b7280;font-weight:600;">Detalle</th>
+        <th style="text-align:left;padding:10px 12px;color:#6b7280;font-weight:600;">IP</th>
+      </tr></thead>
+      <tbody>${rows.map(r => {
+        const a = ACTION_LABELS[r.action] || { label: r.action, color: '#374151', bg: '#f3f4f6' };
+        return `<tr style="border-bottom:1px solid #f3f4f6;">
+          <td style="padding:10px 12px;color:#6b7280;white-space:nowrap;">${fmt(r.created_at)}</td>
+          <td style="padding:10px 12px;">${r.user_name || r.user_email || '<span style="color:#9ca3af">—</span>'}</td>
+          <td style="padding:10px 12px;"><span style="background:${a.bg};color:${a.color};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;">${a.label}</span></td>
+          <td style="padding:10px 12px;color:#374151;">${detailStr(r.details)}</td>
+          <td style="padding:10px 12px;color:#9ca3af;font-size:11px;font-family:monospace;">${r.ip || '—'}</td>
+        </tr>`;
+      }).join('')}</tbody></table>`;
+  } catch(e) {
+    el.innerHTML = `<p style="color:#dc2626;padding:16px;">Error cargando log: ${e.message}</p>`;
+  }
+}
+
 // ── Modal cotización desde foto ──────────────────────────────────
 let cotExtracted = null;
+let _cotImages = []; // [{src, base64, media_type}]
 
 function openCotizacionModal() {
   document.getElementById('modal-cotizacion').style.display = 'flex';
   resetCotModal();
-  // Asegurar que odooData esté cargado para poder buscar productos y partners
   if (!odooData) loadOdoo();
 }
 function closeCotizacionModal() {
   document.getElementById('modal-cotizacion').style.display = 'none';
 }
 function resetCotModal() {
+  _cotImages = [];
   document.getElementById('cot-step-1').style.display = '';
   document.getElementById('cot-step-2').style.display = 'none';
   document.getElementById('cot-step-3').style.display = 'none';
-  document.getElementById('cot-preview').style.display = 'none';
+  document.getElementById('cot-images-list').style.display = 'none';
+  document.getElementById('cot-images-list').innerHTML = '';
+  document.getElementById('cot-analyze-wrap').style.display = 'none';
   document.getElementById('cot-file-input').value = '';
   document.getElementById('cot-step1-error').style.display = 'none';
   cotExtracted = null;
@@ -4181,38 +4421,67 @@ function goBackStep1() {
   document.getElementById('cot-step-1').style.display = '';
 }
 
-function handleCotFile(file) {
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    document.getElementById('cot-img').src = e.target.result;
-    document.getElementById('cot-preview').style.display = '';
-  };
-  reader.readAsDataURL(file);
+function addCotImages(files) {
+  Array.from(files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const src = e.target.result;
+      const [meta, b64] = src.split(',');
+      const media_type = meta.match(/data:(.*);base64/)[1];
+      _cotImages.push({ src, base64: b64, media_type });
+      renderCotImagesList();
+    };
+    reader.readAsDataURL(file);
+  });
+  document.getElementById('cot-file-input').value = '';
 }
+
+function removeCotImage(i) {
+  _cotImages.splice(i, 1);
+  renderCotImagesList();
+}
+
+function renderCotImagesList() {
+  const list = document.getElementById('cot-images-list');
+  const wrap = document.getElementById('cot-analyze-wrap');
+  if (!_cotImages.length) {
+    list.style.display = 'none';
+    wrap.style.display = 'none';
+    return;
+  }
+  list.style.display = 'flex';
+  wrap.style.display = '';
+  list.innerHTML = _cotImages.map((img, i) => `
+    <div style="position:relative;flex-shrink:0;">
+      <img src="${img.src}" style="height:120px;max-width:160px;border-radius:8px;border:1px solid #e5e7eb;object-fit:contain;background:#f9fafb;">
+      <button onclick="removeCotImage(${i})" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.55);color:white;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;">✕</button>
+      <div style="text-align:center;font-size:10px;color:#9ca3af;margin-top:3px;">Hoja ${i+1}</div>
+    </div>`).join('') + `
+    <div onclick="document.getElementById('cot-file-input').click()"
+      style="height:120px;width:80px;border:2px dashed #d1d5db;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:#9ca3af;font-size:11px;gap:4px;flex-shrink:0;">
+      <span style="font-size:22px;">+</span>Agregar
+    </div>`;
+}
+
 function handleCotDrop(e) {
   e.preventDefault();
   document.getElementById('cot-drop-zone').style.borderColor = '#d1d5db';
-  const file = e.dataTransfer.files[0];
-  if (file) handleCotFile(file);
+  if (e.dataTransfer.files.length) addCotImages(e.dataTransfer.files);
 }
 
 async function analizarFoto() {
+  if (!_cotImages.length) return;
   const btn = document.getElementById('cot-btn-analizar');
   const errEl = document.getElementById('cot-step1-error');
   errEl.style.display = 'none';
-  btn.textContent = '⏳ Analizando...';
+  btn.textContent = `⏳ Analizando ${_cotImages.length > 1 ? _cotImages.length + ' hojas' : ''}...`;
   btn.disabled = true;
 
   try {
-    const imgSrc = document.getElementById('cot-img').src; // data:image/...;base64,...
-    const [meta, b64] = imgSrc.split(',');
-    const media_type = meta.match(/data:(.*);base64/)[1];
-
     const res = await fetch('/api/odoo/cotizacion-foto', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_base64: b64, media_type }),
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ images: _cotImages.map(i => ({ base64: i.base64, media_type: i.media_type })) }),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
@@ -4229,13 +4498,12 @@ async function analizarFoto() {
 }
 
 function renderStep2(data) {
-  // Foto preview
-  const imgSrc = document.getElementById('cot-img').src;
+  // Fotos preview
   const previewDiv = document.getElementById('cot-step2-preview');
-  const previewImg = document.getElementById('cot-step2-img');
-  if (imgSrc && imgSrc !== window.location.href) {
-    previewImg.src = imgSrc;
-    previewDiv.style.display = '';
+  if (_cotImages.length) {
+    previewDiv.style.display = 'flex';
+    previewDiv.innerHTML = _cotImages.map((img, i) => `
+      <img src="${img.src}" style="max-height:160px;max-width:${_cotImages.length > 1 ? '48%' : '100%'};border-radius:8px;border:1px solid #e5e7eb;object-fit:contain;">`).join('');
   } else {
     previewDiv.style.display = 'none';
   }
@@ -4259,8 +4527,11 @@ function renderStep2(data) {
   // Líneas
   const lineasEl = document.getElementById('cot-lineas');
   lineasEl.innerHTML = data.lineas.map((l, i) => `
-    <div style="display:grid;grid-template-columns:90px 1fr 80px 100px 36px;gap:8px;align-items:start;margin-bottom:8px;">
-      <input value="${l.sku}" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:monospace;margin-top:1px;" disabled>
+    <div style="display:grid;grid-template-columns:90px 1fr 90px 70px 100px 36px;gap:8px;align-items:start;margin-bottom:8px;">
+      <div style="position:relative;margin-top:1px;">
+        <input id="cot-l-sku-${i}" value="${l.sku}" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:monospace;width:100%;" oninput="searchCotSku(${i}, this.value.trim())" onkeydown="if(event.key==='Enter'||event.key==='Tab'){searchCotSku(${i},this.value.trim(),true);}" title="Escribí el SKU para buscar el producto">
+        <div id="cot-l-sku-drop-${i}" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid #e5e7eb;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:200;max-height:200px;overflow-y:auto;min-width:280px;"></div>
+      </div>
       ${l.found
         ? `<input value="${l.product_name || ''}" id="cot-l-name-${i}" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;">`
         : `<div style="position:relative;">
@@ -4271,6 +4542,7 @@ function renderStep2(data) {
             <div id="cot-l-drop-${i}" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid #e5e7eb;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:100;max-height:180px;overflow-y:auto;"></div>
            </div>`
       }
+      <input type="text" value="${l.color||''}" id="cot-l-color-${i}" placeholder="NEG, BLA..." style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:monospace;">
       <input type="number" value="${l.cantidad}" id="cot-l-qty-${i}" min="1" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;text-align:center;">
       <input type="number" value="${l.precio}" id="cot-l-price-${i}" step="0.01" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;text-align:right;">
       <button onclick="removeCotLinea(${i})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;cursor:pointer;font-size:16px;padding:4px 8px;margin-top:1px;">✕</button>
@@ -4290,6 +4562,16 @@ function saveCotFormState() {
     if (qty)   l.cantidad = parseFloat(qty.value)   || l.cantidad;
     if (price) l.precio   = parseFloat(price.value) || l.precio;
   });
+}
+
+function addCotLinea() {
+  if (!cotExtracted) return;
+  saveCotFormState();
+  cotExtracted.lineas.push({ sku: '', cantidad: 1, precio: 0, color: '', found: false, product_id: null, product_name: null, uom_id: null, tax_ids: [] });
+  renderStep2(cotExtracted);
+  // Foco en el SKU de la nueva línea
+  const i = cotExtracted.lineas.length - 1;
+  setTimeout(() => document.getElementById(`cot-l-sku-${i}`)?.focus(), 50);
 }
 
 function removeCotLinea(i) {
@@ -4331,6 +4613,78 @@ function searchCotProduct(i, q) {
   drop.style.display = '';
 }
 
+function searchCotSku(i, val, autoSelect = false) {
+  const drop = document.getElementById(`cot-l-sku-drop-${i}`);
+  if (!drop) return;
+  if (!val || val.length < 2 || !odooData) { drop.style.display = 'none'; return; }
+  const ql = val.toLowerCase();
+  const exact = [], starts = [], rest = [];
+  for (const cat of odooData.categories) {
+    for (const p of cat.items) {
+      if (!p.sku) continue;
+      const sk = p.sku.toLowerCase();
+      if (sk === ql) exact.push(p);
+      else if (sk.startsWith(ql)) starts.push(p);
+      else if (sk.includes(ql)) rest.push(p);
+    }
+  }
+  const matches = [...exact, ...starts, ...rest].slice(0, 10);
+  // Auto-seleccionar si hay exacto único o si el usuario presionó Enter/Tab
+  if (autoSelect && matches.length === 1) {
+    const p = matches[0];
+    drop.style.display = 'none';
+    saveCotFormState();
+    selectCotProduct(i, p.id, p.name, p.price, p.sku, p.uom_id, p.tax_ids);
+    return;
+  }
+  if (exact.length === 1 && !autoSelect) {
+    // Hay match exacto — resaltar el input pero no seleccionar aún
+    const inp = document.getElementById(`cot-l-sku-${i}`);
+    if (inp) { inp.style.borderColor = '#059669'; inp.style.background = '#f0fdf4'; }
+  }
+  if (!matches.length) { drop.style.display = 'none'; return; }
+  drop.innerHTML = matches.map((p, mi) => `
+    <div data-mi="${mi}"
+      style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid #f3f4f6;display:flex;gap:10px;align-items:baseline;"
+      onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
+      <span style="font-family:monospace;color:#7c3aed;font-weight:700;white-space:nowrap;">${p.sku}</span>
+      <span style="color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}</span>
+    </div>`).join('');
+  drop._matches = matches;
+  drop.querySelectorAll('[data-mi]').forEach(el => {
+    el.addEventListener('mousedown', e => {
+      e.preventDefault(); // evita que el input pierda foco antes del click
+      saveCotFormState();
+      const p = drop._matches[parseInt(el.dataset.mi)];
+      selectCotProduct(i, p.id, p.name, p.price, p.sku, p.uom_id, p.tax_ids);
+      drop.style.display = 'none';
+    });
+  });
+  drop.style.display = '';
+}
+
+function onCotSkuChange(i, val) {
+  if (!val || !odooData) return;
+  const skuBase = val.split('-')[0].toLowerCase();
+  let found = null;
+  for (const cat of odooData.categories) {
+    for (const p of cat.items) {
+      if (p.sku.toLowerCase() === val.toLowerCase() || p.sku.toLowerCase().split('-')[0] === skuBase) {
+        found = p; break;
+      }
+    }
+    if (found) break;
+  }
+  saveCotFormState();
+  if (found) {
+    selectCotProduct(i, found.id, found.name, found.price, found.sku, found.uom_id, found.tax_ids);
+  } else {
+    cotExtracted.lineas[i].sku = val;
+    const skuEl = document.getElementById(`cot-l-sku-${i}`);
+    if (skuEl) { skuEl.style.borderColor = '#fca5a5'; skuEl.style.background = '#fff1f2'; }
+  }
+}
+
 function selectCotProduct(i, productId, name, price, sku, uomId, taxIds) {
   cotExtracted.lineas[i].product_id   = productId;
   cotExtracted.lineas[i].product_name = name;
@@ -4349,7 +4703,7 @@ async function searchCotPartner(q) {
   _cotPartnerId = null;
   if (!q || q.length < 2) { drop.style.display = 'none'; return; }
   try {
-    const res = await fetch(`/api/odoo/buscar-partner?q=${encodeURIComponent(q)}`);
+    const res = await fetch(`/api/odoo/buscar-partner?q=${encodeURIComponent(q)}`, { headers: authHeaders() });
     const data = await res.json();
     if (!data.length) { drop.style.display = 'none'; return; }
     drop.innerHTML = data.map(p => `
@@ -4368,7 +4722,10 @@ async function searchCotPartner(q) {
 
 function selectCotPartner(id, name) {
   _cotPartnerId = id;
-  document.getElementById('cot-partner-search').value = name;
+  const inp = document.getElementById('cot-partner-search');
+  inp.value = name;
+  inp.style.borderColor = '#e5e7eb';
+  inp.style.background = 'white';
   document.getElementById('cot-partner-drop').style.display = 'none';
 }
 
@@ -4384,20 +4741,12 @@ async function crearCotizacion() {
     const partner_id = selVal || _cotPartnerId;
     if (!partner_id) throw new Error('Seleccioná o buscá un cliente válido');
 
-    const lineas = cotExtracted.lineas.map((l, i) => ({
-      product_id:   l.product_id,
-      product_name: document.getElementById(`cot-l-name-${i}`)?.value || l.product_name,
-      cantidad:     parseFloat(document.getElementById(`cot-l-qty-${i}`)?.value) || 1,
-      precio:       parseFloat(document.getElementById(`cot-l-price-${i}`)?.value) || 0,
-      uom_id:       l.uom_id,
-      tax_ids:      l.tax_ids,
-    })).filter(l => l.product_id);
-
+    const lineas = getCotLineas();
     if (!lineas.length) throw new Error('No hay líneas con productos válidos');
 
     const res = await fetch('/api/odoo/cotizacion-crear', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ partner_id, lineas, notas: document.getElementById('cot-notas').value }),
     });
     const data = await res.json();
@@ -4405,13 +4754,77 @@ async function crearCotizacion() {
 
     document.getElementById('cot-step-2').style.display = 'none';
     document.getElementById('cot-step-3').style.display = '';
-    document.getElementById('cot-result-name').textContent = data.order_name;
+    document.getElementById('cot-result-title').textContent = '¡Borrador creado!';
     document.getElementById('cot-result-total').textContent = 'Total: $' + data.amount_total.toLocaleString('es-UY', { minimumFractionDigits: 2 });
+    document.getElementById('cot-result-cards').innerHTML = resultCard('Orden', data.order_name, '#7c3aed');
   } catch (e) {
     errEl.textContent = 'Error: ' + e.message;
     errEl.style.display = '';
   } finally {
-    btn.textContent = '✅ Crear cotización en Odoo';
+    btn.textContent = 'Guardar borrador';
+    btn.disabled = false;
+  }
+}
+
+function toggleVencimiento() {
+  const esCred = document.getElementById('cot-fp-credito').checked;
+  document.getElementById('cot-dias-wrap').style.display = esCred ? 'flex' : 'none';
+}
+
+function resultCard(label, value, color = '#111827') {
+  return `<div style="background:#f9fafb;border-radius:10px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-size:12px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;">${label}</span>
+    <span style="font-size:18px;font-weight:800;color:${color};">${value}</span>
+  </div>`;
+}
+
+function getCotLineas() {
+  return (cotExtracted?.lineas || []).map((l, i) => ({
+    product_id:   l.product_id,
+    product_name: document.getElementById(`cot-l-name-${i}`)?.value || l.product_name,
+    cantidad:     parseFloat(document.getElementById(`cot-l-qty-${i}`)?.value) || 1,
+    precio:       parseFloat(document.getElementById(`cot-l-price-${i}`)?.value) || 0,
+    uom_id:       l.uom_id,
+    tax_ids:      l.tax_ids,
+  })).filter(l => l.product_id);
+}
+
+async function confirmarYFacturar() {
+  const btn   = document.getElementById('cot-btn-full');
+  const errEl = document.getElementById('cot-step2-error');
+  errEl.style.display = 'none';
+  btn.textContent = '⏳ Procesando...';
+  btn.disabled = true;
+  try {
+    const selVal = parseInt(document.getElementById('cot-partner-select').value);
+    const partner_id = selVal || _cotPartnerId;
+    if (!partner_id) throw new Error('Seleccioná o buscá un cliente válido');
+    const lineas = getCotLineas();
+    if (!lineas.length) throw new Error('No hay líneas con productos válidos');
+    const forma_pago      = document.getElementById('cot-fp-credito').checked ? 'credito' : 'contado';
+    const dias_vencimiento = parseInt(document.getElementById('cot-dias-venc').value) || 30;
+    const res = await fetch('/api/odoo/cotizacion-confirmar-full', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ partner_id, lineas, notas: document.getElementById('cot-notas').value, forma_pago, dias_vencimiento }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    document.getElementById('cot-step-2').style.display = 'none';
+    document.getElementById('cot-step-3').style.display = '';
+    document.getElementById('cot-result-title').textContent = '¡Cotización enviada a Odoo!';
+    document.getElementById('cot-result-total').textContent = 'Total: $' + (data.amount_total||0).toLocaleString('es-UY', { minimumFractionDigits: 2 });
+    document.getElementById('cot-result-cards').innerHTML =
+      resultCard('Cotización en Odoo', data.order_name, '#7c3aed') +
+      `<div style="font-size:12px;color:#6b7280;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;margin-top:8px;line-height:1.6;">
+        📋 La cotización quedó en <strong>borrador</strong> en Odoo.<br>
+        Entrá a Odoo → buscá <strong>${data.order_name}</strong> → confirmá y generá la factura desde ahí.
+      </div>`;
+  } catch (e) {
+    errEl.textContent = 'Error: ' + e.message;
+    errEl.style.display = '';
+  } finally {
+    btn.textContent = '✅ Confirmar y facturar';
     btn.disabled = false;
   }
 }
@@ -4421,7 +4834,7 @@ async function loadOdoo(refresh = false) {
   document.getElementById('odoo-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando productos de Odoo...</div>';
   try {
     const url = '/api/odoo/productos' + (refresh ? '?refresh=true' : '');
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: authHeaders() });
     odooData = await res.json();
     if (odooData.error) throw new Error(odooData.error);
     document.getElementById('odoo-subtitle').textContent = `${odooData.total} productos · ${odooData.categories.length} categorías · actualizado ${new Date(odooData.savedAt).toLocaleTimeString('es-UY')}`;
@@ -4650,7 +5063,7 @@ async function searchCatCliente(q) {
   catPedido.partner_id = null;
   if (!q || q.length < 2) { drop.style.display = 'none'; return; }
   try {
-    const res = await fetch(`/api/odoo/buscar-partner?q=${encodeURIComponent(q)}`);
+    const res = await fetch(`/api/odoo/buscar-partner?q=${encodeURIComponent(q)}`, { headers: authHeaders() });
     const data = await res.json();
     if (!data.length) { drop.style.display = 'none'; return; }
     drop.innerHTML = data.map(p => `
@@ -4699,7 +5112,142 @@ function updateCatPedidoBar() {
 
 function verPedidoMayorista() {
   showPage('pedidos-may');
-  renderPedidoActual();
+  loadPedidosMay();
+}
+
+// ── Lista de pedidos mayoristas desde Odoo ────────────────────────
+const ESTADO_LABEL = { draft:'Borrador', sent:'Enviado', sale:'Confirmado', done:'Hecho', cancel:'Cancelado' };
+const ESTADO_COLOR = { draft:'#6b7280', sent:'#2563eb', sale:'#059669', done:'#7c3aed', cancel:'#dc2626' };
+const INV_LABEL    = { not_invoiced:'Sin factura', invoiced:'Facturado', to_invoice:'A facturar' };
+
+async function loadPedidosMay() {
+  const cont   = document.getElementById('ped-may-content');
+  const estado = document.getElementById('ped-may-filter')?.value || '';
+  cont.innerHTML = '<div class="loading"><span class="spinner"></span>Cargando pedidos...</div>';
+  try {
+    const url = '/api/odoo/pedidos-mayoristas' + (estado ? `?estado=${estado}` : '');
+    const r   = await fetch(url, { headers: authHeaders() });
+    const orders = await r.json();
+    if (orders.error) throw new Error(orders.error);
+    renderPedidosMay(orders);
+  } catch(e) {
+    cont.innerHTML = `<div style="color:#dc2626;padding:24px;">Error: ${e.message}</div>`;
+  }
+}
+
+function renderPedidosMay(orders) {
+  const cont = document.getElementById('ped-may-content');
+  if (!orders.length) {
+    cont.innerHTML = '<div style="color:#9ca3af;padding:40px;text-align:center;">No hay pedidos mayoristas.</div>';
+    return;
+  }
+  cont.innerHTML = `
+    <div style="background:white;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="background:#f9fafb;border-bottom:1px solid #e5e7eb;">
+          <th style="text-align:left;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Número</th>
+          <th style="text-align:left;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Cliente</th>
+          <th style="text-align:left;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Fecha</th>
+          <th style="text-align:right;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Total</th>
+          <th style="text-align:center;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Estado</th>
+          <th style="text-align:center;padding:11px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Factura</th>
+          <th style="width:36px;"></th>
+        </tr></thead>
+        <tbody>
+          ${orders.map(o => {
+            const fecha = o.date_order ? new Date(o.date_order).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
+            const inv   = o.invoices?.[0];
+            return `<tr style="border-top:1px solid #f3f4f6;cursor:pointer;" onclick="openPedidoDetalle(${o.id})" onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+              <td style="padding:12px 16px;font-size:13px;font-weight:700;color:#111827;font-family:monospace;">${o.name}</td>
+              <td style="padding:12px 16px;font-size:13px;color:#374151;">${o.partner_id?.[1] || '—'}</td>
+              <td style="padding:12px 16px;font-size:12px;color:#6b7280;">${fecha}</td>
+              <td style="padding:12px 16px;font-size:13px;font-weight:700;color:#059669;text-align:right;">$${Math.round(o.amount_total).toLocaleString('es-UY')}</td>
+              <td style="padding:12px 16px;text-align:center;">
+                <span style="font-size:11px;font-weight:700;color:${ESTADO_COLOR[o.state]||'#6b7280'};background:${ESTADO_COLOR[o.state]||'#6b7280'}18;padding:3px 8px;border-radius:20px;">${ESTADO_LABEL[o.state]||o.state}</span>
+              </td>
+              <td style="padding:12px 16px;text-align:center;">
+                ${inv ? `<span style="font-size:11px;font-weight:700;color:#059669;">${inv.name}</span>` : `<span style="font-size:11px;color:#9ca3af;">${INV_LABEL[o.invoice_status]||'—'}</span>`}
+              </td>
+              <td style="padding:12px 16px;text-align:center;color:#9ca3af;font-size:16px;">›</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function openPedidoDetalle(id) {
+  // Abrir modal de detalle
+  const modal = document.getElementById('pedido-detalle-modal');
+  document.getElementById('pd-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
+  modal.style.display = 'flex';
+  try {
+    const r = await fetch(`/api/odoo/pedido-mayorista/${id}`, { headers: authHeaders() });
+    const o = await r.json();
+    if (o.error) throw new Error(o.error);
+    const fecha = o.date_order ? new Date(o.date_order).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+    document.getElementById('pd-content').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+        <div style="background:#f9fafb;border-radius:8px;padding:12px 14px;">
+          <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">Orden</div>
+          <div style="font-size:16px;font-weight:800;color:#111827;font-family:monospace;">${o.name}</div>
+        </div>
+        <div style="background:#f9fafb;border-radius:8px;padding:12px 14px;">
+          <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">Cliente</div>
+          <div style="font-size:14px;font-weight:700;color:#111827;">${o.partner_id?.[1]||'—'}</div>
+        </div>
+        <div style="background:#f9fafb;border-radius:8px;padding:12px 14px;">
+          <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">Fecha</div>
+          <div style="font-size:13px;color:#374151;">${fecha}</div>
+        </div>
+        <div style="background:#f9fafb;border-radius:8px;padding:12px 14px;">
+          <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:3px;">Estado</div>
+          <div style="font-size:13px;font-weight:700;color:${ESTADO_COLOR[o.state]||'#6b7280'};">${ESTADO_LABEL[o.state]||o.state}</div>
+        </div>
+      </div>
+      <!-- Líneas -->
+      <div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Productos</div>
+      <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:14px;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead><tr style="background:#f9fafb;">
+            <th style="text-align:left;padding:8px 12px;font-size:10px;color:#9ca3af;font-weight:700;">Producto</th>
+            <th style="text-align:center;padding:8px 12px;font-size:10px;color:#9ca3af;font-weight:700;">Cant.</th>
+            <th style="text-align:right;padding:8px 12px;font-size:10px;color:#9ca3af;font-weight:700;">Precio</th>
+            <th style="text-align:right;padding:8px 12px;font-size:10px;color:#9ca3af;font-weight:700;">Subtotal</th>
+          </tr></thead>
+          <tbody>
+            ${(o.lines||[]).map(l => `<tr style="border-top:1px solid #f3f4f6;">
+              <td style="padding:8px 12px;font-size:12px;color:#111827;">${l.name}</td>
+              <td style="padding:8px 12px;font-size:12px;text-align:center;">${l.product_uom_qty}</td>
+              <td style="padding:8px 12px;font-size:12px;text-align:right;color:#6b7280;">$${Math.round(l.price_unit).toLocaleString('es-UY')}</td>
+              <td style="padding:8px 12px;font-size:12px;font-weight:700;text-align:right;">$${Math.round(l.price_subtotal).toLocaleString('es-UY')}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+        <div style="padding:10px 12px;border-top:2px solid #f3f4f6;text-align:right;font-size:16px;font-weight:800;color:#059669;">
+          Total: $${Math.round(o.amount_total).toLocaleString('es-UY')}
+        </div>
+      </div>
+      <!-- Facturas y remitos -->
+      ${o.invoices?.length ? `<div style="margin-bottom:10px;">
+        <div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Facturas</div>
+        ${o.invoices.map(inv => `<div style="background:#f0fdf4;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:14px;font-weight:800;color:#059669;font-family:monospace;">${inv.name}</span>
+          <span style="font-size:12px;color:#6b7280;">${inv.invoice_date_due ? 'Vence: '+inv.invoice_date_due : ''}</span>
+          <span style="font-size:12px;font-weight:700;color:#059669;">$${Math.round(inv.amount_total).toLocaleString('es-UY')}</span>
+        </div>`).join('')}
+      </div>` : ''}
+      ${o.pickings?.length ? `<div>
+        <div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Remitos</div>
+        ${o.pickings.map(p => `<div style="background:#eff6ff;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:14px;font-weight:800;color:#2563eb;font-family:monospace;">${p.name}</span>
+          <span style="font-size:11px;font-weight:700;color:#2563eb;">${p.state}</span>
+        </div>`).join('')}
+      </div>` : ''}
+      ${o.note ? `<div style="margin-top:12px;background:#fafafa;border-radius:8px;padding:10px 14px;font-size:12px;color:#6b7280;">${o.note}</div>` : ''}`;
+  } catch(e) {
+    document.getElementById('pd-content').innerHTML = `<div style="color:#dc2626;">Error: ${e.message}</div>`;
+  }
 }
 
 function renderPedidoActual() {
@@ -4784,7 +5332,7 @@ async function confirmarPedidoMayorista() {
       uom_id: i.uom_id, tax_ids: i.tax_ids,
     }));
     const res = await fetch('/api/odoo/cotizacion-crear', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
+      method: 'POST', headers: {'Content-Type':'application/json', ...authHeaders()},
       body: JSON.stringify({ partner_id: catPedido.partner_id, lineas, notas: '' }),
     });
     const data = await res.json();
@@ -4852,6 +5400,612 @@ function mlStockBadge(s) {
 let catalogoView  = 'lista';
 let catalogoModo  = 'ver';
 let catalogoLoaded = false;
+let catalogOverrides = {};
+let catalogSortOverrides = {};
+let catalogPinned = {};     // base   → sku_variant pinneado
+let catalogLabels = {};     // key    → nombre personalizado
+let catalogCustomSubs = []; // [{id, macro, nombre}]
+let catalogSubSort = {};    // macro  → [sub nombres en orden]
+let catalogManualProducts = []; // [{id, sku, name, price, stock, image, macro, sub}]
+let catGridUidMap = {};     // subKey → [{uid, base}]
+let catCardMeta = {};       // base   → {name, thumb, subKey}
+
+// ── Macro-categorías del catálogo ────────────────────────────────
+const CATALOGO_MACRO = [
+  {
+    nombre: 'ILUMINACIÓN',
+    subs: [
+      { nombre: 'Lámparas de Escritorio', cats: ['PORTATILES'] },
+      { nombre: 'Lámparas de Pie',        cats: ['LAMPARA DE PIE'] },
+      { nombre: 'Apliques y Colgantes',   cats: ['APLIQUES INTERIOR', 'APLIQUES EXTERIOR', 'LAMPARAS COLGANTES'] },
+      { nombre: 'Plafones',               cats: ['PLAFONES CIRCULARES C/MADERA', 'PLAFONES CUADRADOS C/MADERA', 'PLAFONES SIN MADERA'] },
+      { nombre: 'Apliques Exterior',       cats: ['APLIQUES EXTERIOR'] },
+      { nombre: 'Luces Decorativas',      cats: ['ILUMINACION DECORATIVA', 'GENERAL LED'] },
+      { nombre: 'Línea Craft',             cats: ['MDF - LAMPARAS', 'MDF - CUADROS Y TRIPTICOS', 'MDF - LINEA CRAFT', 'MDF - MUEBLES CRAFT', 'MDF - VARIOS CRAFT'] },
+      { nombre: 'Lámparas de Sal',        cats: ['LAMPARA DE SAL', 'LAMPARA DE SAL RUSTICA', 'LAMPARA DE SAL TALLADA', 'LAMPARA DE SAL USB', 'ACC. VARIOS LAMPARAS DE SAL', 'VARIOS SAL HIMALAYA'] },
+    ]
+  },
+  {
+    nombre: 'MUEBLES',
+    subs: [
+      { nombre: 'Dormitorio', cats: ['MOBILIARIO DORMITORIO DORIPEL', 'MOBILIARIO DORMITORIO MOVEISIM', 'MOBILIARIO DORMITORIO COMPLETA', 'MOBILIARIO DORMITORIO FELICCI', 'MOBILIARIO DORMITORIO MADESA', 'MOBILIARIO DORMITORIO TREVISUL', 'ORGANIZACION DORMTORIO'] },
+      { nombre: 'Living',     cats: ['MOBILIARIO LIVING COMPLETA', 'MOBILIARIO LIVING MOVEISIM', 'MOBILIARIO LIVING TREVISUL', 'MOBILIARIO LIVING APPUNTO', 'MOBILIARIO LIVING FELLICCI', 'LIVING'] },
+      { nombre: 'Escritorio', cats: ['MOBILIARIO ESCRITORIO MADESA', 'MOBILIARIO ESCRITORIO APPUNTO', 'ESCRITORIO'] },
+      { nombre: 'Comedor',    cats: ['MOBILIARIO COMEDOR MADESA', 'MOBILIARIO COMEDOR FELLICCI'] },
+      { nombre: 'Baño',       cats: ['MOBILIARIO BAÑO FELLICCI', 'MOBILIARIO BAÑO MOVEIS SIM'] },
+      { nombre: 'Colchones',  cats: ['COLCHONES'] },
+    ]
+  },
+  {
+    nombre: 'HOGAR',
+    subs: [
+      { nombre: 'Textil Living',    cats: ['TEXTIL LIVING', 'ALFOMBRAS'] },
+      { nombre: 'Ropa de Cama',     cats: [] },
+      { nombre: 'Cortinas',         cats: [] },
+      { nombre: 'Espejos',          cats: ['ESPEJOS'] },
+      { nombre: 'Soportes TV',      cats: ['SOPORTES TV FIJOS', 'SOPORTE TV MOVILES', 'SOPORTE TV'] },
+      { nombre: 'Cocina',           cats: ['ORG. COCINA Y UTENSILLOS', 'ESCURRIDORES', 'MOPAS'] },
+      { nombre: 'Organización',     cats: ['ORGANIZACION DEL ESPACIO', 'CESTOS Y CANASTOS'] },
+      { nombre: 'Invierno',         cats: ['ROPA DE CAMA Y ALMOHADONES'] },
+      { nombre: 'Decoración',       cats: ['DECORACION EXTERIOR', 'VELAS Y SAHUMERIOS'] },
+    ]
+  },
+  {
+    nombre: 'OUTDOOR & RECREACIÓN',
+    subs: [
+      { nombre: 'Camping y Exterior', cats: ['CAMPING Y EXTERIOR', 'MUEBLES EXTERIOR'] },
+      { nombre: 'Jardín y Patio',     cats: ['TOLDOS'] },
+      { nombre: 'Hamacas',            cats: ['HAMACAS'] },
+      { nombre: 'Escaleras',          cats: ['ESCALERAS'] },
+      { nombre: 'Bicicletas',         cats: ['BICICLETAS ADULTO', 'BICICLETAS INFANTILES', 'ARTICULOS CICLISMO'] },
+      { nombre: 'Deportes',           cats: ['JUEGOS, JUGUETES Y DEPORTES', 'PATINES', 'TIEMPO LIBRE Y RECREACION'] },
+      { nombre: 'Mallas',             cats: ['MALLAS ELECTROSOLDADAS', 'MALLAS'] },
+    ]
+  },
+  {
+    nombre: 'FERRETERÍA',
+    subs: [
+      { nombre: 'Ferretería General', cats: ['VARIOS FERRETERIA'] },
+      { nombre: 'Grifería',           cats: ['LOZA SANITARIA', 'ACCESORIOS BAÑO'] },
+      { nombre: 'Pintura',            cats: ['PINTURA'] },
+      { nombre: 'Mangueras',          cats: ['MANGUERAS'] },
+    ]
+  },
+  {
+    nombre: 'BEBÉS & NIÑOS',
+    subs: [
+      { nombre: 'Bebés',  cats: ['MATERNIDAD Y BEBES'] },
+      { nombre: 'Niños',  cats: ['JUEGOS BEBE Y NIÑOS', 'MUEBLES Y ACCESORIO INFANTILES'] },
+    ]
+  },
+  {
+    nombre: 'OTROS',
+    subs: [
+      { nombre: 'Música',    cats: ['INSTRUMENTOS MUSICALES', 'ACCESORIOS MUSICA'] },
+      { nombre: 'Mascotas',  cats: ['ACCESORIOS MASCOTAS'] },
+      { nombre: 'Varios',    cats: ['ACCESORIOS VARIOS', 'ACCESORIOS VEHICULOS', 'BALANZAS'] },
+    ]
+  },
+];
+
+// ── Popup de variantes ───────────────────────────────────────────
+function openVariantsPopup(uid, variants) {
+  const modal = document.getElementById('variants-popup');
+  const grid = document.getElementById('variants-popup-grid');
+  grid.innerHTML = variants.map((v,i) => `
+    <div onclick="catSelectVariant('${uid}',${i},${JSON.stringify(variants).replace(/"/g,'&quot;')});document.getElementById('variants-popup').style.display='none';"
+      style="cursor:pointer;text-align:center;padding:8px;border-radius:8px;border:1px solid #e5e7eb;background:#fafafa;transition:background .15s;"
+      onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='#fafafa'">
+      <img src="${v.img}" style="width:60px;height:60px;object-fit:contain;mix-blend-mode:multiply;">
+      <div style="font-size:10px;color:#6b7280;margin-top:4px;font-family:monospace;">${v.sku}</div>
+    </div>`).join('');
+  modal.style.display = 'flex';
+}
+
+// ── Override de categoría ─────────────────────────────────────────
+let _coProductId = null;
+let _coImgFile = null;
+let _updatedImages = {}; // {productId: timestamp} — cache-bust after upload
+
+function getImgSrc(id, thumbnail) {
+  if (_updatedImages[id]) return '/api/odoo/imagen/' + id + '?t=' + _updatedImages[id];
+  return thumbnail || '/api/odoo/imagen/' + id;
+}
+
+function coSetImgTarget(id, sku) {
+  _coProductId = id;
+  _coImgFile = null;
+  document.getElementById('co-img-preview').style.display = 'none';
+  document.getElementById('co-img-input').value = '';
+  document.getElementById('co-img-status').textContent = '';
+  const skuLabel = document.getElementById('co-img-target-sku');
+  if (skuLabel) skuLabel.textContent = sku ? '— ' + sku : '';
+  // Mostrar botón restaurar solo si tiene imagen personalizada
+  const resetWrap = document.getElementById('co-img-reset-wrap');
+  if (resetWrap) resetWrap.style.display = _updatedImages[id] ? '' : 'none';
+}
+
+async function coResetImg() {
+  if (!_coProductId) return;
+  if (!confirm('¿Restaurar la imagen original de Odoo? Se borrará la imagen subida.')) return;
+  try {
+    await fetch(`/api/productos/${_coProductId}/imagen`, { method: 'DELETE', headers: authHeaders() });
+    delete _updatedImages[_coProductId];
+    document.getElementById('co-img-reset-wrap').style.display = 'none';
+    // Actualizar imagen en el modal y en la grilla
+    const newSrc = `/api/odoo/imagen/${_coProductId}?t=${Date.now()}`;
+    document.getElementById('co-thumb').src = newSrc;
+    const uid = 'cv_' + (document.getElementById('co-sku-input').value.replace(/\W/g,'_'));
+    const mainImg = document.getElementById(uid + '_main');
+    if (mainImg) mainImg.src = newSrc;
+    document.getElementById('co-img-status').style.color = '#059669';
+    document.getElementById('co-img-status').textContent = '✓ Restaurada';
+  } catch(e) {
+    alert('Error al restaurar: ' + e.message);
+  }
+}
+
+function coPreviewImg(file) {
+  if (!file) return;
+  _coImgFile = file;
+  document.getElementById('co-img-preview').style.display = 'flex';
+  document.getElementById('co-img-filename').textContent = file.name;
+  document.getElementById('co-img-status').textContent = '';
+  const reader = new FileReader();
+  reader.onload = e => { document.getElementById('co-img-preview-img').src = e.target.result; };
+  reader.readAsDataURL(file);
+}
+function coHandleImgDrop(e) {
+  e.preventDefault();
+  document.getElementById('co-img-drop').style.borderColor = '#e5e7eb';
+  const file = e.dataTransfer.files[0];
+  if (file) coPreviewImg(file);
+}
+async function coUploadImg() {
+  if (!_coImgFile || !_coProductId) return;
+  const btn = document.getElementById('co-img-upload-btn');
+  const status = document.getElementById('co-img-status');
+  btn.textContent = 'Subiendo...'; btn.disabled = true;
+  try {
+    const fd = new FormData();
+    fd.append('imagen', _coImgFile);
+    const r = await fetch(`/api/productos/${_coProductId}/imagen`, { method: 'POST', headers: authHeaders(), body: fd });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    // Actualizar thumb en el modal y en la grilla
+    const _uploadTs = Date.now();
+    const newSrc = `/api/odoo/imagen/${_coProductId}?t=${_uploadTs}`;
+    _updatedImages[_coProductId] = _uploadTs;  // persiste para re-renders
+    document.getElementById('co-thumb').src = newSrc;
+    const mainImg = document.getElementById('cv_' + (document.getElementById('co-sku-input').value.replace(/\W/g,'_')) + '_main');
+    if (mainImg) mainImg.src = newSrc;
+    status.style.color = '#059669'; status.textContent = '✓ Guardada';
+    btn.textContent = 'Subir imagen'; btn.disabled = false;
+    _coImgFile = null;
+  } catch(e) {
+    status.style.color = '#dc2626'; status.textContent = 'Error: ' + e.message;
+    btn.textContent = 'Subir imagen'; btn.disabled = false;
+  }
+}
+
+function openCatOverride(skuBase, currentMacro, currentSub) {
+  const meta = catCardMeta[skuBase] || {};
+  _coImgFile = null;
+  document.getElementById('co-img-preview').style.display = 'none';
+  document.getElementById('co-img-input').value = '';
+  document.getElementById('co-img-status').textContent = '';
+  const modal = document.getElementById('cat-override-modal');
+  // Info producto
+  const thumb = document.getElementById('co-thumb');
+  if (thumb) { thumb.src = meta.thumb || ''; }
+  const nameEl = document.getElementById('co-name');
+  if (nameEl) nameEl.textContent = meta.name || skuBase;
+  document.getElementById('co-sku').textContent = skuBase;
+  document.getElementById('co-sku-input').value = skuBase;
+  // Posición actual
+  const subKey = currentMacro + '||' + currentSub;
+  const entries = catGridUidMap[subKey] || [];
+  const currentPos = entries.findIndex(x => x.base === skuBase) + 1;
+  document.getElementById('co-pos').value = currentPos || 1;
+  document.getElementById('co-pos-max').textContent = entries.length;
+  // Variantes para elegir imagen
+  const metaVariants = (meta.variants || []);
+  const pinnedSku = catalogPinned[skuBase];
+  const activeVariant = (pinnedSku && metaVariants.find(v => v.sku === pinnedSku)) || metaVariants[0];
+  _coProductId = activeVariant?.id || null;
+  const variantPickerEl = document.getElementById('co-variant-picker');
+  if (metaVariants.length > 1) {
+    variantPickerEl.style.display = 'block';
+    variantPickerEl.querySelector('.co-vp-thumbs').innerHTML = metaVariants.map(v => {
+      const img = v.ml_thumbnail || '/api/odoo/imagen/' + v.id;
+      const active = activeVariant && v.id === activeVariant.id;
+      return `<div onclick="pinVariant('${skuBase}','${v.sku}');coSetImgTarget(${v.id},'${v.sku}')" title="${v.sku}"
+        style="cursor:pointer;border-radius:6px;overflow:hidden;border:2px solid ${active?'#111827':'#e5e7eb'};flex-shrink:0;width:52px;height:52px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;">
+        <img src="${img}" style="width:46px;height:46px;object-fit:contain;mix-blend-mode:multiply;" onerror="this.style.opacity='0.2'">
+      </div>`;
+    }).join('');
+    // Mostrar SKU activo en el label de imagen
+    const skuLabel = document.getElementById('co-img-target-sku');
+    if (skuLabel) skuLabel.textContent = activeVariant?.sku ? '— ' + activeVariant.sku : '';
+  } else {
+    variantPickerEl.style.display = 'none';
+    const skuLabel = document.getElementById('co-img-target-sku');
+    if (skuLabel) skuLabel.textContent = '';
+  }
+  // Mostrar botón restaurar si tiene imagen personalizada
+  const resetWrap = document.getElementById('co-img-reset-wrap');
+  if (resetWrap) resetWrap.style.display = _updatedImages[_coProductId] ? '' : 'none';
+  // Macros
+  const macroSel = document.getElementById('co-macro');
+  macroSel.innerHTML = CATALOGO_MACRO.map(m => `<option value="${m.nombre}" ${m.nombre===currentMacro?'selected':''}>${m.nombre}</option>`).join('');
+  populateCatOverrideSubs(currentMacro, currentSub);
+  modal.style.display = 'flex';
+}
+function populateCatOverrideSubs(macro, currentSub) {
+  const m = CATALOGO_MACRO.find(x => x.nombre === macro);
+  const customSubs = catalogCustomSubs.filter(s => s.macro === macro);
+  const subSel = document.getElementById('co-sub');
+  subSel.onchange = null; // evitar bucle
+  const allSubs = [
+    ...(m ? m.subs.map(s => s.nombre) : []),
+    ...customSubs.map(s => s.nombre)
+  ];
+  subSel.innerHTML = allSubs.map(nombre => `<option value="${nombre}" ${nombre===currentSub?'selected':''}>${nombre}</option>`).join('');
+  subSel.onchange = () => {
+    const subKey = document.getElementById('co-macro').value + '||' + subSel.value;
+    const entries = catGridUidMap[subKey] || [];
+    const maxEl = document.getElementById('co-pos-max');
+    if (maxEl) maxEl.textContent = entries.length || '?';
+  };
+  // Actualizar total
+  const subKey = macro + '||' + (subSel.value || '');
+  const entries = catGridUidMap[subKey] || [];
+  const maxEl = document.getElementById('co-pos-max');
+  if (maxEl) maxEl.textContent = entries.length || '?';
+}
+function coPosStep(delta) {
+  const inp = document.getElementById('co-pos');
+  const max = parseInt(document.getElementById('co-pos-max').textContent) || 999;
+  inp.value = Math.max(1, Math.min(max + 1, (parseInt(inp.value) || 1) + delta));
+}
+async function saveCatOverride() {
+  const skuBase = document.getElementById('co-sku-input').value;
+  const macro   = document.getElementById('co-macro').value;
+  const sub     = document.getElementById('co-sub').value;
+  const newPos  = parseInt(document.getElementById('co-pos').value) || null;
+  // Guardar categoría
+  await fetch('/api/catalog/override', { method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify({sku_base:skuBase, macro, sub}) });
+  catalogOverrides[skuBase] = { macro, sub };
+  // Guardar posición en el sort de la subcategoría destino
+  if (newPos) {
+    const subKey    = macro + '||' + sub;
+    const savedOv   = catalogSortOverrides[subKey] ? [...catalogSortOverrides[subKey]] : [];
+    const allBases  = (catGridUidMap[subKey] || []).map(x => x.base);
+    // Merge: productos del sort guardado + los que no estén aún (van al final)
+    const inSaved   = new Set(savedOv);
+    const base      = savedOv.length
+      ? [...savedOv, ...allBases.filter(b => !inSaved.has(b))]
+      : allBases;
+    const filtered = base.filter(b => b !== skuBase);
+    filtered.splice(Math.max(0, newPos - 1), 0, skuBase);
+    await fetch('/api/catalog/sort', { method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify({ key: subKey, order: filtered }) });
+    catalogSortOverrides[subKey] = filtered;
+  }
+  document.getElementById('cat-override-modal').style.display = 'none';
+  renderCatalogo();
+}
+async function deleteCatOverride() {
+  const skuBase = document.getElementById('co-sku-input').value;
+  await fetch('/api/catalog/override/'+encodeURIComponent(skuBase), { method:'DELETE', headers: authHeaders() });
+  delete catalogOverrides[skuBase];
+  document.getElementById('cat-override-modal').style.display = 'none';
+  renderCatalogo();
+}
+
+// ── Mover subcategoría completa ───────────────────────────────────
+function openMoveSubModal(subKey) {
+  const [currentMacro, subNombre] = subKey.split('||');
+  document.getElementById('msub-key').value    = subKey;
+  document.getElementById('msub-nombre').textContent = subNombre;
+  document.getElementById('msub-from').textContent   = currentMacro;
+  // Llenar selector de macros destino (todas menos la actual)
+  const sel = document.getElementById('msub-macro-sel');
+  sel.innerHTML = CATALOGO_MACRO
+    .filter(m => m.nombre !== currentMacro)
+    .map(m => `<option value="${m.nombre}">${m.nombre}</option>`)
+    .join('');
+  document.getElementById('msub-status').textContent = '';
+  document.getElementById('move-sub-modal').style.display = 'flex';
+}
+async function saveMoveSubModal() {
+  const subKey     = document.getElementById('msub-key').value;
+  const toMacro    = document.getElementById('msub-macro-sel').value;
+  const [, subNombre] = subKey.split('||');
+  const entries    = catGridUidMap[subKey] || [];
+  if (!entries.length) {
+    alert('No hay productos visibles en esta subcategoría.');
+    return;
+  }
+  const statusEl = document.getElementById('msub-status');
+  const btn      = document.getElementById('msub-save-btn');
+  btn.disabled   = true;
+
+  // Crear custom sub en el destino si no existe ni en CATALOGO_MACRO ni como custom sub
+  const macroDestDef = CATALOGO_MACRO.find(m => m.nombre === toMacro);
+  const subExisteEnMacro   = macroDestDef?.subs?.some(s => s.nombre === subNombre);
+  const subExisteCustom    = catalogCustomSubs.some(cs => cs.macro === toMacro && cs.nombre === subNombre);
+  if (!subExisteEnMacro && !subExisteCustom) {
+    statusEl.textContent = 'Creando subcategoría en destino...';
+    const r = await fetch('/api/catalog/custom-subs', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ macro: toMacro, nombre: subNombre })
+    });
+    const newSub = await r.json();
+    catalogCustomSubs.push(newSub);
+  }
+
+  let done = 0;
+  for (const { base } of entries) {
+    statusEl.textContent = `Moviendo ${done + 1} / ${entries.length}...`;
+    await fetch('/api/catalog/override', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sku_base: base, macro: toMacro, sub: subNombre })
+    });
+    catalogOverrides[base] = { macro: toMacro, sub: subNombre };
+    done++;
+  }
+  btn.disabled = false;
+  document.getElementById('move-sub-modal').style.display = 'none';
+  renderCatalogo();
+}
+
+// ── Orden de subcategorías ────────────────────────────────────────
+let _subSortMacro = '';
+let _subSortList  = [];
+
+function openSubSortModal(macro) {
+  _subSortMacro = macro;
+  // Construir lista actual de subs para esa macro
+  const m = CATALOGO_MACRO.find(x => x.nombre === macro);
+  const staticSubs = m ? m.subs.map(s => s.nombre) : [];
+  const customSubs = catalogCustomSubs.filter(s => s.macro === macro).map(s => s.nombre);
+  const allSubs    = [...new Set([...staticSubs, ...customSubs])].filter(n => n);
+  const sortOv     = catalogSubSort[macro];
+  if (sortOv) {
+    _subSortList = [
+      ...sortOv.filter(n => allSubs.includes(n)),
+      ...allSubs.filter(n => !sortOv.includes(n))
+    ];
+  } else {
+    _subSortList = [...allSubs];
+  }
+  document.getElementById('sub-sort-macro-label').textContent = catalogLabels[macro] || macro;
+  renderSubSortList();
+  document.getElementById('sub-sort-modal').style.display = 'flex';
+}
+
+function renderSubSortList() {
+  const list = document.getElementById('sub-sort-list');
+  list.innerHTML = _subSortList.map((nombre, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:white;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:6px;">
+      <span style="font-size:11px;font-weight:700;color:#9ca3af;width:18px;text-align:right;flex-shrink:0;">${i+1}</span>
+      <span style="flex:1;font-size:13px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:0.02em;">${catalogLabels[_subSortMacro+'||'+nombre] || nombre}</span>
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <button onclick="subSortMove(${i},-1)" ${i===0?'disabled':''} style="width:26px;height:22px;border:1px solid #e5e7eb;border-radius:4px;background:white;cursor:pointer;font-size:12px;color:#374151;${i===0?'opacity:.3;':''}"">↑</button>
+        <button onclick="subSortMove(${i},1)" ${i===_subSortList.length-1?'disabled':''} style="width:26px;height:22px;border:1px solid #e5e7eb;border-radius:4px;background:white;cursor:pointer;font-size:12px;color:#374151;${i===_subSortList.length-1?'opacity:.3;':''}"">↓</button>
+      </div>
+    </div>`).join('');
+}
+
+function subSortMove(idx, dir) {
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= _subSortList.length) return;
+  [_subSortList[idx], _subSortList[newIdx]] = [_subSortList[newIdx], _subSortList[idx]];
+  renderSubSortList();
+}
+
+async function saveSubSort() {
+  await fetch('/api/catalog/sub-sort', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ macro: _subSortMacro, order: _subSortList })
+  });
+  catalogSubSort[_subSortMacro] = [..._subSortList];
+  document.getElementById('sub-sort-modal').style.display = 'none';
+  renderCatalogo();
+}
+async function resetSubSort() {
+  await fetch('/api/catalog/sub-sort/' + encodeURIComponent(_subSortMacro), { method: 'DELETE', headers: authHeaders() });
+  delete catalogSubSort[_subSortMacro];
+  document.getElementById('sub-sort-modal').style.display = 'none';
+  renderCatalogo();
+}
+
+// ── Subcategorías personalizadas ──────────────────────────────────
+function openAddCustomSub(macro) {
+  document.getElementById('add-sub-macro').value = macro;
+  document.getElementById('add-sub-macro-label').textContent = catalogLabels[macro] || macro;
+  document.getElementById('add-sub-nombre').value = '';
+  document.getElementById('add-sub-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('add-sub-nombre').focus(), 50);
+}
+async function saveCustomSub() {
+  const macro  = document.getElementById('add-sub-macro').value;
+  const nombre = document.getElementById('add-sub-nombre').value.trim();
+  if (!nombre) return;
+  const r = await fetch('/api/catalog/custom-subs', { method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify({macro, nombre}) });
+  const { id } = await r.json();
+  catalogCustomSubs.push({ id, macro, nombre });
+  document.getElementById('add-sub-modal').style.display = 'none';
+  renderCatalogo();
+}
+async function deleteCustomSub(id) {
+  await fetch('/api/catalog/custom-subs/'+id, { method:'DELETE', headers: authHeaders() });
+  catalogCustomSubs = catalogCustomSubs.filter(s => s.id !== id);
+  renderCatalogo();
+}
+
+// ── Productos manuales ────────────────────────────────────────────
+let _manualEditId = null;
+function openManualProduct(id = null) {
+  _manualEditId = id;
+  const mp = id ? catalogManualProducts.find(p => p.id === id) : null;
+  document.getElementById('mp-title').textContent = id ? 'Editar producto' : 'Agregar producto';
+  document.getElementById('mp-id').value     = id || '';
+  document.getElementById('mp-sku').value    = mp?.sku   || '';
+  document.getElementById('mp-name').value   = mp?.name  || '';
+  document.getElementById('mp-price').value  = mp?.price || '';
+  document.getElementById('mp-image').value  = mp?.image || '';
+  document.getElementById('mp-stock').value  = mp?.stock ?? '';
+  // Macro selector
+  const macroSel = document.getElementById('mp-macro');
+  macroSel.innerHTML = CATALOGO_MACRO.map(m => `<option value="${m.nombre}" ${mp?.macro===m.nombre?'selected':''}>${m.nombre}</option>`).join('');
+  populateManualSubSel(mp?.macro || CATALOGO_MACRO[0].nombre, mp?.sub);
+  macroSel.onchange = () => populateManualSubSel(macroSel.value, null);
+  document.getElementById('mp-delete-btn').style.display = id ? 'block' : 'none';
+  document.getElementById('mp-status').textContent = '';
+  document.getElementById('manual-product-modal').style.display = 'flex';
+}
+function populateManualSubSel(macro, currentSub) {
+  const macroObj = CATALOGO_MACRO.find(m => m.nombre === macro);
+  const naturalSubs = macroObj?.subs?.map(s => s.nombre) || [];
+  const customSubs  = catalogCustomSubs.filter(cs => cs.macro === macro).map(cs => cs.nombre);
+  const allSubs = [...new Set([...naturalSubs, ...customSubs])];
+  const sel = document.getElementById('mp-sub');
+  sel.innerHTML = allSubs.map(s => `<option value="${s}" ${s===currentSub?'selected':''}>${s}</option>`).join('');
+}
+async function saveManualProduct() {
+  const id    = document.getElementById('mp-id').value;
+  const sku   = document.getElementById('mp-sku').value.trim();
+  const name  = document.getElementById('mp-name').value.trim();
+  const price = document.getElementById('mp-price').value;
+  const image = document.getElementById('mp-image').value.trim();
+  const stock = document.getElementById('mp-stock').value;
+  const macro = document.getElementById('mp-macro').value;
+  const sub   = document.getElementById('mp-sub').value;
+  if (!name || !macro || !sub) { document.getElementById('mp-status').textContent = 'Completá nombre, macro y sub.'; return; }
+  const body = { sku, name, price, image, macro, sub };
+  if (stock !== '') body.stock = parseFloat(stock);
+  const method = id ? 'PUT' : 'POST';
+  const url    = id ? `/api/catalog/manual-products/${id}` : '/api/catalog/manual-products';
+  const r = await fetch(url, { method, headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const saved = await r.json();
+  if (id) {
+    catalogManualProducts = catalogManualProducts.map(p => p.id === id ? saved : p);
+  } else {
+    catalogManualProducts.push(saved);
+  }
+  document.getElementById('manual-product-modal').style.display = 'none';
+  renderCatalogo();
+}
+async function deleteManualProduct() {
+  const id = document.getElementById('mp-id').value;
+  if (!id || !confirm('¿Eliminar este producto?')) return;
+  await fetch(`/api/catalog/manual-products/${id}`, { method: 'DELETE', headers: authHeaders() });
+  catalogManualProducts = catalogManualProducts.filter(p => p.id !== id);
+  document.getElementById('manual-product-modal').style.display = 'none';
+  renderCatalogo();
+}
+
+// ── Labels editables ──────────────────────────────────────────────
+function editCatLabel(key, el, dark) {
+  if (catalogoModo !== 'ver') return;
+  const current = el.textContent;
+  const inp = document.createElement('input');
+  inp.value = current;
+  inp.style.cssText = `font-size:inherit;font-weight:inherit;color:inherit;background:transparent;border:none;border-bottom:2px solid ${dark?'rgba(255,255,255,0.6)':'rgba(0,0,0,0.3)'};outline:none;min-width:180px;width:${Math.max(180, current.length*14)}px;font-family:inherit;letter-spacing:inherit;text-transform:inherit;padding:0;`;
+  el.replaceWith(inp);
+  inp.focus(); inp.select();
+  const restore = () => { inp.replaceWith(el); };
+  const save = async () => {
+    const name = inp.value.trim();
+    if (!name || name === current) { restore(); return; }
+    await fetch('/api/catalog/labels', { method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify({key, name}) });
+    catalogLabels[key] = name;
+    renderCatalogo();
+  };
+  inp.addEventListener('blur', save);
+  inp.addEventListener('keydown', e => { if(e.key==='Enter'){e.preventDefault();inp.blur();} if(e.key==='Escape'){inp.value=current;inp.blur();} });
+}
+async function resetCatLabel(key) {
+  await fetch('/api/catalog/labels/'+encodeURIComponent(key), { method:'DELETE', headers: authHeaders() });
+  delete catalogLabels[key];
+  renderCatalogo();
+}
+
+// ── Imagen pinneada ───────────────────────────────────────────────
+async function pinVariant(skuBase, skuVariant) {
+  await fetch('/api/catalog/pinned', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sku_base: skuBase, sku_variant: skuVariant })
+  });
+  catalogPinned[skuBase] = skuVariant;
+  // Actualizar borde activo en el picker
+  const picker = document.querySelector('.co-vp-thumbs');
+  if (picker) {
+    picker.querySelectorAll('div[onclick]').forEach(d => {
+      d.style.borderColor = d.title === skuVariant ? '#111827' : '#e5e7eb';
+    });
+  }
+  // Actualizar imagen principal del modal
+  const meta = catCardMeta[skuBase];
+  if (meta) {
+    const v = (meta.variants||[]).find(x => x.sku === skuVariant);
+    if (v) {
+      const thumb = document.getElementById('co-thumb');
+      if (thumb) thumb.src = v.ml_thumbnail || '/api/odoo/imagen/' + v.id;
+    }
+  }
+}
+
+// ── Orden manual ──────────────────────────────────────────────────
+async function saveCatSort(subKey) {
+  const entries = catGridUidMap[subKey] || [];
+  const withPos = entries.map(({uid, base}) => {
+    const input = document.getElementById(uid + '_ord');
+    return { base, pos: input ? (parseInt(input.value) || 999) : 999 };
+  });
+  withPos.sort((a, b) => a.pos - b.pos);
+  const order = withPos.map(x => x.base);
+  await fetch('/api/catalog/sort', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: subKey, order })
+  });
+  catalogSortOverrides[subKey] = order;
+  renderCatalogo();
+}
+async function resetCatSort(subKey) {
+  await fetch('/api/catalog/sort/' + encodeURIComponent(subKey), { method: 'DELETE', headers: authHeaders() });
+  delete catalogSortOverrides[subKey];
+  renderCatalogo();
+}
+
+function catSelectVariant(uid, idx, variants) {
+  const v = variants[idx];
+  const main = document.getElementById(uid+'_main');
+  const skuEl = document.getElementById(uid+'_sku');
+  const priceEl = document.getElementById(uid+'_price');
+  const stockEl = document.getElementById(uid+'_stock');
+  const btn = document.getElementById(uid+'_btn');
+  if (main) main.src = v.img;
+  if (skuEl) skuEl.textContent = v.sku || 'S/C';
+  if (priceEl) priceEl.textContent = '$' + Math.round(v.price).toLocaleString('es-UY');
+  if (stockEl) stockEl.innerHTML = v.stock > 10
+    ? '<span style="font-size:10px;font-weight:700;color:#059669;text-transform:uppercase;">● En stock</span>'
+    : v.stock > 0
+    ? `<span style="font-size:10px;font-weight:700;color:#d97706;text-transform:uppercase;">● Stock bajo (${v.stock})</span>`
+    : '<span style="font-size:10px;font-weight:700;color:#dc2626;text-transform:uppercase;">Sin stock</span>';
+  if (btn) btn.setAttribute('onclick', `addToCatPedidoById(${v.id})`);
+  // Actualizar borde activo en miniaturas
+  for (let i = 0; i < variants.length; i++) {
+    const th = document.getElementById(uid+'_th_'+i);
+    if (th) th.classList.toggle('active', i === idx);
+  }
+}
 
 function setCatalogoModo(m) {
   catalogoModo = m;
@@ -4877,14 +6031,32 @@ async function loadCatalogo() {
     document.getElementById('catalogo-content').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando catálogo...</div>';
     await loadOdoo();
   }
-  // Poblar selector de categorías con solo las que tienen mayoristas
+  // Cargar overrides, orden, pinned, labels, custom subs y orden de subs
+  try {
+    const [rOv, rSt, rPn, rLb, rCs, rSs, rMp] = await Promise.all([
+      fetch('/api/catalog/overrides',        { headers: authHeaders() }),
+      fetch('/api/catalog/sort',             { headers: authHeaders() }),
+      fetch('/api/catalog/pinned',           { headers: authHeaders() }),
+      fetch('/api/catalog/labels',           { headers: authHeaders() }),
+      fetch('/api/catalog/custom-subs',      { headers: authHeaders() }),
+      fetch('/api/catalog/sub-sort',         { headers: authHeaders() }),
+      fetch('/api/catalog/manual-products',  { headers: authHeaders() }),
+    ]);
+    catalogOverrides       = await rOv.json();
+    catalogSortOverrides   = await rSt.json();
+    catalogPinned          = await rPn.json();
+    catalogLabels          = await rLb.json();
+    catalogCustomSubs      = await rCs.json();
+    catalogSubSort         = await rSs.json();
+    catalogManualProducts  = await rMp.json();
+    // Repoblar imágenes personalizadas (no bloquea si falla)
+    fetch('/api/product-images', { headers: authHeaders() })
+      .then(r => r.json()).then(imgs => Object.assign(_updatedImages, imgs)).catch(() => {});
+  } catch(e) { catalogOverrides = {}; catalogSortOverrides = {}; catalogPinned = {}; catalogLabels = {}; catalogCustomSubs = []; catalogSubSort = {}; catalogManualProducts = []; }
+  // Poblar selector con macro-categorías
   const catSel = document.getElementById('catalogo-cat');
-  const cats = new Set();
-  for (const cat of (odooData?.categories || [])) {
-    if (cat.items.some(p => p.mayorista)) cats.add(cat.name);
-  }
   catSel.innerHTML = '<option value="">Todas las categorías</option>' +
-    [...cats].sort((a,b) => a.localeCompare(b,'es')).map(c => `<option value="${c}">${c}</option>`).join('');
+    CATALOGO_MACRO.map(m => `<option value="${m.nombre}">${m.nombre}</option>`).join('');
   catalogoLoaded = true;
   renderCatalogo();
   const total = (odooData?.categories || []).flatMap(c => c.items).filter(p => p.mayorista).length;
@@ -4893,115 +6065,255 @@ async function loadCatalogo() {
 
 function descargarCatalogo() {
   if (!odooData) return;
-  const q          = (document.getElementById('catalogo-search')?.value || '').toLowerCase();
-  const catFilter  = document.getElementById('catalogo-cat')?.value || '';
+  const q           = (document.getElementById('catalogo-search')?.value || '').toLowerCase();
+  const macroFilter = document.getElementById('catalogo-cat')?.value || '';
   const stockFilter = document.getElementById('catalogo-stock')?.value || 'all';
-  const view       = catalogoView;
+  const fecha       = new Date().toLocaleDateString('es-UY', {day:'2-digit',month:'long',year:'numeric'});
 
-  const bycat = {};
+  // ── Reusar la misma lógica que renderCatalogo ──────────────────
+  const odooBycat = {};
   for (const c of odooData.categories) {
-    if (catFilter && c.name !== catFilter) continue;
     for (const p of c.items) {
       if (!p.mayorista) continue;
       if (q && !p.name.toLowerCase().includes(q) && !(p.sku||'').toLowerCase().includes(q)) continue;
       if (stockFilter === 'con_stock' && !(p.stock > 0)) continue;
       if (stockFilter === 'sin_stock' && p.stock > 0) continue;
-      if (!bycat[c.name]) bycat[c.name] = [];
-      bycat[c.name].push(p);
+      if (!odooBycat[c.name]) odooBycat[c.name] = [];
+      odooBycat[c.name].push(p);
     }
   }
-  const cats = Object.keys(bycat).sort((a,b) => a.localeCompare(b,'es'));
-  if (!cats.length) return alert('No hay productos para descargar.');
+  const overrideItems = {};
+  for (const [skuBase, dest] of Object.entries(catalogOverrides)) {
+    const key = dest.macro + '||' + dest.sub;
+    for (const cat of Object.keys(odooBycat)) {
+      odooBycat[cat] = odooBycat[cat].filter(p => {
+        const base = p.sku ? p.sku.split('-')[0] : '';
+        if (base === skuBase) { if (!overrideItems[key]) overrideItems[key] = []; overrideItems[key].push(p); return false; }
+        return true;
+      });
+    }
+  }
+  // Inyectar productos manuales
+  for (const mp of catalogManualProducts) {
+    if (q && !mp.name.toLowerCase().includes(q) && !(mp.sku||'').toLowerCase().includes(q)) continue;
+    if (stockFilter === 'con_stock' && !(mp.stock > 0)) continue;
+    if (stockFilter === 'sin_stock' && mp.stock > 0) continue;
+    const key = mp.macro + '||' + mp.sub;
+    if (!overrideItems[key]) overrideItems[key] = [];
+    overrideItems[key].push({ ...mp, id: mp.id, ml_thumbnail: mp.image || '' });
+  }
 
-  const totalItems = cats.reduce((s,c) => s + bycat[c].length, 0);
-  const fecha = new Date().toLocaleDateString('es-UY', {day:'2-digit',month:'long',year:'numeric'});
+  const STYLE_ORDER = ['nordico','rustico','clasico','moderno','industrial','novelty','led','sal','otro'];
+  const getStyle = p => {
+    if (p.style_group) return p.style_group;
+    const n = (p.name||'').toLowerCase();
+    if (/nordi|escandinav|bambu|ratan|mimbre|ratán|praga|medellin|medellín|cali|bogot|nórdic/.test(n)) return 'nordico';
+    if (/rustic|colonial|cuerda|cañamo|yute|tejid|madera/.test(n)) return 'rustico';
+    if (/industrial|jaula|galpon|retro|curva|vintage|filament/.test(n)) return 'industrial';
+    if (/astronauta|novedad|novelty|cohete|animal|infantil/.test(n)) return 'novelty';
+    if (/led|smd|plafon|panel|tunis|general led/.test(n)) return 'led';
+    if (/sal\b|himalaya/.test(n)) return 'sal';
+    if (/clasic|clásic|verona|florencia|napoles|napol/.test(n)) return 'clasico';
+    return 'moderno';
+  };
 
-  const productRows = (items) => items.map(p => {
-    const imgSrc = p.ml_thumbnail || (location.origin + '/api/odoo/imagen/' + p.id);
-    const stockTxt = p.stock > 0 ? `<span style="color:#059669;font-weight:700;">${p.stock} u.</span>` : `<span style="color:#dc2626;">Sin stock</span>`;
-    return view === 'lista'
-      ? `<tr>
-          <td style="padding:7px 10px;"><img src="${imgSrc}" style="width:44px;height:44px;object-fit:contain;border-radius:6px;background:#f9fafb;" onerror="this.style.opacity='0'"></td>
-          <td style="padding:7px 10px;font-family:monospace;font-size:11px;color:#7c3aed;font-weight:700;">${p.sku||'—'}</td>
-          <td style="padding:7px 10px;font-size:12px;color:#111827;font-weight:500;">${p.name}</td>
-          <td style="padding:7px 10px;font-size:13px;font-weight:800;color:#059669;text-align:right;white-space:nowrap;">$${Math.round(p.price||0).toLocaleString('es-UY')}</td>
-          <td style="padding:7px 10px;text-align:center;font-size:12px;">${stockTxt}</td>
-        </tr>`
-      : `<div style="background:white;border-radius:14px;border:1px solid #e5e7eb;padding:14px;display:flex;flex-direction:column;gap:8px;break-inside:avoid;position:relative;overflow:hidden;">
-          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#7c3aed,#a78bfa);"></div>
-          <div style="font-family:monospace;font-size:10px;color:#7c3aed;font-weight:700;background:#f5f3ff;padding:2px 6px;border-radius:4px;display:inline-block;width:fit-content;">${p.sku||'S/C'}</div>
-          <img src="${imgSrc}" style="width:100%;height:120px;object-fit:contain;border-radius:8px;background:#f9fafb;" onerror="this.style.opacity='0'">
-          <div style="font-size:11px;font-weight:600;color:#111827;line-height:1.4;">${p.name}</div>
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;">
-            <div style="font-size:17px;font-weight:800;color:#059669;"><span style="font-size:11px;font-weight:500;color:#9ca3af;">$</span>${Math.round(p.price||0).toLocaleString('es-UY')}</div>
-            <div style="font-size:11px;">${stockTxt}</div>
-          </div>
-        </div>`;
-  }).join('');
+  const macros = CATALOGO_MACRO
+    .filter(m => !macroFilter || m.nombre === macroFilter)
+    .map(m => ({
+      ...m,
+      subs: m.subs.map(s => {
+        const subKey  = m.nombre + '||' + s.nombre;
+        const raw     = [...s.cats.flatMap(cat => odooBycat[cat] || []), ...(overrideItems[subKey] || [])];
+        const groups  = {};
+        const order   = [];
+        for (const p of raw) {
+          const base = p.sku ? p.sku.split('-')[0] : ('__'+p.id);
+          if (!groups[base]) { groups[base] = []; order.push(base); }
+          groups[base].push(p);
+        }
+        // Aplicar sort override o auto-sort
+        const sortOv = catalogSortOverrides[subKey];
+        if (sortOv) {
+          order.sort((a,b) => { const ia=sortOv.indexOf(a),ib=sortOv.indexOf(b); if(ia===-1&&ib===-1)return 0; if(ia===-1)return 1; if(ib===-1)return -1; return ia-ib; });
+        } else {
+          const items = order.map(b => groups[b][0]);
+          items.sort((a,b) => { const si=STYLE_ORDER.indexOf(getStyle(a))-STYLE_ORDER.indexOf(getStyle(b)); return si!==0?si:a.name.localeCompare(b.name,'es'); });
+          order.splice(0, order.length, ...items.map(p => p.sku?p.sku.split('-')[0]:('__'+p.id)));
+        }
+        return { ...s, groups, order };
+      }).filter(s => s.order.length > 0)
+    })).filter(m => m.subs.length > 0);
 
-  const catSection = (name) => view === 'lista'
-    ? `<div style="display:flex;align-items:center;gap:12px;margin:24px 0 10px;page-break-inside:avoid;">
-        <div style="height:2px;width:18px;background:linear-gradient(90deg,#7c3aed,#a78bfa);border-radius:2px;flex-shrink:0;"></div>
-        <span style="font-size:12px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap;">${name}</span>
-        <div style="height:2px;flex:1;background:#f3f4f6;border-radius:2px;"></div>
-        <span style="font-size:10px;color:#9ca3af;">${bycat[name].length} productos</span>
-      </div>
-      <table style="width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;">
-        <thead><tr style="background:#f9fafb;">
-          <th style="width:52px;border-bottom:1px solid #f3f4f6;"></th>
-          <th style="text-align:left;padding:7px 10px;font-size:10px;color:#9ca3af;font-weight:600;border-bottom:1px solid #f3f4f6;">SKU</th>
-          <th style="text-align:left;padding:7px 10px;font-size:10px;color:#9ca3af;font-weight:600;border-bottom:1px solid #f3f4f6;">PRODUCTO</th>
-          <th style="text-align:right;padding:7px 10px;font-size:10px;color:#9ca3af;font-weight:600;border-bottom:1px solid #f3f4f6;">PRECIO</th>
-          <th style="text-align:center;padding:7px 10px;font-size:10px;color:#9ca3af;font-weight:600;border-bottom:1px solid #f3f4f6;">STOCK</th>
-        </tr></thead>
-        <tbody>${productRows(bycat[name])}</tbody>
-      </table>`
-    : `<div style="display:flex;align-items:center;gap:12px;margin:24px 0 12px;page-break-inside:avoid;">
-        <div style="height:2px;width:18px;background:linear-gradient(90deg,#7c3aed,#a78bfa);border-radius:2px;flex-shrink:0;"></div>
-        <span style="font-size:12px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap;">${name}</span>
-        <div style="height:2px;flex:1;background:#f3f4f6;border-radius:2px;"></div>
-        <span style="font-size:10px;color:#9ca3af;">${bycat[name].length} productos</span>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:8px;">
-        ${productRows(bycat[name])}
+  if (!macros.length) return alert('No hay productos para descargar.');
+  const totalGroups = macros.reduce((s,m) => s + m.subs.reduce((ss,sub) => ss + sub.order.length, 0), 0);
+
+  // ── Pre-paginación: dividir contenido en hojas físicas ──────────
+  // A4 landscape con @page margin:14mm top/bottom, 12mm left/right
+  // Alto util: 210 - 28mm = 182mm ≈ 688px
+  const PAGE_H    = Math.round(183 * 3.7795); // ≈ 692px
+  const FOOTER_H  = 44;
+  const PAD_TOP   = 16;
+  const MACRO_HDR = 48; // header negro + margin
+  const SUB_HDR   = 30; // título sub + margin
+  const CARD_H    = 196;
+  const CARD_GAP  = 8;
+  const ROW_H     = CARD_H + CARD_GAP;
+  const COLS      = 5;
+  const AVAIL     = PAGE_H - FOOTER_H - PAD_TOP;
+
+  // Divide cada macro en páginas
+  const allPages = [];
+  for (const m of macros) {
+    let usedH = MACRO_HDR;
+    let pg = { macroNombre: m.nombre, isFirst: true, items: [] };
+    const flush = () => { allPages.push(pg); pg = { macroNombre: m.nombre, isFirst: false, items: [] }; usedH = 0; };
+    for (const sub of m.subs) {
+      if (usedH + SUB_HDR > AVAIL) flush();
+      pg.items.push({ type: 'sub', name: sub.nombre });
+      usedH += SUB_HDR;
+      for (let i = 0; i < sub.order.length; i += COLS) {
+        const rowBases = sub.order.slice(i, i + COLS);
+        if (usedH + ROW_H > AVAIL) flush();
+        pg.items.push({ type: 'row', bases: rowBases, groups: sub.groups });
+        usedH += ROW_H;
+      }
+    }
+    if (pg.items.length) allPages.push(pg);
+  }
+
+  // ── Helpers de render ───────────────────────────────────────────
+  const stockBadge = (stock) => stock > 10
+    ? `<span style="font-size:9px;font-weight:700;color:#059669;">● En stock</span>`
+    : stock > 0
+    ? `<span style="font-size:9px;font-weight:700;color:#d97706;">● Stock bajo (${stock})</span>`
+    : `<span style="font-size:9px;font-weight:700;color:#dc2626;">Sin stock</span>`;
+
+  const COLOR_NAME = {BLA:'Blanco',BCO:'Blanco',BLN:'Blanco',BLC:'Blanco',BLQ:'Blanco',BLU:'Blanco',NEG:'Negro',VER:'Verde',ROJ:'Rojo',RED:'Rojo',AZU:'Azul',AZL:'Azul',AMA:'Amarillo',YEL:'Amarillo',GRI:'Gris',GRS:'Gris',ROS:'Rosado',PNK:'Rosado',NAR:'Naranja',VIO:'Violeta',MAR:'Marrón',BEI:'Beige',CRE:'Crema',TUR:'Turquesa',PLT:'Plateado',SLV:'Plateado',GLD:'Dorado',BRN:'Marrón',GRN:'Verde'};
+  const colorLabel = sku => { const c=(sku||'').split('-').pop().toUpperCase(); return COLOR_NAME[c]||c; };
+
+  const cardHtml = (groups, base) => {
+    const variants = groups[base];
+    const p0       = variants[0];
+    const isGroup  = variants.length > 1;
+    const displayName = isGroup
+      ? p0.name.replace(/[-–]\s*(VER|ROS|AMA|GRI|BLA|NEG|ROJ|AZU|NAR|VIO|BEI|MAR|CRE|TUR|AZL|GRS|PLT|BCO|BLN|BLC|BLQ|BLU|RED|GRN|YEL|BRN|PNK|GLD|SLV)\b.*/i,'').trim()
+      : p0.name;
+    const minPrice = Math.min(...variants.map(v=>v.price||0));
+    const maxPrice = Math.max(...variants.map(v=>v.price||0));
+    const priceHtml = isGroup && minPrice !== maxPrice
+      ? `desde $${Math.round(minPrice).toLocaleString('es-UY')}`
+      : `$${Math.round(p0.price||0).toLocaleString('es-UY')}`;
+
+    let imgSection;
+    if (!isGroup) {
+      const imgSrc = p0.ml_thumbnail || (location.origin + '/api/odoo/imagen/' + p0.id);
+      imgSection = `<div style="background:#f5f5f5;height:108px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <img src="${imgSrc}" style="max-width:90%;max-height:98px;object-fit:contain;mix-blend-mode:multiply;" onerror="this.style.opacity='0.1'">
       </div>`;
+    } else {
+      const cols = variants.length <= 4 ? 2 : 3;
+      const shown = variants.slice(0, 6);
+      const extra = variants.length > 6 ? variants.length - 6 : 0;
+      const imgH = cols === 2 ? 42 : 34;
+      imgSection = `<div style="background:#f5f5f5;padding:5px;display:grid;grid-template-columns:repeat(${cols},1fr);gap:3px;flex-shrink:0;">
+        ${shown.map(v => {
+          const src = v.ml_thumbnail || (location.origin + '/api/odoo/imagen/' + v.id);
+          return `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+            <div style="background:white;border-radius:4px;width:100%;height:${imgH}px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <img src="${src}" style="max-width:88%;max-height:${imgH-4}px;object-fit:contain;mix-blend-mode:multiply;" onerror="this.style.opacity='0.1'">
+            </div>
+            <span style="font-size:6px;color:#6b7280;text-align:center;line-height:1.1;">${colorLabel(v.sku)}</span>
+          </div>`;
+        }).join('')}
+        ${extra ? `<div style="display:flex;align-items:center;justify-content:center;font-size:8px;color:#9ca3af;">+${extra}</div>` : ''}
+      </div>`;
+    }
+
+    const coloresList = isGroup
+      ? `<div style="font-size:7px;color:#6b7280;margin-top:2px;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${variants.map(v=>colorLabel(v.sku)).join(' · ')}</div>`
+      : '';
+
+    return `<div style="background:white;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;height:${CARD_H}px;display:flex;flex-direction:column;">
+      ${imgSection}
+      <div style="padding:6px 8px 7px;display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
+        <div style="font-size:7px;font-weight:700;color:#9ca3af;letter-spacing:0.06em;margin-bottom:2px;flex-shrink:0;">${p0.sku?.split('-')[0]||'S/C'}${isGroup?` · ${variants.length} col.`:''}</div>
+        <div style="font-size:9px;font-weight:700;color:#111827;line-height:1.25;overflow:hidden;">${displayName}</div>
+        ${coloresList}
+        <div style="height:1px;background:#f3f4f6;margin:4px 0;flex-shrink:0;margin-top:auto;"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+          <div style="font-size:13px;font-weight:900;color:#111827;">${priceHtml}</div>
+          <div>${stockBadge(p0.stock??0)}</div>
+        </div>
+      </div>
+    </div>`;
+  };
+
+  // ── Footer HTML (reutilizable en cada hoja) ─────────────────────
+  const footerHtml = `<div style="background:#111827;padding:10px 28px;display:flex;align-items:center;justify-content:center;gap:48px;flex-shrink:0;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+    <span style="color:white;font-size:11px;font-weight:600;display:flex;align-items:center;gap:7px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Arenal Grande 2125, Montevideo</span>
+    <span style="color:white;font-size:11px;font-weight:600;display:flex;align-items:center;gap:7px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.41 2 2 0 0 1 3.6 1.21h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.71 2.81a2 2 0 0 1-.45 2.11L7.91 8.81A16 16 0 0 0 15.19 16l.96-.96a2 2 0 0 1 2.11-.45c.91.35 1.85.58 2.81.71A2 2 0 0 1 22 16.92z"/></svg>099 500 477</span>
+    <span style="color:white;font-size:11px;font-weight:600;display:flex;align-items:center;gap:7px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>MA Importaciones SAS</span>
+  </div>`;
+
+  // ── Renderizar páginas pre-paginadas ────────────────────────────
+  const renderPage = (pg, isVeryFirst) => `
+    <div class="pdf-page" style="border:2.5px solid #d1d5db;border-radius:14px;${isVeryFirst?'':'break-before:page;page-break-before:always;'}">
+    <div style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
+      <div style="padding:${PAD_TOP}px 20px 0;flex:1;overflow:hidden;display:flex;flex-direction:column;">
+        ${pg.isFirst
+          ? `<div style="border-radius:7px;background:#111827;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-shrink:0;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+               <span style="font-size:16px;font-weight:900;color:white;text-transform:uppercase;letter-spacing:-0.01em;">${pg.macroNombre}</span>
+               <span style="font-size:9px;color:#9ca3af;">${fecha}</span>
+             </div>`
+          : `<div style="font-size:9px;color:#9ca3af;font-style:italic;margin-bottom:10px;flex-shrink:0;">↪ ${pg.macroNombre}</div>`
+        }
+        ${pg.items.map(item => item.type === 'sub'
+          ? `<div style="font-size:10px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:0.04em;margin:8px 0 6px;flex-shrink:0;">${item.name}</div>`
+          : `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:8px;flex-shrink:0;">
+               ${item.bases.map(base => cardHtml(item.groups, base)).join('')}
+             </div>`
+        ).join('')}
+      </div>
+      ${footerHtml}
+    </div></div>`;
 
   const html = `<!DOCTYPE html><html lang="es"><head>
     <meta charset="UTF-8">
-    <title>Catálogo Mayorista</title>
+    <title>Catálogo Mayorista 2026</title>
     <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: white; color: #111827; padding: 32px 40px; }
-      @media print {
-        body { padding: 16px 20px; }
-        @page { size: A4; margin: 15mm 15mm; }
-        tr { page-break-inside: avoid; }
+      *{box-sizing:border-box;margin:0;padding:0;}
+      html,body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f3f4f6;color:#111827;}
+      .pdf-page{width:272mm;height:183mm;margin:0 auto 0;display:flex;flex-direction:column;overflow:hidden;background:white;}
+      .pdf-cover{width:272mm;height:183mm;margin:0 auto;display:flex;align-items:center;justify-content:center;background:#e8e8e8;}
+      .no-print{background:#1e293b;color:white;padding:12px 24px;text-align:center;font-size:13px;font-weight:600;position:sticky;top:0;z-index:99;}
+      .no-print span{background:#f59e0b;color:#111;border-radius:4px;padding:2px 8px;margin:0 6px;font-weight:700;}
+      @media print{
+        @page{size:A4 landscape;margin:14mm 12mm;}
+        html,body{background:white;}
+        .no-print{display:none;}
+        *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
       }
-      .header-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; padding-bottom:16px; border-bottom:2px solid #7c3aed; }
-      .brand { display:flex; align-items:center; gap:12px; }
-      .brand-title { font-size:22px; font-weight:800; color:#111827; }
-      .brand-title span { color:#7c3aed; }
-      .meta { font-size:12px; color:#6b7280; text-align:right; line-height:1.7; }
     </style>
   </head><body>
-    <div class="header-bar">
-      <div class="brand">
-        <div style="width:40px;height:40px;background:linear-gradient(135deg,#7c3aed,#a78bfa);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-size:20px;">🏷</div>
-        <div>
-          <div class="brand-title">Catálogo <span>Mayorista</span></div>
-          <div style="font-size:11px;color:#6b7280;">${totalItems} productos · ${cats.length} categorías</div>
+    <div class="no-print">
+      ⚙ Antes de guardar/imprimir configurá: Márgenes →<span>Ninguno</span> · Gráficos de fondo →<span>✓ activado</span>
+    </div>
+    <!-- PORTADA -->
+    <div class="pdf-cover">
+      <div style="display:flex;align-items:center;gap:40px;">
+        <div style="border:4px solid #555;border-radius:14px;padding:18px 28px;display:flex;flex-direction:column;align-items:center;">
+          <span style="font-size:90px;font-weight:900;color:#555;line-height:1;">20</span>
+          <span style="font-size:90px;font-weight:900;color:#555;line-height:1;">26</span>
+        </div>
+        <div style="width:4px;height:200px;background:#555;border-radius:2px;"></div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="font-size:88px;font-weight:900;color:#555;line-height:1;text-transform:uppercase;letter-spacing:-0.02em;">CATALOGO</div>
+          <div style="font-size:88px;font-weight:900;color:#555;line-height:1;text-transform:uppercase;letter-spacing:-0.02em;">MAYORISTA</div>
+          <div style="font-size:22px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.08em;margin-top:8px;">MA IMPORTACIONES SAS</div>
         </div>
       </div>
-      <div class="meta">
-        <div><strong>Vigencia:</strong> ${fecha}</div>
-        ${catFilter ? `<div><strong>Categoría:</strong> ${catFilter}</div>` : ''}
-        ${stockFilter === 'con_stock' ? '<div style="color:#059669;font-weight:600;">Solo con stock disponible</div>' : ''}
-      </div>
     </div>
-    ${cats.map(catSection).join('')}
-    <div style="margin-top:32px;padding-top:12px;border-top:1px solid #f3f4f6;font-size:10px;color:#9ca3af;text-align:center;">
-      Precios en pesos uruguayos · Sujetos a disponibilidad de stock · ${fecha}
-    </div>
+    ${allPages.map((pg, i) => renderPage(pg, false)).join('')}
   </body></html>`;
 
   const win = window.open('', '_blank');
@@ -5012,106 +6324,404 @@ function descargarCatalogo() {
 
 function renderCatalogo() {
   if (!odooData) return;
-  const q          = (document.getElementById('catalogo-search')?.value || '').toLowerCase();
-  const catFilter  = document.getElementById('catalogo-cat')?.value || '';
+  catGridUidMap = {};
+  catCardMeta   = {};
+  const q           = (document.getElementById('catalogo-search')?.value || '').toLowerCase();
+  const macroFilter = document.getElementById('catalogo-cat')?.value || '';
   const stockFilter = document.getElementById('catalogo-stock')?.value || 'all';
-  const cont = document.getElementById('catalogo-content');
+  const cont        = document.getElementById('catalogo-content');
 
-  // Agrupar por categoría y registrar en mapa
-  const bycat = {};
+  // Construir lookup: nombre_odoo_cat → productos mayoristas
+  const odooBycat = {};
   for (const c of odooData.categories) {
-    if (catFilter && c.name !== catFilter) continue;
     for (const p of c.items) {
       if (!p.mayorista) continue;
       if (q && !p.name.toLowerCase().includes(q) && !(p.sku||'').toLowerCase().includes(q)) continue;
       if (stockFilter === 'con_stock' && !(p.stock > 0)) continue;
       if (stockFilter === 'sin_stock' && p.stock > 0) continue;
-      if (!bycat[c.name]) bycat[c.name] = [];
-      bycat[c.name].push(p);
-      catProductMap[p.id] = p; // registrar para onclick seguro
+      if (!odooBycat[c.name]) odooBycat[c.name] = [];
+      odooBycat[c.name].push(p);
+      catProductMap[p.id] = p;
     }
   }
-  const cats = Object.keys(bycat).sort((a,b) => a.localeCompare(b,'es'));
 
-  if (!cats.length) {
+  // Aplicar overrides: mover productos a macro/sub personalizada
+  const overrideItems = {}; // 'macro||sub' → [productos]
+  for (const [skuBase, dest] of Object.entries(catalogOverrides)) {
+    const key = dest.macro + '||' + dest.sub;
+    // Quitar de odooBycat
+    for (const cat of Object.keys(odooBycat)) {
+      odooBycat[cat] = odooBycat[cat].filter(p => {
+        const base = p.sku ? p.sku.split('-')[0] : '';
+        if (base === skuBase) { if (!overrideItems[key]) overrideItems[key] = []; overrideItems[key].push(p); return false; }
+        return true;
+      });
+    }
+  }
+  // Inyectar productos manuales
+  for (const mp of catalogManualProducts) {
+    if (q && !mp.name.toLowerCase().includes(q) && !(mp.sku||'').toLowerCase().includes(q)) continue;
+    if (stockFilter === 'con_stock' && !(mp.stock > 0)) continue;
+    if (stockFilter === 'sin_stock' && mp.stock > 0) continue;
+    const key = mp.macro + '||' + mp.sub;
+    if (!overrideItems[key]) overrideItems[key] = [];
+    overrideItems[key].push({ ...mp, id: mp.id, ml_thumbnail: mp.image || '' });
+  }
+
+  // Armar estructura macro → sub → productos
+  const macros = CATALOGO_MACRO
+    .filter(m => !macroFilter || m.nombre === macroFilter)
+    .map(m => ({
+      ...m,
+      subs: m.subs.map(s => ({
+        ...s,
+        items: (() => {
+          const key = m.nombre + '||' + s.nombre;
+          const items = [...s.cats.flatMap(cat => odooBycat[cat] || []), ...(overrideItems[key] || [])];
+          const STYLE_ORDER = ['nordico','rustico','clasico','moderno','industrial','novelty','led','sal','otro'];
+          const MAT_ORDER   = ['madera','tela','cristal','metal','plastico','sal','otro'];
+          const getStyle = p => {
+            if (p.style_group) return p.style_group;
+            const n = (p.name||'').toLowerCase();
+            if (/nordi|escandinav|bambu|ratan|mimbre|ratán|praga|medellin|medellín|cali|bogot|nórdic/.test(n)) return 'nordico';
+            if (/rustic|colonial|cuerda|cañamo|yute|tejid|madera/.test(n)) return 'rustico';
+            if (/industrial|jaula|galpon|retro|curva|vintage|filament/.test(n)) return 'industrial';
+            if (/astronauta|novedad|novelty|cohete|animal|infantil/.test(n)) return 'novelty';
+            if (/led|smd|plafon|panel|tunis|general led/.test(n)) return 'led';
+            if (/sal\b|himalaya/.test(n)) return 'sal';
+            if (/clasic|clásic|verona|florencia|napoles|napol/.test(n)) return 'clasico';
+            return 'moderno';
+          };
+          const getMat = p => {
+            if (p.material_group) return p.material_group;
+            const n = (p.name||'').toLowerCase();
+            if (/madera|wood|bambu|ratán|ratan|mimbre/.test(n)) return 'madera';
+            if (/tela|lino|linen|fabric|pantalla/.test(n)) return 'tela';
+            if (/metal|hierro|acero|aluminio/.test(n)) return 'metal';
+            return 'otro';
+          };
+          return items.sort((a, b) => {
+            const si = STYLE_ORDER.indexOf(getStyle(a)) - STYLE_ORDER.indexOf(getStyle(b));
+            if (si !== 0) return si;
+            const mi = MAT_ORDER.indexOf(getMat(a)) - MAT_ORDER.indexOf(getMat(b));
+            if (mi !== 0) return mi;
+            return a.name.localeCompare(b.name,'es');
+          });
+        })()
+      })).filter(s => s.items.length > 0)
+    })).filter(m => m.subs.length > 0);
+
+  // Inyectar subcategorías personalizadas
+  for (const csub of catalogCustomSubs) {
+    if (macroFilter && csub.macro !== macroFilter) continue;
+    let macro = macros.find(m => m.nombre === csub.macro);
+    if (!macro) {
+      // La macro fue filtrada (0 productos estándar) — la agregamos vacía
+      macro = { nombre: csub.macro, subs: [] };
+      macros.push(macro);
+    }
+    const subKey = csub.macro + '||' + csub.nombre;
+    const items = (overrideItems[subKey] || []).filter(p => {
+      if (q && !p.name.toLowerCase().includes(q) && !(p.sku||'').toLowerCase().includes(q)) return false;
+      if (stockFilter === 'con_stock' && !(p.stock > 0)) return false;
+      if (stockFilter === 'sin_stock' && p.stock > 0) return false;
+      return true;
+    });
+    if (items.length > 0 || catalogoModo === 'ver') {
+      macro.subs.push({ nombre: csub.nombre, cats: [], items, isCustom: true, customId: csub.id });
+    }
+  }
+
+  if (!macros.length) {
     cont.innerHTML = '<div style="color:#9ca3af;font-size:14px;padding:40px;text-align:center;">No se encontraron productos.</div>';
     return;
   }
 
-  const catHeader = name => `
-    <div style="display:flex;align-items:center;gap:12px;margin:28px 0 14px;">
-      <div style="height:2px;flex:0 0 18px;background:linear-gradient(90deg,#7c3aed,#a78bfa);border-radius:2px;"></div>
-      <span style="font-size:13px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap;">${name}</span>
-      <div style="height:2px;flex:1;background:#f3f4f6;border-radius:2px;"></div>
-      <span style="font-size:11px;color:#9ca3af;">${bycat[name].length} productos</span>
+  const macroHeader = (nombre, total) => {
+    const label = catalogLabels[nombre] || nombre;
+    const hint  = catalogoModo === 'ver' ? ' title="Doble click para editar"' : '';
+    const reset = catalogoModo === 'ver' && catalogLabels[nombre]
+      ? `<button onclick="resetCatLabel('${nombre}')" style="font-size:10px;color:#6b7280;background:transparent;border:none;cursor:pointer;padding:0 6px;" title="Restaurar nombre original">↺</button>` : '';
+    const addBtn = catalogoModo === 'ver'
+      ? `<button onclick="openAddCustomSub('${nombre}')" style="font-size:11px;font-weight:700;color:#9ca3af;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 10px;cursor:pointer;" title="Agregar subcategoría">+ Sub</button>` : '';
+    const addProdBtn = catalogoModo === 'ver'
+      ? `<button onclick="openManualProduct()" style="font-size:11px;font-weight:700;color:#fff;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 10px;cursor:pointer;" title="Agregar producto manual">+ Producto</button>` : '';
+    const ordenarBtn = catalogoModo === 'ver'
+      ? `<button onclick="openSubSortModal('${nombre.replace(/'/g,"\\'")}')" style="font-size:11px;font-weight:700;color:#fff;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:4px 10px;cursor:pointer;">⇅ Ordenar</button>` : '';
+    return `<div style="margin:40px 0 16px;border-radius:8px;overflow:hidden;background:#111827;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span ondblclick="editCatLabel('${nombre}',this,true)"${hint} style="font-size:24px;font-weight:900;color:#ffffff;letter-spacing:-0.01em;text-transform:uppercase;cursor:${catalogoModo==='ver'?'text':'default'};">${label}</span>
+        ${reset}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        ${ordenarBtn}${addBtn}${addProdBtn}
+        <span style="font-size:11px;color:#9ca3af;font-weight:500;">${total} productos</span>
+      </div>
     </div>`;
+  };
+
+  const subHeader = (nombre, total, subKey='', customId, subIdx=0) => {
+    const label = catalogLabels[subKey] || nombre;
+    const hint  = catalogoModo === 'ver' ? ' title="Doble click para editar"' : '';
+    const resetLabel = catalogoModo === 'ver' && catalogLabels[subKey]
+      ? `<button onclick="resetCatLabel('${subKey.replace(/'/g,"\\'")}')" style="font-size:10px;color:#9ca3af;background:transparent;border:none;cursor:pointer;padding:0 4px;" title="Restaurar nombre original">↺</button>` : '';
+    const resetSort = catalogoModo === 'ver' && catalogSortOverrides[subKey]
+      ? `<button onclick="resetCatSort('${subKey.replace(/'/g,"\\'")}')" style="font-size:10px;font-weight:600;color:#dc2626;background:#fff;border:1px solid #fca5a5;border-radius:5px;padding:3px 8px;cursor:pointer;flex-shrink:0;">↺ Orden</button>` : '';
+    const deleteBtn = catalogoModo === 'ver' && customId
+      ? `<button onclick="deleteCustomSub('${customId}')" style="font-size:10px;font-weight:600;color:#dc2626;background:#fff;border:1px solid #fca5a5;border-radius:5px;padding:3px 8px;cursor:pointer;flex-shrink:0;" title="Eliminar subcategoría">✕ Eliminar sub</button>` : '';
+    const moverBtn = catalogoModo === 'ver' && subKey
+      ? `<button onclick="openMoveSubModal('${subKey.replace(/'/g,"\\'")}')" style="font-size:10px;font-weight:600;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:3px 8px;cursor:pointer;flex-shrink:0;" title="Mover subcategoría completa a otra categoría">↗ Mover</button>` : '';
+    return `<div style="padding:20px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+        <span ondblclick="editCatLabel('${subKey.replace(/'/g,"\\'")}'  ,this,false)"${hint} style="font-size:16px;font-weight:800;color:#111827;text-transform:uppercase;letter-spacing:0.03em;cursor:${catalogoModo==='ver'?'text':'default'};">${label}</span>
+        ${resetLabel}
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">${moverBtn}${resetSort}${deleteBtn}</div>
+    </div>`;
+  };
+
+  const stockLabel = (stock) => {
+    if (stock > 10) return `<span style="font-size:10px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.05em;">● En stock</span>`;
+    if (stock > 0)  return `<span style="font-size:10px;font-weight:700;color:#d97706;text-transform:uppercase;letter-spacing:0.05em;">● Stock bajo (${stock})</span>`;
+    return `<span style="font-size:10px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:0.05em;">Sin stock</span>`;
+  };
+
+  const dimsLabel = (d) => {
+    if (!d) return '';
+    const parts = [];
+    if (d.length && d.width && d.height) parts.push(`${d.length}×${d.width}×${d.height} cm`);
+    else if (d.height || d.width || d.length) parts.push([d.length,d.width,d.height].filter(Boolean).join('×')+' cm');
+    if (d.weight) parts.push(d.weight);
+    return parts.length ? `<div style="font-size:10px;color:#6b7280;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${parts.join(' · ')}</div>` : '';
+  };
 
   if (catalogoView === 'lista') {
-    cont.innerHTML = cats.map(name => `
-      ${catHeader(name)}
-      <div style="background:white;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden;margin-bottom:8px;">
-        ${bycat[name].map((p,i) => catalogoModo === 'pedir'
-          ? `<div onclick="addToCatPedidoById(${p.id})" id="cat-row-${p.id}"
-              style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f3f4f6;cursor:pointer;${i%2===1?'background:#fafafa':''};active:background:#dcfce7;"
-              ontouchstart="this.style.background='#dcfce7'" ontouchend="this.style.background='${i%2===1?'#fafafa':''}'">
-              <img src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
-                style="width:42px;height:42px;object-fit:contain;border-radius:6px;background:#f9fafb;flex-shrink:0;"
-                onerror="if(this.dataset.fb){this.style.opacity='0';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}">
-              <div style="flex:1;min-width:0;">
-                <div style="font-size:12px;font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
-                <div style="font-size:11px;color:#7c3aed;font-family:monospace;">${p.sku||'—'} · ${catStockBadge(p.stock??0)}</div>
-              </div>
-              <div style="font-size:14px;font-weight:800;color:#059669;white-space:nowrap;flex-shrink:0;">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
-              <div style="background:#059669;color:white;border-radius:8px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;flex-shrink:0;">+</div>
-            </div>`
-          : `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f3f4f6;${i%2===1?'background:#fafafa':''}">
-              <img src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
-                style="width:38px;height:38px;object-fit:contain;border-radius:6px;background:#f9fafb;flex-shrink:0;"
-                onerror="if(this.dataset.fb){this.style.opacity='0';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}">
-              <div style="flex:1;min-width:0;">
-                <div style="font-size:12px;font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
-                <div style="font-size:11px;color:#7c3aed;font-family:monospace;">${p.sku||'—'}</div>
-              </div>
-              <div style="text-align:right;flex-shrink:0;">
-                <div style="font-size:13px;font-weight:800;color:#059669;">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
-                <div style="font-size:11px;">${catStockBadge(p.stock??0)}</div>
-              </div>
-            </div>`
-        ).join('')}
-      </div>`).join('');
-  } else {
-    cont.innerHTML = `
-      <style>
-        .cat-card{background:white;border-radius:16px;border:1px solid #e5e7eb;padding:16px;display:flex;flex-direction:column;gap:8px;transition:transform 0.15s,box-shadow 0.15s;position:relative;overflow:hidden;}
-        .cat-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(124,58,237,0.12);border-color:#c4b5fd;}
-        .cat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#7c3aed,#a78bfa);}
-        .cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;}
-        .cat-card-sku{font-family:monospace;font-size:11px;color:#7c3aed;font-weight:700;background:#f5f3ff;padding:2px 7px;border-radius:5px;display:inline-block;width:fit-content;}
-        .cat-card-name{font-size:12px;font-weight:600;color:#111827;line-height:1.4;flex:1;}
-        .cat-card-price{font-size:18px;font-weight:800;color:#059669;}
-        .cat-card-price span{font-size:12px;font-weight:500;color:#9ca3af;}
-        .cat-card-img{width:100%;height:130px;object-fit:contain;border-radius:8px;background:#f9fafb;display:block;}
-        .cat-card-img-ph{width:100%;height:130px;border-radius:8px;background:linear-gradient(135deg,#f5f3ff,#ede9fe);display:none;align-items:center;justify-content:center;font-size:32px;}
-      </style>
-      ${cats.map(name => `
-        ${catHeader(name)}
-        <div class="cat-grid" style="margin-bottom:8px;">
-          ${bycat[name].map(p => `
-            <div class="cat-card">
-              <div class="cat-card-sku">${p.sku||'S/C'}</div>
-              <img class="cat-card-img" src="${p.ml_thumbnail || '/api/odoo/imagen/'+p.id}" loading="lazy"
-                onerror="if(this.dataset.fb){this.style.display='none';this.nextElementSibling.style.display='flex';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}" alt="${p.name}">
-              <div class="cat-card-img-ph">📦</div>
-              <div class="cat-card-name">${p.name}</div>
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">
-                <div class="cat-card-price"><span>$</span>${Math.round(p.price||0).toLocaleString('es-UY')}</div>
-                ${catStockBadge(p.stock??0)}
-              </div>
-              ${catalogoModo === 'pedir' ? `<button onclick="addToCatPedidoById(${p.id})"
-                style="width:100%;background:#059669;color:white;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px;min-height:44px;">+ Agregar al pedido</button>` : ''}
-            </div>`).join('')}
+    cont.innerHTML = `<style>
+      .clist-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #f3f4f6;}
+      .clist-row:last-child{border-bottom:none;}
+      .clist-row:hover{background:#fafafa;}
+      .clist-img{width:44px;height:44px;object-fit:contain;background:#f5f5f5;flex-shrink:0;mix-blend-mode:multiply;}
+      .clist-name{font-size:13px;font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .clist-sku{font-size:11px;color:#9ca3af;font-family:monospace;margin-top:1px;}
+      .clist-price{font-size:14px;font-weight:800;color:#111827;white-space:nowrap;}
+    </style>
+    ${macros.map(m => {
+      const total = m.subs.reduce((s,sub)=>s+sub.items.length,0);
+      return `${macroHeader(m.nombre, total)}
+      ${m.subs.map((sub, subIdx) => `
+        ${subHeader(sub.nombre, sub.items.length, m.nombre+'||'+sub.nombre, sub.customId, subIdx)}
+        <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:4px;">
+          ${sub.items.map((p,i) => catalogoModo === 'pedir'
+            ? `<div class="clist-row" onclick="addToCatPedidoById(${p.id})" id="cat-row-${p.id}" style="cursor:pointer;"
+                ontouchstart="this.style.background='#dcfce7'" ontouchend="this.style.background=''">
+                <img class="clist-img" src="${getImgSrc(p.id, p.ml_thumbnail)}" loading="lazy"
+                  onerror="if(this.dataset.fb){this.style.opacity='0';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}">
+                <div style="flex:1;min-width:0;">
+                  <div class="clist-name">${p.name}</div>
+                  <div class="clist-sku">${p.sku||'—'}</div>
+                  ${dimsLabel(p.ml_dimensions)}
+                </div>
+                ${stockLabel(p.stock??0)}
+                <div class="clist-price">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
+                <div style="background:#111827;color:white;border-radius:6px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0;">+</div>
+              </div>`
+            : `<div class="clist-row">
+                <img id="cat-img-${p.id}" class="clist-img" src="${getImgSrc(p.id, p.ml_thumbnail)}" loading="lazy"
+                  onerror="if(this.dataset.fb){this.style.opacity='0';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p.id}';}">
+                <div style="flex:1;min-width:0;">
+                  <div class="clist-name">${p.name}</div>
+                  <div class="clist-sku">${p.sku||'—'}</div>
+                  ${dimsLabel(p.ml_dimensions)}
+                </div>
+                ${stockLabel(p.stock??0)}
+                <div class="clist-price">$${Math.round(p.price||0).toLocaleString('es-UY')}</div>
+              </div>`
+          ).join('')}
         </div>`).join('')}`;
+    }).join('')}`;
+  } else {
+    cont.innerHTML = `<style>
+      .cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:1px;background:#e0e0e0;}
+      .cat-card{background:#fff;display:flex;flex-direction:column;padding:0 0 16px;cursor:default;}
+      .cat-card.drag-over{outline:2px dashed #6366f1;outline-offset:-2px;background:#f5f3ff;}
+      .cat-card[draggable="true"]{cursor:grab;}
+      .cat-card[draggable="true"]:active{cursor:grabbing;}
+      .cat-card-img-wrap{width:100%;height:190px;display:flex;align-items:center;justify-content:center;background:#f5f5f5;margin-bottom:12px;overflow:hidden;}
+      .cat-card-img{max-width:85%;max-height:170px;object-fit:contain;display:block;mix-blend-mode:multiply;}
+      .cat-card-body{padding:0 14px;}
+      .cat-card-sku{font-size:10px;font-weight:600;color:#9ca3af;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:5px;}
+      .cat-card-name{font-size:12px;font-weight:700;color:#111827;line-height:1.45;flex:1;margin-bottom:6px;}
+      .cat-card-dims{font-size:10px;color:#6b7280;margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .cat-card-divider{height:1px;background:#ebebeb;margin-bottom:10px;}
+      .cat-card-price{font-size:19px;font-weight:900;color:#111827;letter-spacing:-0.02em;}
+      .cat-thumb{width:44px;height:44px;object-fit:contain;background:#f5f5f5;border-radius:4px;cursor:pointer;border:2px solid transparent;transition:border-color .15s;}
+      .cat-thumb:hover{border-color:#9ca3af;}
+      .cat-thumb.active{border-color:#111827;}
+    </style>
+    ${macros.map(m => {
+      const total = m.subs.reduce((s,sub)=>s+sub.items.length,0);
+      return `${macroHeader(m.nombre, total)}
+      ${(() => {
+        // Aplicar orden de subcategorías si existe
+        let subs = m.subs;
+        const subSortOv = catalogSubSort[m.nombre];
+        if (subSortOv) {
+          subs = [...subs].sort((a, b) => {
+            const ia = subSortOv.indexOf(a.nombre), ib = subSortOv.indexOf(b.nombre);
+            if (ia === -1 && ib === -1) return 0;
+            if (ia === -1) return 1; if (ib === -1) return -1;
+            return ia - ib;
+          });
+        }
+        return subs;
+      })().map((sub, subIdx) => {
+        const subKey = m.nombre + '||' + sub.nombre;
+        // Agrupar por SKU base (antes del primer guión)
+        const groups = {};
+        const groupOrder = [];
+        for (const p of sub.items) {
+          const base = p.sku ? p.sku.split('-')[0] : ('__'+p.id);
+          if (!groups[base]) { groups[base] = []; groupOrder.push(base); }
+          groups[base].push(p);
+        }
+        // Aplicar orden manual si existe
+        const sortOv = catalogSortOverrides[subKey];
+        if (sortOv) {
+          groupOrder.sort((a, b) => {
+            const ia = sortOv.indexOf(a), ib = sortOv.indexOf(b);
+            if (ia === -1 && ib === -1) return 0;
+            if (ia === -1) return 1;
+            if (ib === -1) return -1;
+            return ia - ib;
+          });
+        }
+        // Guardar mapa uid→base para saveCatSort
+        catGridUidMap[subKey] = groupOrder.map(base => ({ uid: 'cv_' + base.replace(/\W/g,'_'), base }));
+
+        const cards = groupOrder.map((base, cardIdx) => {
+          const variants = groups[base];
+          const pinnedSku = catalogPinned[base];
+          const p0idx = pinnedSku ? variants.findIndex(v => v.sku === pinnedSku) : 0;
+          const p0 = (p0idx >= 0 ? variants[p0idx] : null) || variants[0];
+          const activeThIdx = p0idx >= 0 ? p0idx : 0;
+          const isGroup = variants.length > 1;
+          const uid = 'cv_' + base.replace(/\W/g,'_');
+
+          // Nombre sin sufijo de color para grupos
+          const displayName = isGroup
+            ? p0.name.replace(/[-–]\s*(VER|ROS|AMA|GRI|BLA|NEG|ROJ|AZU|NAR|VIO|BEI|MAR|CRE|TUR|AZL|GRS|PLT|BCO|BLN|BLC|BLQ|BLU|RED|GRN|YEL|BRN|PNK|GLD|SLV)\b.*/i, '').trim()
+            : p0.name;
+          // Guardar meta para el modal
+          catCardMeta[base] = { name: displayName, thumb: getImgSrc(p0.id, p0.ml_thumbnail), subKey, variants };
+
+          const minPrice = Math.min(...variants.map(v => v.price||0));
+          const maxPrice = Math.max(...variants.map(v => v.price||0));
+          const priceHtml = isGroup && minPrice !== maxPrice
+            ? `desde $${Math.round(minPrice).toLocaleString('es-UY')}`
+            : `$${Math.round(p0.price||0).toLocaleString('es-UY')}`;
+
+          const variantsData = JSON.stringify(variants.map(v=>({img:getImgSrc(v.id,v.ml_thumbnail),sku:v.sku||'',stock:v.stock??0,price:v.price||0,id:v.id}))).replace(/"/g,'&quot;');
+          const thumbsHtml = isGroup ? `
+            <div style="display:flex;flex-direction:column;gap:4px;margin-left:6px;flex-shrink:0;">
+              ${variants.slice(0,3).map((v,i) => `
+                <img class="cat-thumb${i===activeThIdx?' active':''}" id="${uid}_th_${i}"
+                  src="${getImgSrc(v.id, v.ml_thumbnail)}" loading="lazy"
+                  onerror="this.style.opacity='0.2'"
+                  onclick="catSelectVariant('${uid}',${i},${variantsData})"
+                  title="${v.sku||''}">
+              `).join('')}
+              ${variants.length > 3 ? `<button onclick="openVariantsPopup('${uid}',${variantsData})"
+                style="width:44px;height:28px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:4px;font-size:11px;font-weight:700;color:#374151;cursor:pointer;">+</button>` : ''}
+            </div>` : '';
+
+          const isManual = variants.some(v => v.manual);
+          const editBtn = catalogoModo === 'ver'
+            ? isManual
+              ? `<button onclick="openManualProduct('${variants[0].id}')"
+                  style="position:absolute;top:8px;left:8px;background:rgba(59,130,246,0.9);border:none;border-radius:5px;padding:3px 6px;font-size:10px;color:white;cursor:pointer;font-weight:600;z-index:2;" title="Editar producto manual">✎ manual</button>`
+              : `<button onclick="openCatOverride('${base}','${m.nombre}','${sub.nombre}')"
+                  style="position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.9);border:1px solid #e5e7eb;border-radius:5px;padding:3px 6px;font-size:10px;color:#6b7280;cursor:pointer;font-weight:600;z-index:2;" title="Editar">✎ <span style="font-size:9px;">${cardIdx+1}</span></button>`
+            : '';
+          return `
+          <div class="cat-card" data-uid="${uid}" style="position:relative;">
+            ${editBtn}
+            <div style="display:flex;padding:12px 12px 0;">
+              <div style="flex:1;min-width:0;height:170px;display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:6px;overflow:hidden;">
+                <img id="${uid}_main" class="cat-card-img" src="${getImgSrc(p0.id, p0.ml_thumbnail)}" loading="lazy"
+                  onerror="if(this.dataset.fb){this.style.opacity='0.15';}else{this.dataset.fb='1';this.src='/api/odoo/imagen/${p0.id}';}" alt="${displayName}"
+                  style="max-width:90%;max-height:155px;object-fit:contain;mix-blend-mode:multiply;">
+              </div>
+              ${thumbsHtml}
+            </div>
+            <div class="cat-card-body" style="margin-top:10px;">
+              <div class="cat-card-sku" id="${uid}_sku">${p0.sku||'S/C'}</div>
+              <div class="cat-card-name">${displayName}</div>
+              <div class="cat-card-divider"></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                <div class="cat-card-price" id="${uid}_price">${priceHtml}</div>
+                <div id="${uid}_stock">${stockLabel(p0.stock??0)}</div>
+              </div>
+              ${catalogoModo === 'pedir' ? `<button id="${uid}_btn" onclick="addToCatPedidoById(${p0.id})"
+                style="width:100%;background:#111827;color:white;border:none;padding:9px;font-size:12px;font-weight:700;cursor:pointer;margin-top:12px;letter-spacing:0.04em;border-radius:4px;">+ AGREGAR</button>` : ''}
+            </div>
+          </div>`;
+        });
+        return `
+        ${subHeader(sub.nombre, groupOrder.length, subKey, sub.customId, subIdx)}
+        <div class="cat-grid" data-subkey="${subKey}" style="margin-bottom:16px;">
+          ${cards.join('')}
+        </div>`;
+      }).join('')}`;
+    }).join('')}`;
+    initCatalogoDragDrop();
   }
+}
+
+function initCatalogoDragDrop() {
+  if (catalogoModo !== 'ver') return;
+  document.querySelectorAll('.cat-grid[data-subkey]').forEach(grid => {
+    let dragSrc = null;
+    Array.from(grid.children).forEach(card => {
+      card.draggable = true;
+      card.addEventListener('dragstart', e => {
+        dragSrc = card;
+        e.dataTransfer.effectAllowed = 'move';
+        setTimeout(() => card.style.opacity = '0.4', 0);
+      });
+      card.addEventListener('dragend', () => {
+        card.style.opacity = '';
+        grid.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over'));
+      });
+      card.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+      card.addEventListener('dragenter', e => { e.preventDefault(); if (dragSrc !== card) card.classList.add('drag-over'); });
+      card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+      card.addEventListener('drop', async e => {
+        e.preventDefault(); e.stopPropagation();
+        if (dragSrc && dragSrc !== card) {
+          const all = Array.from(grid.children);
+          const si = all.indexOf(dragSrc), di = all.indexOf(card);
+          grid.insertBefore(dragSrc, si < di ? card.nextSibling : card);
+          await saveCatalogoDragOrder(grid);
+        }
+        card.classList.remove('drag-over');
+      });
+    });
+  });
+}
+
+async function saveCatalogoDragOrder(grid) {
+  const subKey = grid.dataset.subkey;
+  if (!subKey) return;
+  const newOrder = Array.from(grid.children).map(c => {
+    const entry = (catGridUidMap[subKey] || []).find(e => e.uid === c.dataset.uid);
+    return entry?.base;
+  }).filter(Boolean);
+  catalogSortOverrides[subKey] = newOrder;
+  await fetch('/api/catalog/sort', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: subKey, order: newOrder })
+  });
 }
 
 // ══ ML: SIN DESCUENTO ════════════════════════════════════════════
@@ -10887,7 +12497,7 @@ function renderDimensionesTable() {
         <a href="${mlUrl}" target="_blank" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#374151;">
           ${thumbHtml}
           <div style="min-width:0;">
-            <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;" title="${item.title}">${item.title}</div>
+            <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;" title="${esc(item.title)}">${esc(item.title)}</div>
             <div style="font-size:11px;color:#9ca3af;">${item.id} ${item.sku ? '· ' + item.sku : ''}</div>
           </div>
         </a>
@@ -11581,7 +13191,7 @@ function renderComparadorTable() {
       <td style="max-width:300px;">
         <a href="${mlUrl}" target="_blank" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#374151;">
           ${thumbHtml}
-          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:240px;" title="${item.title}">${item.title}</span>
+          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:240px;" title="${esc(item.title)}">${esc(item.title)}</span>
         </a>
       </td>
       <td style="text-align:center;font-weight:600;">${qCurr}</td>
@@ -11724,5 +13334,213 @@ showPage = function(page) {
 };
 
 </script>
+
+<!-- Popup variantes -->
+<div id="variants-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:24px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div style="font-size:14px;font-weight:800;color:#111827;">Todas las variantes</div>
+      <button onclick="document.getElementById('variants-popup').style.display='none'" style="background:none;border:none;font-size:18px;color:#9ca3af;cursor:pointer;">✕</button>
+    </div>
+    <div id="variants-popup-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;"></div>
+  </div>
+</div>
+
+<!-- Modal override de categoría -->
+<div id="sub-sort-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:#f9fafb;border-radius:16px;width:380px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.3);overflow:hidden;">
+    <div style="padding:18px 20px 14px;background:white;border-bottom:1px solid #f3f4f6;">
+      <div style="font-size:15px;font-weight:800;color:#111827;">Ordenar subcategorías</div>
+      <div id="sub-sort-macro-label" style="font-size:11px;color:#9ca3af;margin-top:2px;text-transform:uppercase;letter-spacing:0.05em;"></div>
+    </div>
+    <div id="sub-sort-list" style="flex:1;overflow-y:auto;padding:14px 16px;"></div>
+    <div style="padding:14px 16px;background:white;border-top:1px solid #f3f4f6;display:grid;grid-template-columns:1fr auto auto;gap:8px;">
+      <button onclick="saveSubSort()" style="background:#111827;color:white;border:none;padding:11px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Guardar</button>
+      <button onclick="resetSubSort()" style="background:#fee2e2;color:#dc2626;border:none;padding:11px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;" title="Volver al orden original">↺ Reset</button>
+      <button onclick="document.getElementById('sub-sort-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 14px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal producto manual -->
+<div id="manual-product-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;overflow-y:auto;padding:20px 0;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:white;border-radius:16px;width:380px;max-width:95vw;box-shadow:0 24px 60px rgba(0,0,0,0.3);overflow:hidden;">
+    <div style="background:#111827;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+      <span id="mp-title" style="font-size:14px;font-weight:800;color:white;text-transform:uppercase;letter-spacing:0.04em;">Agregar producto</span>
+      <button onclick="document.getElementById('manual-product-modal').style.display='none'" style="background:transparent;border:none;color:#9ca3af;font-size:20px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div style="padding:20px;">
+      <input type="hidden" id="mp-id">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div>
+          <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">SKU</label>
+          <input id="mp-sku" type="text" placeholder="31004" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Stock <span style="font-weight:400;font-style:italic;">(auto si hay SKU)</span></label>
+          <input id="mp-stock" type="number" placeholder="0" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+        </div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Nombre *</label>
+        <input id="mp-name" type="text" placeholder="LAMPARA COLGANTE R2 40CM" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Precio ($)</label>
+        <input id="mp-price" type="number" placeholder="841" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">URL de imagen</label>
+        <input id="mp-image" type="text" placeholder="https://..." style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+        <div>
+          <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Categoría *</label>
+          <select id="mp-macro" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:12px;background:white;"></select>
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Subcategoría *</label>
+          <select id="mp-sub" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:12px;background:white;"></select>
+        </div>
+      </div>
+      <div id="mp-status" style="font-size:11px;color:#dc2626;min-height:14px;margin-bottom:10px;"></div>
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;">
+        <button onclick="saveManualProduct()" style="background:#111827;color:white;border:none;padding:11px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Guardar</button>
+        <button id="mp-delete-btn" onclick="deleteManualProduct()" style="display:none;background:#fee2e2;color:#dc2626;border:none;padding:11px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">✕</button>
+        <button onclick="document.getElementById('manual-product-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 14px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="add-sub-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:white;border-radius:14px;width:320px;box-shadow:0 20px 50px rgba(0,0,0,0.25);overflow:hidden;">
+    <div style="padding:20px 20px 16px;border-bottom:1px solid #f3f4f6;">
+      <div style="font-size:15px;font-weight:800;color:#111827;">Nueva subcategoría</div>
+      <div style="font-size:11px;color:#9ca3af;margin-top:2px;">en <span id="add-sub-macro-label" style="font-weight:600;color:#374151;"></span></div>
+    </div>
+    <div style="padding:18px 20px 20px;">
+      <input type="hidden" id="add-sub-macro">
+      <input type="text" id="add-sub-nombre" placeholder="Nombre de la subcategoría"
+        onkeydown="if(event.key==='Enter')saveCustomSub()"
+        style="width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;outline:none;margin-bottom:14px;">
+      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;">
+        <button onclick="saveCustomSub()" style="background:#111827;color:white;border:none;padding:11px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Crear</button>
+        <button onclick="document.getElementById('add-sub-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 16px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal mover subcategoría completa -->
+<div id="move-sub-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:white;border-radius:16px;width:340px;max-width:95vw;box-shadow:0 24px 60px rgba(0,0,0,0.3);overflow:hidden;">
+    <div style="background:#111827;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-size:14px;font-weight:800;color:white;text-transform:uppercase;letter-spacing:0.04em;">Mover subcategoría</span>
+      <button onclick="document.getElementById('move-sub-modal').style.display='none'" style="background:transparent;border:none;color:#9ca3af;font-size:20px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div style="padding:20px;">
+      <input type="hidden" id="msub-key">
+      <div style="margin-bottom:16px;">
+        <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Subcategoría</div>
+        <div id="msub-nombre" style="font-size:15px;font-weight:800;color:#111827;text-transform:uppercase;"></div>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px;">en <span id="msub-from" style="font-weight:600;"></span></div>
+      </div>
+      <div style="margin-bottom:20px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">Mover a</label>
+        <select id="msub-macro-sel" style="width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;font-weight:600;color:#111827;background:white;"></select>
+      </div>
+      <div id="msub-status" style="font-size:11px;color:#6b7280;min-height:16px;margin-bottom:12px;text-align:center;"></div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;">
+        <button id="msub-save-btn" onclick="saveMoveSubModal()" style="background:#111827;color:white;border:none;padding:11px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Mover todos los productos</button>
+        <button onclick="document.getElementById('move-sub-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 14px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="cat-override-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:white;border-radius:16px;width:360px;max-width:95vw;box-shadow:0 24px 60px rgba(0,0,0,0.3);overflow:hidden;">
+    <!-- Header producto -->
+    <div style="display:flex;align-items:center;gap:14px;padding:18px 20px 16px;background:#f9fafb;border-bottom:1px solid #f3f4f6;">
+      <img id="co-thumb" src="" style="width:62px;height:62px;object-fit:contain;background:white;border-radius:10px;border:1px solid #e5e7eb;flex-shrink:0;" onerror="this.style.opacity='0.3'">
+      <div style="min-width:0;">
+        <div id="co-name" style="font-size:13px;font-weight:700;color:#111827;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+        <div style="font-size:10px;color:#9ca3af;margin-top:3px;font-family:monospace;">SKU: <span id="co-sku"></span></div>
+      </div>
+    </div>
+    <!-- Body -->
+    <div style="padding:18px 20px 20px;">
+      <input type="hidden" id="co-sku-input">
+      <!-- Categoría -->
+      <div style="margin-bottom:14px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">Categoría</label>
+        <select id="co-macro" onchange="populateCatOverrideSubs(this.value,'')"
+          style="width:100%;padding:9px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:white;margin-bottom:6px;"></select>
+        <select id="co-sub" onchange="populateCatOverrideSubs(document.getElementById('co-macro').value, this.value)"
+          style="width:100%;padding:9px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:white;"></select>
+      </div>
+      <!-- Imagen principal (solo grupos con variantes) -->
+      <div id="co-variant-picker" style="display:none;margin-bottom:16px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:8px;">Imagen principal</label>
+        <div class="co-vp-thumbs" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+      </div>
+      <!-- Imagen -->
+      <div style="margin-bottom:14px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">Imagen del producto <span id="co-img-target-sku" style="font-family:monospace;color:#7c3aed;font-weight:800;font-size:11px;text-transform:none;letter-spacing:0;"></span></label>
+        <div id="co-img-drop"
+          style="border:2px dashed #e5e7eb;border-radius:8px;padding:10px 14px;text-align:center;cursor:pointer;font-size:12px;color:#6b7280;transition:border-color 0.2s;"
+          onclick="document.getElementById('co-img-input').click()"
+          ondragover="event.preventDefault();document.getElementById('co-img-drop').style.borderColor='#7c3aed'"
+          ondragleave="document.getElementById('co-img-drop').style.borderColor='#e5e7eb'"
+          ondrop="coHandleImgDrop(event)">
+          📷 Hacé clic o arrastrá una imagen
+        </div>
+        <input id="co-img-input" type="file" accept="image/*" style="display:none" onchange="coPreviewImg(this.files[0])">
+        <div id="co-img-reset-wrap" style="display:none;margin-top:6px;text-align:right;">
+          <button onclick="coResetImg()" style="background:none;border:none;font-size:11px;color:#dc2626;cursor:pointer;text-decoration:underline;">↺ Restaurar imagen original de Odoo</button>
+        </div>
+        <div id="co-img-preview" style="display:none;margin-top:8px;display:flex;align-items:center;gap:10px;">
+          <img id="co-img-preview-img" style="height:60px;border-radius:6px;object-fit:contain;border:1px solid #e5e7eb;">
+          <div style="flex:1;min-width:0;">
+            <div id="co-img-filename" style="font-size:11px;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+            <button onclick="coUploadImg()" id="co-img-upload-btn" style="margin-top:4px;padding:4px 12px;background:#7c3aed;color:white;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">Subir imagen</button>
+            <span id="co-img-status" style="font-size:11px;margin-left:6px;"></span>
+          </div>
+        </div>
+      </div>
+      <!-- Posición -->
+      <div style="margin-bottom:22px;">
+        <label style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:8px;">Posición en subcategoría</label>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button onclick="coPosStep(-1)" style="width:38px;height:38px;border:1px solid #e5e7eb;border-radius:8px;background:white;font-size:20px;color:#374151;cursor:pointer;line-height:1;">‹</button>
+          <input type="number" id="co-pos" min="1"
+            style="flex:1;height:38px;border:1px solid #e5e7eb;border-radius:8px;font-size:18px;font-weight:800;text-align:center;color:#111827;background:white;">
+          <button onclick="coPosStep(1)" style="width:38px;height:38px;border:1px solid #e5e7eb;border-radius:8px;background:white;font-size:20px;color:#374151;cursor:pointer;line-height:1;">›</button>
+          <span style="font-size:12px;color:#9ca3af;white-space:nowrap;">de <span id="co-pos-max">0</span></span>
+        </div>
+      </div>
+      <!-- Acciones -->
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;">
+        <button onclick="saveCatOverride()" style="background:#111827;color:white;border:none;padding:11px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Guardar</button>
+        <button onclick="deleteCatOverride()" style="background:#fee2e2;color:#dc2626;border:none;padding:11px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;" title="Quitar override">✕</button>
+        <button onclick="document.getElementById('cat-override-modal').style.display='none'" style="background:#f3f4f6;color:#374151;border:none;padding:11px 14px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal detalle pedido mayorista -->
+<div id="pedido-detalle-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;padding:20px 0;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:white;border-radius:16px;width:620px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,0.3);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 16px;background:#f9fafb;border-bottom:1px solid #f3f4f6;position:sticky;top:0;z-index:1;">
+      <div style="font-size:15px;font-weight:800;color:#111827;">Detalle de pedido</div>
+      <button onclick="document.getElementById('pedido-detalle-modal').style.display='none'" style="background:none;border:none;font-size:22px;color:#9ca3af;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div id="pd-content" style="padding:20px;">
+      <div class="loading"><span class="spinner"></span>Cargando...</div>
+    </div>
+  </div>
+</div>
 </body>
 </html>

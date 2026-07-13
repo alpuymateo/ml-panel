@@ -14,16 +14,119 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const cors = require('cors');
+const { Pool } = require('pg');
+
+// ── PostgreSQL ────────────────────────────────────────────────────
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_URL?.includes('railway') ? { rejectUnauthorized: false } : false });
+
+async function initDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      google_id TEXT UNIQUE,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT,
+      picture TEXT,
+      role TEXT NOT NULL DEFAULT 'user',
+      password_hash TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS invites (
+      token TEXT PRIMARY KEY,
+      created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      label TEXT,
+      used_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id BIGSERIAL PRIMARY KEY,
+      user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      details JSONB,
+      ip TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS audit_log_created_at ON audit_log(created_at DESC);
+    CREATE TABLE IF NOT EXISTS product_images (
+      product_id INTEGER PRIMARY KEY,
+      image_data BYTEA NOT NULL,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+  console.log('[db] Tablas inicializadas');
+}
+initDb().catch(e => console.error('[db] Error inicializando tablas:', e.message));
+
+async function auditLog(userId, action, details = {}, ip = null) {
+  try {
+    await pool.query(
+      'INSERT INTO audit_log (user_id, action, details, ip) VALUES ($1, $2, $3, $4)',
+      [userId || null, action, JSON.stringify(details), ip]
+    );
+  } catch(e) {
+    console.error('[audit]', e.message);
+  }
+}
 
 const app = express();
+app.set('trust proxy', 1); // Railway runs behind a proxy
+
+// CORS — solo permite el dominio propio + localhost para dev
+const allowedOrigins = [
+  'https://ml-panel-testing-testing.up.railway.app',
+  'http://localhost:3000',
+  'http://localhost:8080',
+];
+app.use(cors({
+  origin: (origin, callback) => {
+    // Permitir requests sin origin (curl, Postman, mismo servidor)
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error('Origen no permitido por CORS'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'x-session-token'],
+  exposedHeaders: ['X-New-Token'],
+  credentials: false,
+}));
 const SERVER_START = new Date().toISOString();
 const DEPLOY_COMMIT = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0,7) || 'local';
 
 app.get('/api/version', (req, res) => res.json({ started: SERVER_START, commit: DEPLOY_COMMIT, uptime: Math.round(process.uptime()) + 's' }));
+app.get('/api/db-test', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT NOW() as t');
+    res.json({ ok: true, time: r.rows[0].t });
+  } catch(e) {
+    const msg = e.message || e.code || String(e);
+    const dbUrl = process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:([^:@]+)@/, ':***@') : 'NO CONFIGURADO';
+    res.json({ ok: false, error: msg, code: e.code, dbUrl });
+  }
+});
 
 // Security headers
 app.use(helmet({
-  contentSecurityPolicy: false, // disabled because of inline scripts in index.html
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net"],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "fonts.googleapis.com"],
+      fontSrc: ["'self'", "fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: ["'self'", "cdn.jsdelivr.net"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      frameAncestors: ["'none'"],
+    },
+  },
   crossOriginEmbedderPolicy: false,
 }));
 
@@ -35,15 +138,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rate limiting on auth endpoints
+// Rate limiting en endpoints de autenticación
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // max 20 login attempts per 15 min
-  message: { error: 'Demasiados intentos. Esperá 15 minutos.' },
+  windowMs: 15 * 60 * 1000,        // ventana de 15 minutos
+  max: 5,                            // máx 5 intentos por IP
+  message: { error: 'Demasiados intentos fallidos. Esperá 15 minutos e intentá de nuevo.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skipSuccessfulRequests: true,      // los logins exitosos no cuentan
 });
 app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
 app.use('/auth/google', authLimiter);
 
 // General rate limiting
@@ -58,34 +163,21 @@ app.use(generalLimiter);
 app.use(express.json({ limit: '25mb' }));
 const PORT = process.env.PORT || 3000;
 
-// ── Sesiones (persistidas en disco) ──
-const SESSIONS_FILE = path.join(__dirname, 'data', 'sessions.json');
-const sessions = new Map();
-
-// Cargar sesiones de disco al arrancar
-try {
-  if (fs.existsSync(SESSIONS_FILE)) {
-    const saved = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'));
-    for (const [k, v] of Object.entries(saved)) {
-      if (v.expiresAt > Date.now()) sessions.set(k, v);
-    }
-    console.log(`[sessions] ${sessions.size} sesiones cargadas de disco`);
-  }
-} catch {}
-
-function saveSessions() {
-  try {
-    const obj = {};
-    for (const [k, v] of sessions) obj[k] = v;
-    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(obj), 'utf8');
-  } catch {}
+// ── Sesiones (PostgreSQL) ──
+async function createSession(userId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 horas
+  await pool.query('INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3)', [token, userId, expiresAt]);
+  return token;
 }
 
-function getSession(token) {
-  const s = sessions.get(token);
-  if (!s) return null;
-  if (s.expiresAt < Date.now()) { sessions.delete(token); saveSessions(); return null; }
-  return s;
+async function getSession(token) {
+  if (!token) return null;
+  const r = await pool.query(
+    'SELECT s.user_id, u.id, u.email, u.name, u.picture, u.role FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.token = $1 AND s.expires_at > NOW()',
+    [token]
+  );
+  return r.rows[0] || null;
 }
 
 const { CLIENT_ID, CLIENT_SECRET, REDIRECT_URI, ANTHROPIC_API_KEY } = process.env;
@@ -329,11 +421,12 @@ app.get('/callback', async (req, res) => {
   }
 });
 
-function requireToken(req, res, next) {
-  // Verificar sesión de usuario
-  const sessionTok = req.headers['x-session-token'] || req.query._token;
-  if (sessionTok && !getSession(sessionTok)) {
-    return res.status(401).json({ error: 'Sesión inválida' });
+async function requireToken(req, res, next) {
+  const sessionTok = req.headers['x-session-token'];
+  if (sessionTok) {
+    const session = await getSession(sessionTok).catch(() => null);
+    if (!session) return res.status(401).json({ error: 'Sesión inválida' });
+    req.user = session;
   }
   if (!tokenData?.access_token) {
     const isHtml = req.headers.accept?.includes('text/html');
@@ -757,6 +850,16 @@ async function refreshStockCache(forceRefresh = false) {
         sku: (item.attributes || []).find(a => a.id === 'SELLER_SKU')?.value_name
           || (item.attributes || []).find(a => a.id === 'SELLER_SKU')?.values?.[0]?.name
           || null,
+        dimensions: (() => {
+          const attrs = item.attributes || [];
+          const get = (...ids) => { for (const id of ids) { const a = attrs.find(x => x.id === id); if (a?.value_name) return a.value_name; } return null; };
+          return {
+            height: get('HEIGHT', 'PACKAGE_HEIGHT'),
+            width:  get('WIDTH',  'PACKAGE_WIDTH'),
+            length: get('LENGTH', 'DEPTH', 'PACKAGE_LENGTH'),
+            weight: get('WEIGHT', 'PACKAGE_WEIGHT'),
+          };
+        })(),
         variations: (item.variations || []).map(v => ({
           id: v.id,
           name: (v.attribute_combinations || []).map(a => a.value_name).join(', '),
@@ -1528,7 +1631,7 @@ Preguntas:
 ${rawQuestions.map(q => `ID ${q.id}: "${q.text}"`).join('\n')}`;
 
         const r = await anthropic.messages.create({
-          model: 'claude-haiku-4-5-20251001',
+          model: 'claude-haiku-4-5',
           max_tokens: 4096,
           messages: [{ role: 'user', content: prompt }],
         });
@@ -1705,15 +1808,19 @@ const ODOO_API_KEY = process.env.ODOO_API_KEY;
 const ODOO_STAGING_HOST    = process.env.ODOO_STAGING_HOST || ODOO_HOST;
 const ODOO_STAGING_DB      = process.env.ODOO_STAGING_DB || ODOO_DB;
 const ODOO_STAGING_API_KEY = process.env.ODOO_STAGING_API_KEY || ODOO_API_KEY;
+const ODOO_STAGING_USER    = process.env.ODOO_STAGING_USER || ODOO_USER;
 
 console.log(`[odoo] producción: ${ODOO_HOST} / ${ODOO_DB}`);
 console.log(`[odoo] staging: ${ODOO_STAGING_HOST} / ${ODOO_STAGING_DB}`);
 
 // JSON-RPC call to Odoo (más rápido que XML-RPC)
 let jsonRpcId = 1;
-async function odooCall(path, method, params, host = ODOO_HOST) {
-  const protocol = host.includes('odoo.com') ? 'https' : 'http';
-  const url = `${protocol}://${host}/jsonrpc`;
+async function odooCall(path, method, params, host = ODOO_HOST, httpsAgent = undefined) {
+  // Si el host ya incluye protocolo (ej: "https://..."), lo extraemos
+  const hasProto = /^https?:\/\//.test(host);
+  const protocol = hasProto ? host.split('://')[0] : 'https';
+  const cleanHost = hasProto ? host.replace(/^https?:\/\//, '').replace(/\/$/, '') : host.replace(/\/$/, '');
+  const url = `${protocol}://${cleanHost}/jsonrpc`;
 
   // Map XML-RPC style calls to JSON-RPC format
   const body = {
@@ -1725,7 +1832,7 @@ async function odooCall(path, method, params, host = ODOO_HOST) {
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const r = await axios.post(url, body, { headers: { 'Content-Type': 'application/json' }, timeout: 120000 });
+      const r = await axios.post(url, body, { headers: { 'Content-Type': 'application/json' }, timeout: 120000, ...(httpsAgent ? { httpsAgent } : {}) });
       if (r.data.error) throw new Error(r.data.error.data?.message || r.data.error.message || JSON.stringify(r.data.error));
       return r.data.result;
     } catch (e) {
@@ -1736,15 +1843,23 @@ async function odooCall(path, method, params, host = ODOO_HOST) {
   }
 }
 
+// Staging usa XML-RPC directo (el servidor de Opentech no expone /jsonrpc)
 function odooCallStaging(path, method, params) {
-  return odooCall(path, method, params, ODOO_STAGING_HOST);
+  const rawHost = ODOO_STAGING_HOST.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const useSSL  = !ODOO_STAGING_HOST.startsWith('http://');
+  const client  = useSSL
+    ? xmlrpc.createSecureClient({ host: rawHost, path, rejectUnauthorized: false })
+    : xmlrpc.createClient({ host: rawHost, path });
+  return new Promise((resolve, reject) => {
+    client.methodCall(method, params, (err, val) => err ? reject(err) : resolve(val));
+  });
 }
 
 async function odooAuth() {
   return odooCall('/xmlrpc/2/common', 'authenticate', [ODOO_DB, ODOO_USER, ODOO_API_KEY, {}]);
 }
 async function odooAuthStaging() {
-  return odooCallStaging('/xmlrpc/2/common', 'authenticate', [ODOO_STAGING_DB, ODOO_USER, ODOO_STAGING_API_KEY, {}]);
+  return odooCallStaging('/xmlrpc/2/common', 'authenticate', [ODOO_STAGING_DB, ODOO_STAGING_USER, ODOO_STAGING_API_KEY, {}]);
 }
 
 // API endpoint to tell frontend which DB is connected
@@ -2176,6 +2291,66 @@ app.post('/api/odoo/sync-push', requireAdmin, async (req, res) => {
   })();
 });
 
+// Rebuild catálogo desde Odoo (sin git push — funciona en Railway)
+app.post('/api/catalog/rebuild', requireAdmin, async (req, res) => {
+  if (_syncStatus === 'running') return res.status(409).json({ error: 'Ya hay una sincronización en curso' });
+  _syncLog = [];
+  _syncStatus = 'running';
+  _syncProgress = 0;
+  res.json({ ok: true, message: 'Rebuild iniciado' });
+  (async () => {
+    try {
+      _syncLog.push({ t: Date.now(), msg: 'Conectando a Odoo...' });
+      const uid = await odooAuth();
+      _syncLog.push({ t: Date.now(), msg: 'Autenticado (uid: ' + uid + ')' });
+      _syncProgress = 10;
+
+      const fieldsAll = ['name', 'default_code', 'list_price', 'standard_price', 'categ_id', 'taxes_id', 'uom_id', 'x_studio_producto_mayorista', 'qty_available', 'image_128'];
+      const fieldsLight = ['name', 'default_code', 'list_price', 'standard_price', 'categ_id', 'taxes_id', 'uom_id', 'x_studio_producto_mayorista', 'qty_available'];
+      const since = odooCacheTime > 0 ? new Date(odooCacheTime).toISOString().replace('T', ' ').slice(0, 19) : null;
+
+      if (since && odooCache?.length > 0) {
+        _syncLog.push({ t: Date.now(), msg: 'Modo incremental desde ' + since });
+        const updated = await odooSearchRead(uid, 'product.product', [['active', '=', true], ['write_date', '>', since]], fieldsLight, {},
+          (total) => { _syncProgress = Math.min(35, 10 + total / 10); }
+        );
+        if (updated.length > 0) {
+          const cacheMap = {};
+          for (const p of odooCache) cacheMap[p.id] = p;
+          for (const p of updated) cacheMap[p.id] = p;
+          odooCache = Object.values(cacheMap);
+          _syncLog.push({ t: Date.now(), msg: updated.length + ' productos actualizados' });
+        }
+        const newProds = await odooSearchRead(uid, 'product.product', [['active', '=', true], ['create_date', '>', since]], fieldsAll, {});
+        const existingIds = new Set(odooCache.map(p => p.id));
+        const reallyNew = newProds.filter(p => !existingIds.has(p.id));
+        if (reallyNew.length > 0) {
+          odooCache.push(...reallyNew);
+          _syncLog.push({ t: Date.now(), msg: reallyNew.length + ' productos nuevos' });
+        }
+      } else {
+        _syncLog.push({ t: Date.now(), msg: 'Carga completa desde Odoo...' });
+        odooCache = await odooSearchRead(uid, 'product.product', [['active', '=', true]], fieldsAll, {},
+          (total) => { _syncLog.push({ t: Date.now(), msg: '  → ' + total + ' productos...' }); _syncProgress = Math.min(50, 10 + total / 200); }
+        );
+      }
+      odooCacheTime = Date.now();
+      saveOdooCacheToDisk();
+      _syncLog.push({ t: Date.now(), msg: 'Odoo cache: ' + odooCache.length + ' productos' });
+      _syncProgress = 60;
+
+      _syncLog.push({ t: Date.now(), msg: 'Construyendo catálogo...' });
+      await buildCatalogoCache(true, (msg) => _syncLog.push({ t: Date.now(), msg: '  ' + msg }));
+      _syncLog.push({ t: Date.now(), msg: 'Catálogo listo: ' + (_catalogoCache?.total || 0) + ' productos' });
+      _syncProgress = 100;
+      _syncStatus = 'done';
+    } catch(e) {
+      _syncLog.push({ t: Date.now(), msg: 'ERROR: ' + e.message });
+      _syncStatus = 'error';
+    }
+  })();
+});
+
 // Polling endpoint para el progreso
 app.get('/api/odoo/sync-status', requireAdmin, (req, res) => {
   const lastUpdate = odooCacheTime ? new Date(odooCacheTime).toISOString() : null;
@@ -2183,7 +2358,7 @@ app.get('/api/odoo/sync-status', requireAdmin, (req, res) => {
   res.json({ status: _syncStatus, progress: _syncProgress, log: _syncLog, lastUpdate, productCount });
 });
 
-app.get('/api/odoo/buscar-partner', async (req, res) => {
+app.get('/api/odoo/buscar-partner', requireUser, async (req, res) => {
   try {
     const q = req.query.q || '';
     if (!q) return res.json([]);
@@ -2217,11 +2392,22 @@ app.get('/api/odoo/imagen/:id', async (req, res) => {
   if (isNaN(id)) return res.status(400).end();
   const filePath = path.join(IMG_CACHE_DIR, `${id}.png`);
   try {
+    // 1. Disco local
     if (fs.existsSync(filePath)) {
       res.setHeader('Content-Type', 'image/png');
-      res.setHeader('Cache-Control', 'public, max-age=604800');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
       return res.end(fs.readFileSync(filePath));
     }
+    // 2. PostgreSQL (imagen subida manualmente — sobrevive restarts)
+    const pgRow = await pool.query('SELECT image_data FROM product_images WHERE product_id = $1', [id]);
+    if (pgRow.rows.length) {
+      const buf = pgRow.rows[0].image_data;
+      fs.writeFileSync(filePath, buf); // recrea el cache local
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.end(buf);
+    }
+    // 3. Odoo producción (imagen original)
     const uid = await odooAuth();
     const rows = await odooCall('/xmlrpc/2/object', 'execute_kw', [
       ODOO_DB, uid, ODOO_API_KEY, 'product.product', 'search_read',
@@ -2240,6 +2426,73 @@ app.get('/api/odoo/imagen/:id', async (req, res) => {
   }
 });
 
+// Borrar imagen personalizada de un producto (vuelve a la de Odoo)
+app.delete('/api/productos/:id/imagen', requireUser, async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+  try {
+    await pool.query('DELETE FROM product_images WHERE product_id = $1', [id]);
+    const filePath = path.join(IMG_CACHE_DIR, `${id}.png`);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    res.json({ ok: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Lista de productos con imagen personalizada en PG (para repoblar _updatedImages al cargar)
+app.get('/api/product-images', requireUser, async (req, res) => {
+  try {
+    const rows = await pool.query('SELECT product_id, EXTRACT(EPOCH FROM updated_at)*1000 AS ts FROM product_images');
+    const result = {};
+    rows.rows.forEach(r => { result[r.product_id] = Math.round(r.ts); });
+    res.json(result);
+  } catch(e) {
+    res.json({});
+  }
+});
+
+// Subir imagen para un producto — guarda en disco, PostgreSQL y Odoo staging
+app.post('/api/productos/:id/imagen', requireUser, upload.single('imagen'), async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+  if (!req.file) return res.status(400).json({ error: 'No se recibió imagen' });
+
+  const buf = req.file.buffer;
+
+  // 1. Disco local (cache rápido)
+  const filePath = path.join(IMG_CACHE_DIR, `${id}.png`);
+  fs.writeFileSync(filePath, buf);
+
+  // 2. PostgreSQL (persiste entre restarts de Railway)
+  try {
+    await pool.query(
+      'INSERT INTO product_images (product_id, image_data, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (product_id) DO UPDATE SET image_data = EXCLUDED.image_data, updated_at = NOW()',
+      [id, buf]
+    );
+    console.log(`[imagen] producto ${id} guardado en PostgreSQL (${buf.length} bytes)`);
+  } catch (e) {
+    console.error(`[imagen] error guardando en PG: ${e.message}`);
+  }
+
+  // 3. Odoo staging (escribe image_1920 en product.product)
+  try {
+    const uid = await odooAuthStaging();
+    const b64 = buf.toString('base64');
+    await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY,
+      'product.product', 'write',
+      [[id], { image_1920: b64 }],
+    ]);
+    console.log(`[imagen] producto ${id} actualizado en Odoo staging`);
+  } catch (e) {
+    console.error(`[imagen] error subiendo a Odoo staging: ${e.message}`);
+    // No es fatal — la imagen ya quedó en PG y disco
+  }
+
+  res.json({ ok: true, url: `/api/odoo/imagen/${id}` });
+});
+
 function upgradeMlThumb(url) {
   if (!url) return null;
   return url
@@ -2252,6 +2505,247 @@ function upgradeMlThumb(url) {
 let _catalogoCache = null;
 let _catalogoCacheTime = 0;
 const CATALOGO_CACHE_FILE = path.join(__dirname, 'data', 'catalogo_cache.json');
+const MATERIAL_CACHE_FILE = path.join(__dirname, 'data', 'material_cache.json');
+const CATALOG_OVERRIDES_FILE = path.join(__dirname, 'data', 'catalog_overrides.json');
+
+function loadCatalogOverrides() {
+  try { return fs.existsSync(CATALOG_OVERRIDES_FILE) ? JSON.parse(fs.readFileSync(CATALOG_OVERRIDES_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveCatalogOverrides(data) {
+  fs.writeFileSync(CATALOG_OVERRIDES_FILE, JSON.stringify(data, null, 2));
+}
+
+app.get('/api/catalog/overrides', requireToken, (req, res) => res.json(loadCatalogOverrides()));
+
+app.post('/api/catalog/override', requireToken, (req, res) => {
+  const { sku_base, macro, sub } = req.body;
+  if (!sku_base || !macro || !sub) return res.status(400).json({ error: 'sku_base, macro y sub requeridos' });
+  const overrides = loadCatalogOverrides();
+  overrides[sku_base] = { macro, sub };
+  saveCatalogOverrides(overrides);
+  res.json({ ok: true });
+});
+
+app.delete('/api/catalog/override/:sku_base', requireToken, (req, res) => {
+  const overrides = loadCatalogOverrides();
+  delete overrides[req.params.sku_base];
+  saveCatalogOverrides(overrides);
+  res.json({ ok: true });
+});
+
+// ── Orden de subcategorías ────────────────────────────────────────
+const CATALOG_SUB_SORT_FILE = path.join(__dirname, 'data', 'catalog_sub_sort.json');
+function loadCatalogSubSort() {
+  try { return fs.existsSync(CATALOG_SUB_SORT_FILE) ? JSON.parse(fs.readFileSync(CATALOG_SUB_SORT_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveCatalogSubSort(data) {
+  fs.writeFileSync(CATALOG_SUB_SORT_FILE, JSON.stringify(data, null, 2));
+}
+app.get('/api/catalog/sub-sort', requireToken, (req, res) => res.json(loadCatalogSubSort()));
+app.post('/api/catalog/sub-sort', requireToken, (req, res) => {
+  const { macro, order } = req.body;
+  if (!macro || !Array.isArray(order)) return res.status(400).json({ error: 'macro y order requeridos' });
+  const sort = loadCatalogSubSort();
+  sort[macro] = order;
+  saveCatalogSubSort(sort);
+  res.json({ ok: true });
+});
+app.delete('/api/catalog/sub-sort/:macro', requireToken, (req, res) => {
+  const sort = loadCatalogSubSort();
+  delete sort[decodeURIComponent(req.params.macro)];
+  saveCatalogSubSort(sort);
+  res.json({ ok: true });
+});
+
+// ── Subcategorías personalizadas ──────────────────────────────────
+const CATALOG_CUSTOM_SUBS_FILE = path.join(__dirname, 'data', 'catalog_custom_subs.json');
+function loadCustomSubs() {
+  try { return fs.existsSync(CATALOG_CUSTOM_SUBS_FILE) ? JSON.parse(fs.readFileSync(CATALOG_CUSTOM_SUBS_FILE, 'utf8')) : []; } catch { return []; }
+}
+function saveCustomSubs(data) {
+  fs.writeFileSync(CATALOG_CUSTOM_SUBS_FILE, JSON.stringify(data, null, 2));
+}
+app.get('/api/catalog/custom-subs', requireToken, (req, res) => res.json(loadCustomSubs()));
+app.post('/api/catalog/custom-subs', requireToken, (req, res) => {
+  const { macro, nombre } = req.body;
+  if (!macro || !nombre) return res.status(400).json({ error: 'macro y nombre requeridos' });
+  const subs = loadCustomSubs();
+  const id = 'custom_' + Date.now();
+  subs.push({ id, macro, nombre });
+  saveCustomSubs(subs);
+  res.json({ ok: true, id });
+});
+app.delete('/api/catalog/custom-subs/:id', requireToken, (req, res) => {
+  const subs = loadCustomSubs().filter(s => s.id !== req.params.id);
+  saveCustomSubs(subs);
+  res.json({ ok: true });
+});
+
+// ── Labels personalizados de categorías ───────────────────────────
+const CATALOG_LABELS_FILE = path.join(__dirname, 'data', 'catalog_labels.json');
+function loadCatalogLabels() {
+  try { return fs.existsSync(CATALOG_LABELS_FILE) ? JSON.parse(fs.readFileSync(CATALOG_LABELS_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveCatalogLabels(data) {
+  fs.writeFileSync(CATALOG_LABELS_FILE, JSON.stringify(data, null, 2));
+}
+app.get('/api/catalog/labels', requireToken, (req, res) => res.json(loadCatalogLabels()));
+app.post('/api/catalog/labels', requireToken, (req, res) => {
+  const { key, name } = req.body;
+  if (!key || !name) return res.status(400).json({ error: 'key y name requeridos' });
+  const labels = loadCatalogLabels();
+  labels[key] = name;
+  saveCatalogLabels(labels);
+  res.json({ ok: true });
+});
+app.delete('/api/catalog/labels/:key', requireToken, (req, res) => {
+  const labels = loadCatalogLabels();
+  delete labels[decodeURIComponent(req.params.key)];
+  saveCatalogLabels(labels);
+  res.json({ ok: true });
+});
+
+// ── Imagen pinneada por SKU base ──────────────────────────────────
+const CATALOG_PINNED_FILE = path.join(__dirname, 'data', 'catalog_pinned.json');
+function loadCatalogPinned() {
+  try { return fs.existsSync(CATALOG_PINNED_FILE) ? JSON.parse(fs.readFileSync(CATALOG_PINNED_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveCatalogPinned(data) {
+  fs.writeFileSync(CATALOG_PINNED_FILE, JSON.stringify(data, null, 2));
+}
+app.get('/api/catalog/pinned', requireToken, (req, res) => res.json(loadCatalogPinned()));
+app.post('/api/catalog/pinned', requireToken, (req, res) => {
+  const { sku_base, sku_variant } = req.body;
+  if (!sku_base) return res.status(400).json({ error: 'sku_base requerido' });
+  const pinned = loadCatalogPinned();
+  if (sku_variant) pinned[sku_base] = sku_variant;
+  else delete pinned[sku_base];
+  saveCatalogPinned(pinned);
+  res.json({ ok: true });
+});
+
+// ── Orden manual del catálogo ─────────────────────────────────────
+const CATALOG_SORT_FILE = path.join(__dirname, 'data', 'catalog_sort.json');
+function loadCatalogSort() {
+  try { return fs.existsSync(CATALOG_SORT_FILE) ? JSON.parse(fs.readFileSync(CATALOG_SORT_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveCatalogSort(data) {
+  fs.writeFileSync(CATALOG_SORT_FILE, JSON.stringify(data, null, 2));
+}
+
+app.get('/api/catalog/sort', requireToken, (req, res) => res.json(loadCatalogSort()));
+
+app.post('/api/catalog/sort', requireToken, (req, res) => {
+  const { key, order } = req.body;
+  if (!key || !Array.isArray(order)) return res.status(400).json({ error: 'key y order requeridos' });
+  const sort = loadCatalogSort();
+  sort[key] = order;
+  saveCatalogSort(sort);
+  res.json({ ok: true });
+});
+
+app.delete('/api/catalog/sort/:key', requireToken, (req, res) => {
+  const sort = loadCatalogSort();
+  delete sort[decodeURIComponent(req.params.key)];
+  saveCatalogSort(sort);
+  res.json({ ok: true });
+});
+
+// ── Productos manuales ────────────────────────────────────────────
+const CATALOG_MANUAL_FILE = path.join(__dirname, 'data', 'catalog_manual_products.json');
+function loadManualProducts() {
+  try { return fs.existsSync(CATALOG_MANUAL_FILE) ? JSON.parse(fs.readFileSync(CATALOG_MANUAL_FILE, 'utf8')) : []; } catch { return []; }
+}
+function saveManualProducts(data) {
+  fs.writeFileSync(CATALOG_MANUAL_FILE, JSON.stringify(data, null, 2));
+}
+app.get('/api/catalog/manual-products', requireToken, (req, res) => res.json(loadManualProducts()));
+app.post('/api/catalog/manual-products', requireToken, (req, res) => {
+  const { sku, name, price, image, macro, sub } = req.body;
+  if (!name || !macro || !sub) return res.status(400).json({ error: 'Faltan campos requeridos (name, macro, sub)' });
+  // Buscar stock en odooCache por SKU
+  let stock = 0;
+  if (sku && odooCache) {
+    const found = odooCache.find(p => (p.default_code || '').trim() === sku.trim());
+    if (found) stock = found.qty_available || 0;
+  }
+  const products = loadManualProducts();
+  const id = 'manual_' + Date.now();
+  const product = { id, sku: sku || '', name, price: parseFloat(price) || 0, stock, image: image || '', macro, sub, mayorista: true, manual: true };
+  products.push(product);
+  saveManualProducts(products);
+  res.json(product);
+});
+app.put('/api/catalog/manual-products/:id', requireToken, (req, res) => {
+  const products = loadManualProducts();
+  const idx = products.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'No encontrado' });
+  const { sku, name, price, image, macro, sub } = req.body;
+  // Re-buscar stock si cambió el SKU
+  let stock = products[idx].stock;
+  if (sku && sku !== products[idx].sku && odooCache) {
+    const found = odooCache.find(p => (p.default_code || '').trim() === sku.trim());
+    if (found) stock = found.qty_available || 0;
+  }
+  products[idx] = { ...products[idx], sku: sku ?? products[idx].sku, name: name ?? products[idx].name, price: price != null ? parseFloat(price) : products[idx].price, stock, image: image ?? products[idx].image, macro: macro ?? products[idx].macro, sub: sub ?? products[idx].sub };
+  saveManualProducts(products);
+  res.json(products[idx]);
+});
+app.delete('/api/catalog/manual-products/:id', requireToken, (req, res) => {
+  const products = loadManualProducts().filter(p => p.id !== req.params.id);
+  saveManualProducts(products);
+  res.json({ ok: true });
+});
+
+function loadMaterialCache() {
+  try { return fs.existsSync(MATERIAL_CACHE_FILE) ? JSON.parse(fs.readFileSync(MATERIAL_CACHE_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function saveMaterialCache(cache) {
+  try { fs.writeFileSync(MATERIAL_CACHE_FILE, JSON.stringify(cache, null, 2)); } catch(e) {}
+}
+
+// Analiza imagen de un producto con Claude vision y retorna grupo de material
+async function analyzeMaterialGroup(productId, imageUrl, productName) {
+  if (!anthropic || !imageUrl) return 'otro';
+  try {
+    const msg = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 20,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'url', url: imageUrl } },
+          { type: 'text', text: `Analizá esta imagen de producto (${productName}). Respondé SOLO con una de estas palabras según el material principal visible: madera, metal, tela, cristal, sal, plastico, otro` }
+        ]
+      }]
+    });
+    const val = msg.content[0]?.text?.trim().toLowerCase().split(/\s/)[0] || 'otro';
+    const valid = ['madera','metal','tela','cristal','sal','plastico','otro'];
+    return valid.includes(val) ? val : 'otro';
+  } catch(e) {
+    return 'otro';
+  }
+}
+
+// Enriquece productos del catálogo con material_group usando cache + Claude vision
+async function enrichMaterialGroups(categories) {
+  if (!anthropic) return;
+  const cache = loadMaterialCache();
+  let dirty = false;
+  const allProducts = categories.flatMap(c => c.items);
+  const pending = allProducts.filter(p => p.ml_thumbnail && !cache[p.id]);
+  if (pending.length === 0) { allProducts.forEach(p => { if (cache[p.id]) p.material_group = cache[p.id]; }); return; }
+  console.log(`[material] analizando ${pending.length} productos nuevos con Claude vision...`);
+  for (const p of pending) {
+    p.material_group = await analyzeMaterialGroup(p.id, p.ml_thumbnail, p.name);
+    cache[p.id] = p.material_group;
+    dirty = true;
+    await new Promise(r => setTimeout(r, 200)); // evitar rate limit
+  }
+  allProducts.forEach(p => { if (cache[p.id]) p.material_group = cache[p.id]; });
+  if (dirty) saveMaterialCache(cache);
+  console.log('[material] análisis completado');
+}
 
 async function buildCatalogoCache(force = false, onLog) {
   if (!force && _catalogoCache && (Date.now() - _catalogoCacheTime < 3600000)) return _catalogoCache;
@@ -2267,6 +2761,11 @@ async function buildCatalogoCache(force = false, onLog) {
   }
   console.log('[catalogo] construyendo cache...');
   const result = await _buildCatalogoData(force, onLog);
+  // Enriquecer con material_group en background (no bloquea)
+  enrichMaterialGroups(result.categories).then(() => {
+    try { fs.writeFileSync(CATALOGO_CACHE_FILE, JSON.stringify(result)); } catch(e) {}
+    console.log('[catalogo] cache con materiales guardado');
+  }).catch(e => console.error('[material] error:', e.message));
   _catalogoCache = result;
   _catalogoCacheTime = Date.now();
   try { fs.writeFileSync(CATALOGO_CACHE_FILE, JSON.stringify(result)); } catch(e) {}
@@ -2276,12 +2775,38 @@ async function buildCatalogoCache(force = false, onLog) {
 
 // Catalogo se sirve del cache en disco. En Railway nunca conecta a Odoo.
 
-app.get('/api/odoo/productos', async (req, res) => {
+// Importar cache de catálogo desde local → Railway
+app.post('/api/catalog/import-cache', requireToken, (req, res) => {
+  try {
+    const data = req.body;
+    if (!data || !data.categories || !Array.isArray(data.categories)) {
+      return res.status(400).json({ error: 'Formato inválido: se espera { categories, ... }' });
+    }
+    data.importedAt = new Date().toISOString();
+    fs.writeFileSync(CATALOGO_CACHE_FILE, JSON.stringify(data));
+    _catalogoCache = data;
+    _catalogoCacheTime = Date.now();
+    const total = data.categories.reduce((s, c) => s + c.items.length, 0);
+    console.log('[catalogo] cache importado:', total, 'productos,', data.categories.length, 'categorías');
+    res.json({ ok: true, total, categories: data.categories.length, importedAt: data.importedAt });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/odoo/productos', requireUser, async (req, res) => {
   try {
     if (req.query.refresh === 'true' && !process.env.RAILWAY_ENVIRONMENT) {
       buildCatalogoCache(true).catch(e => console.error('[catalogo] refresh error:', e.message));
     }
-    // Serve from cache if available
+    // Serve from cache if available (intentar cargar desde disco si no está en memoria)
+    if (!_catalogoCache && fs.existsSync(CATALOGO_CACHE_FILE)) {
+      try {
+        _catalogoCache = JSON.parse(fs.readFileSync(CATALOGO_CACHE_FILE, 'utf8'));
+        _catalogoCacheTime = Date.now();
+        console.log('[catalogo] cache cargado desde disco (on-demand)');
+      } catch(e) {}
+    }
     if (_catalogoCache) return res.json(_catalogoCache);
     // No cache yet — serve products from odooCache without sales (fast fallback)
     if (odooCache && odooCache.length > 0) {
@@ -2302,6 +2827,7 @@ app.get('/api/odoo/productos', async (req, res) => {
           sales_by_month: {}, sales_by_channel: { ml:{}, mayorista:{}, local:{} },
           ml_stock: ml?.stock ?? null, ml_price: ml?.price ?? null, ml_status: ml?.status ?? null,
           ml_thumbnail: ml ? upgradeMlThumb(ml.thumbnail) : null,
+          ml_dimensions: ml?.dimensions || null,
           odoo_image: p.image_128 ? 'data:image/png;base64,' + p.image_128 : null,
           incoming: 0, incoming_detail: [], categ: cat, mayorista: p.x_studio_producto_mayorista || false,
         });
@@ -2441,6 +2967,7 @@ async function _buildCatalogoData(forceProducts, onLog) {
         ml_price:     ml ? ml.price     : null,
         ml_status:    ml ? ml.status    : null,
         ml_thumbnail: ml ? upgradeMlThumb(ml.thumbnail) : null,
+        ml_dimensions: ml?.dimensions || null,
         odoo_image: p.image_128 ? `data:image/png;base64,${p.image_128}` : null,
         incoming: incomingBySku[sku.trim()] || 0,
         incoming_detail: incomingDetailBySku[sku.trim()] || [],
@@ -2610,7 +3137,7 @@ app.get('/api/stock/cruce-nombre', requireToken, async (req, res) => {
   }
 });
 
-app.get('/api/odoo/cruce', async (req, res) => {
+app.get('/api/odoo/cruce', requireUser, async (req, res) => {
   try {
     const products = await getOdooProducts(req.query.refresh === 'true');
 
@@ -2651,25 +3178,33 @@ app.get('/api/odoo/cruce', async (req, res) => {
 });
 
 // ── Cotización desde foto ────────────────────────────────────────
-app.post('/api/odoo/cotizacion-foto', express.json({ limit: '20mb' }), async (req, res) => {
+app.post('/api/odoo/cotizacion-foto', requireUser, express.json({ limit: '50mb' }), async (req, res) => {
   try {
-    const { image_base64, media_type } = req.body;
-    if (!image_base64) return res.status(400).json({ error: 'Se requiere image_base64' });
+    // Acepta array de imágenes (multi-hoja) o imagen única (legacy)
+    let images = req.body.images;
+    if (!images && req.body.image_base64) {
+      images = [{ base64: req.body.image_base64, media_type: req.body.media_type || 'image/jpeg' }];
+    }
+    if (!images?.length) return res.status(400).json({ error: 'Se requiere al menos una imagen' });
 
-    // 1. Claude lee la imagen
+    const multiHoja = images.length > 1;
+
+    // 1. Claude lee las imágenes
+    const imageContent = images.map(img => ({
+      type: 'image',
+      source: { type: 'base64', media_type: img.media_type || 'image/jpeg', data: img.base64 },
+    }));
+
     const msg = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-opus-4-6',
       max_tokens: 1024,
       messages: [{
         role: 'user',
         content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: media_type || 'image/jpeg', data: image_base64 },
-          },
+          ...imageContent,
           {
             type: 'text',
-            text: `Analizá esta imagen de un pedido escrito a mano. Extraé:
+            text: `Analizá ${multiHoja ? 'estas ' + images.length + ' imágenes que son las hojas de UN MISMO pedido escrito a mano. Uní todos los productos en una sola lista.' : 'esta imagen de un pedido escrito a mano.'} Extraé:
 1. Nombre del cliente (suele estar arriba)
 2. Lista de productos con: SKU completo (incluyendo variante de color/temperatura), cantidad y precio si aparece
 
@@ -2776,15 +3311,139 @@ Si no encontrás algún campo ponelo como null.`,
   }
 });
 
-app.post('/api/odoo/cotizacion-crear', express.json(), async (req, res) => {
+app.post('/api/odoo/cotizacion-crear', requireUser, express.json(), async (req, res) => {
   try {
     const { partner_id, lineas, notas } = req.body;
     if (!partner_id) return res.status(400).json({ error: 'Se requiere partner_id' });
     if (!lineas?.length) return res.status(400).json({ error: 'Se requieren líneas de productos' });
 
-    // ⚠️ ESCRITURA → usa STAGING, nunca producción
-    const uid = await odooAuthStaging();
+    const token = process.env.ODOO_REST_TOKEN_STAGING;
+    if (!token) return res.status(500).json({ error: 'ODOO_REST_TOKEN_STAGING no configurado' });
 
+    const baseUrl = ODOO_STAGING_HOST.replace(/\/$/, '');
+    const external_ref = 'mlpanel-' + Date.now();
+
+    const body = {
+      external_ref,
+      partner_id,
+      pricelist_id: 2, // MAYORISTA UYU
+      note:         notas || '',
+      confirm:      true,
+      lines: lineas.map(l => ({
+        product_id: l.product_id,
+        name:       l.product_name,
+        quantity:   l.cantidad,
+        price_unit: l.precio,
+        ...(l.descuento ? { discount: l.descuento } : {}),
+      })),
+    };
+
+    const https = require('https');
+    const r = await axios.post(`${baseUrl}/api/ventas/order`, body, {
+      headers: { 'X-API-Token': token, 'Content-Type': 'application/json' },
+      httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+    });
+
+    const d = r.data;
+    if (d.status !== 'OK') throw new Error(d.message || 'Error al crear pedido');
+
+    const order = d.data || {};
+    res.json({
+      success:      true,
+      order_id:     order.id || null,
+      order_name:   order.name || order.display_name || external_ref,
+      amount_total: order.amount_total || 0,
+    });
+  } catch (err) {
+    const msg = err.response?.data?.message || err.message;
+    console.error('[cotizacion-crear] error:', msg);
+    res.status(500).json({ error: msg });
+  }
+});
+
+// ── Pedidos mayoristas ────────────────────────────────────────────
+app.get('/api/odoo/pedidos-mayoristas', requireToken, async (req, res) => {
+  try {
+    const uid = await odooAuthStaging();
+    const estado = req.query.estado || '';
+    const domain = [['pricelist_id', '=', 2]]; // MAYORISTA UYU
+    if (estado) domain.push(['state', '=', estado]);
+
+    const orders = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'search_read',
+      [domain],
+      { fields: ['name','partner_id','date_order','amount_total','state','invoice_status','picking_ids'], order: 'date_order desc', limit: 100 },
+    ]);
+
+    // Para cada orden con facturas, buscar los números
+    const allOrderIds = orders.map(o => o.id);
+    let invoiceMap = {};
+    if (allOrderIds.length) {
+      const invoiceLines = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'search_read',
+        [[['invoice_origin', 'in', orders.map(o => o.name)], ['move_type', '=', 'out_invoice']]],
+        { fields: ['name', 'invoice_origin', 'state', 'amount_total', 'invoice_date_due'] },
+      ]);
+      for (const inv of invoiceLines) {
+        if (!invoiceMap[inv.invoice_origin]) invoiceMap[inv.invoice_origin] = [];
+        invoiceMap[inv.invoice_origin].push(inv);
+      }
+    }
+
+    res.json(orders.map(o => ({ ...o, invoices: invoiceMap[o.name] || [] })));
+  } catch (err) {
+    console.error('[pedidos-mayoristas] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/odoo/pedido-mayorista/:id', requireToken, async (req, res) => {
+  try {
+    const uid = await odooAuthStaging();
+    const orderId = parseInt(req.params.id);
+    const [order] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'read',
+      [[orderId]], { fields: ['name','partner_id','date_order','amount_total','state','invoice_status','order_line','picking_ids','note'] },
+    ]);
+    // Líneas
+    const lines = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order.line', 'read',
+      [order.order_line], { fields: ['product_id','name','product_uom_qty','price_unit','price_subtotal','discount'] },
+    ]);
+    // Facturas
+    const invoices = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'account.move', 'search_read',
+      [[['invoice_origin', '=', order.name], ['move_type', '=', 'out_invoice']]],
+      { fields: ['name','state','amount_total','invoice_date_due'] },
+    ]);
+    // Remitos
+    let pickings = [];
+    if (order.picking_ids?.length) {
+      pickings = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'stock.picking', 'read',
+        [order.picking_ids], { fields: ['name','state','scheduled_date'] },
+      ]);
+    }
+    res.json({ ...order, lines, invoices, pickings });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Confirmar orden + crear factura + remito ─────────────────────
+app.post('/api/odoo/cotizacion-confirmar-full', requireUser, express.json(), async (req, res) => {
+  try {
+    const { partner_id, lineas, notas, forma_pago, dias_vencimiento } = req.body;
+    if (!partner_id) return res.status(400).json({ error: 'Se requiere partner_id' });
+    if (!lineas?.length) return res.status(400).json({ error: 'Se requieren líneas' });
+
+    // Auth con Odoo staging
+    let uid;
+    try { uid = await odooAuthStaging(); }
+    catch (e) { return res.status(502).json({ error: `[auth staging] ${e.message}` }); }
+    if (!uid) return res.status(502).json({ error: '[auth staging] Odoo no devolvió UID' });
+
+    // Crear cotización (borrador) — NO se confirma ni factura desde acá
     const order_lines = lineas.map(l => [0, 0, {
       product_id:      l.product_id,
       name:            l.product_name,
@@ -2795,26 +3454,37 @@ app.post('/api/odoo/cotizacion-crear', express.json(), async (req, res) => {
       ...(l.descuento ? { discount: l.descuento } : {}),
     }]);
 
-    const orderId = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'create',
-      [{
-        partner_id,
-        pricelist_id: 2, // MAYORISTA UYU
-        date_order:   new Date().toISOString().replace('T', ' ').slice(0, 19),
-        note:         notas || '',
-        order_line:   order_lines,
-      }],
-    ]);
+    // Notas incluyen forma de pago para referencia en Odoo
+    const notaCompleta = [
+      notas || '',
+      forma_pago === 'credito' ? `Pago: Crédito ${dias_vencimiento} días` : 'Pago: Contado',
+    ].filter(Boolean).join('\n');
 
-    // Leer el nombre asignado
-    const [order] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
-      ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'read',
-      [[orderId]], { fields: ['name', 'amount_total', 'partner_id'] },
-    ]);
+    let orderId;
+    try {
+      orderId = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'create',
+        [{ partner_id, pricelist_id: 2, date_order: new Date().toISOString().replace('T', ' ').slice(0, 19), note: notaCompleta, order_line: order_lines }],
+      ]);
+    } catch(e) { return res.status(502).json({ error: `[crear orden] ${e.message}` }); }
 
-    res.json({ success: true, order_id: orderId, order_name: order.name, amount_total: order.amount_total });
+    // Leer nombre asignado
+    let order;
+    try {
+      [order] = await odooCallStaging('/xmlrpc/2/object', 'execute_kw', [
+        ODOO_STAGING_DB, uid, ODOO_STAGING_API_KEY, 'sale.order', 'read',
+        [[orderId]], { fields: ['name', 'amount_total'] },
+      ]);
+    } catch(e) { return res.status(502).json({ error: `[leer orden] ${e.message}` }); }
+
+    res.json({
+      success:      true,
+      order_id:     orderId,
+      order_name:   order.name,
+      amount_total: order.amount_total,
+    });
   } catch (err) {
-    console.error('[cotizacion-crear] error:', err.message);
+    console.error('[cotizacion-confirmar-full] error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -2857,7 +3527,7 @@ app.post('/webhook/whatsapp', express.urlencoded({ extended: false }), async (re
 
     // Claude lee la imagen
     const msg = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-opus-4-6',
       max_tokens: 1024,
       messages: [{
         role: 'user',
@@ -2962,88 +3632,68 @@ Respondé ÚNICAMENTE con JSON válido, sin texto adicional:
   }
 });
 
-// ── Usuarios y sesiones ──────────────────────────────────────────
-const USERS_FILE = path.join(__dirname, 'data', 'users.json');
-
-function hashPassword(password, salt) {
-  return crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-}
-function loadUsers() {
+// ── Usuarios y sesiones (PostgreSQL) ─────────────────────────────
+async function requireUser(req, res, next) {
+  const token = req.headers['x-session-token'];
+  if (!token) return res.status(401).json({ error: 'Sesión inválida' });
   try {
-    if (fs.existsSync(USERS_FILE)) return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-  } catch(e) {}
-  return [];
-}
-function saveUsers(data) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(data, null, 2), 'utf8');
-}
-
-// Crear admin por defecto si no hay usuarios
-(function ensureAdmin() {
-  const users = loadUsers();
-  if (!users.length) {
-    const salt = crypto.randomBytes(16).toString('hex');
-    users.push({
-      id:       crypto.randomUUID(),
-      username: 'admin',
-      name:     'Administrador',
-      role:     'admin',
-      salt,
-      hash:     hashPassword('admin123', salt),
-      createdAt: new Date().toISOString(),
-    });
-    saveUsers(users);
-    console.log('[usuarios] Usuario admin creado — password: admin123  (cambialo después)');
+    const session = await getSession(token);
+    if (!session) return res.status(401).json({ error: 'Sesión inválida o expirada' });
+    req.user = session;
+    // Rotación de token en cada request autenticado
+    const newToken = await createSession(session.user_id || session.id);
+    await pool.query('DELETE FROM sessions WHERE token = $1', [token]);
+    res.setHeader('X-New-Token', newToken);
+    next();
+  } catch (e) {
+    res.status(500).json({ error: 'Error de autenticación' });
   }
-})();
-
-function createSession(userId) {
-  const token = crypto.randomBytes(32).toString('hex');
-  sessions.set(token, { userId, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
-  saveSessions();
-  return token;
 }
-function requireUser(req, res, next) {
-  const token = req.headers['x-session-token'] || req.query._token;
-  const session = token ? getSession(token) : null;
-  if (!session) return res.status(401).json({ error: 'Sesión inválida' });
-  const users = loadUsers();
-  const user = users.find(u => u.id === session.userId);
-  if (!user) return res.status(401).json({ error: 'Usuario no encontrado' });
-  req.user = user;
-  next();
-}
-function requireAdmin(req, res, next) {
-  requireUser(req, res, () => {
-    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Sin permiso' });
+async function requireAdmin(req, res, next) {
+  await requireUser(req, res, () => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Sin permiso de administrador' });
     next();
   });
 }
 
-// POST /api/auth/login
-app.post('/api/auth/login', (req, res) => {
-  const { username, password } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'Faltan credenciales' });
-  const users = loadUsers();
-  const user  = users.find(u => u.username === username);
-  if (!user) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
-  const h = hashPassword(password, user.salt);
-  if (h !== user.hash) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
-  const token = createSession(user.id);
-  res.json({ token, user: { id: user.id, username: user.username, name: user.name, role: user.role } });
+// POST /api/auth/login (email + contraseña — solo para usuarios registrados con invite)
+app.post('/api/auth/login', express.json(), async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: 'Faltan credenciales' });
+    const r = await pool.query('SELECT * FROM users WHERE email = $1 AND password_hash IS NOT NULL', [email]);
+    if (!r.rows.length) {
+      await auditLog(null, 'login_failed', { email, reason: 'not_found' }, req.ip);
+      return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+    }
+    const user = r.rows[0];
+    const [salt, hash] = user.password_hash.split(':');
+    const check = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+    if (check !== hash) {
+      await auditLog(user.id, 'login_failed', { email, reason: 'wrong_password' }, req.ip);
+      return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+    }
+    const token = await createSession(user.id);
+    await auditLog(user.id, 'login', { email }, req.ip);
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  } catch(e) {
+    const msg = e.message || e.code || (e.errors && e.errors[0]?.message) || String(e);
+    console.error('[login] Error DB:', msg);
+    res.status(500).json({ error: 'Error DB: ' + msg });
+  }
 });
 
 // POST /api/auth/logout
-app.post('/api/auth/logout', (req, res) => {
+app.post('/api/auth/logout', async (req, res) => {
   const token = req.headers['x-session-token'];
-  if (token) sessions.delete(token);
+  if (token) await pool.query('DELETE FROM sessions WHERE token = $1', [token]).catch(() => {});
   res.json({ ok: true });
 });
 
 // GET /api/auth/me
 app.get('/api/auth/me', requireUser, (req, res) => {
-  const { id, username, name, role, email } = req.user;
-  res.json({ id, username, name, role, email });
+  const { id, name, role, email, picture } = req.user;
+  res.json({ id, name, role, email, picture });
 });
 
 // ── Google OAuth ──
@@ -3061,6 +3711,7 @@ app.get('/auth/google', (req, res) => {
     scope: 'openid email profile',
     access_type: 'online',
     prompt: 'select_account',
+    state: req.query.invite || '',
   });
   res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
 });
@@ -3079,129 +3730,201 @@ app.get('/auth/google/callback', async (req, res) => {
     });
     const { access_token } = tokenRes.data;
 
-    // Get user info
+    // Get user info from Google
     const userRes = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
       headers: { Authorization: `Bearer ${access_token}` },
     });
-    const { email, name, picture } = userRes.data;
+    const { id: googleId, email, name, picture } = userRes.data;
+    const inviteToken = req.query.state || '';
 
-    // Check if email is authorized
-    const users = loadUsers();
-    let user = users.find(u => u.email === email);
+    // ¿Ya existe el usuario?
+    const existingRes = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const isNewUser = !existingRes.rows.length;
 
-    if (!user) {
-      // Check allowed emails list
-      const ALLOWED_FILE = path.join(__dirname, 'data', 'allowed_emails.json');
-      let allowed = [];
-      try { allowed = fs.existsSync(ALLOWED_FILE) ? JSON.parse(fs.readFileSync(ALLOWED_FILE, 'utf8')) : []; } catch {}
+    if (isNewUser) {
+      // Usuario nuevo: verificar invite válido
+      const countRes = await pool.query('SELECT COUNT(*) FROM users');
+      const isFirst = parseInt(countRes.rows[0].count) === 0;
 
-      if (!allowed.includes(email)) {
-        return res.send('<html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;"><div style="text-align:center;"><h2>Acceso denegado</h2><p>' + email + ' no está autorizado.</p><a href="/">Volver</a></div></body></html>');
+      if (!isFirst) {
+        // No es el primero → necesita invite válido
+        if (!inviteToken) return res.redirect('/invite-required');
+        const invRes = await pool.query(
+          'SELECT * FROM invites WHERE token = $1 AND used_by IS NULL AND expires_at > NOW()',
+          [inviteToken]
+        );
+        if (!invRes.rows.length) return res.redirect('/invite-expired');
       }
-
-      // Create user automatically
-      const salt = crypto.randomBytes(16).toString('hex');
-      user = {
-        id: crypto.randomUUID(),
-        username: email.split('@')[0],
-        name: name || email,
-        email,
-        picture,
-        role: 'user',
-        salt,
-        hash: hashPassword(crypto.randomBytes(32).toString('hex'), salt), // random password
-        createdAt: new Date().toISOString(),
-        googleAuth: true,
-      };
-      users.push(user);
-      saveUsers(users);
-      console.log('[auth] nuevo usuario Google:', email);
-    } else {
-      // Update name/picture
-      if (name && !user.name) user.name = name;
-      if (picture) user.picture = picture;
-      user.email = email;
-      user.googleAuth = true;
-      saveUsers(users);
     }
 
-    // Create session
-    const sessionTok = createSession(user.id);
+    // Primer usuario es admin
+    const countRes2 = await pool.query('SELECT COUNT(*) FROM users');
+    const isFirst2 = parseInt(countRes2.rows[0].count) === 0;
+
+    // Crear o actualizar usuario
+    const upsertRes = await pool.query(`
+      INSERT INTO users (google_id, email, name, picture, role)
+      VALUES ($1, $2, $3, $4, COALESCE((SELECT role FROM users WHERE email = $2), $5))
+      ON CONFLICT (email) DO UPDATE SET google_id = $1, name = $3, picture = $4
+      RETURNING *
+    `, [googleId, email, name || email, picture, isFirst2 ? 'admin' : 'user']);
+
+    const user = upsertRes.rows[0];
+
+    // Marcar invite como usado si aplica
+    if (isNewUser && inviteToken) {
+      await pool.query('UPDATE invites SET used_by = $1 WHERE token = $2', [user.id, inviteToken]);
+    }
+
+    console.log('[auth] login Google:', email, '- rol:', user.role);
+
+    // Crear sesión en DB
+    const sessionTok = await createSession(user.id);
     res.send(`<html><body><script>
       localStorage.setItem('session_token', '${sessionTok}');
       window.location.href = '/';
     </script></body></html>`);
   } catch (e) {
     console.error('[auth] Google OAuth error:', e.message);
-    res.status(500).send('Error de autenticación: ' + e.message);
+    res.status(500).send('Error de autenticación: ' + esc(e.message));
   }
 });
 
-// API para gestionar emails autorizados (admin)
-const ALLOWED_EMAILS_FILE = path.join(__dirname, 'data', 'allowed_emails.json');
-function loadAllowedEmails() { try { return fs.existsSync(ALLOWED_EMAILS_FILE) ? JSON.parse(fs.readFileSync(ALLOWED_EMAILS_FILE, 'utf8')) : ['alpuy.mateo@gmail.com']; } catch { return ['alpuy.mateo@gmail.com']; } }
-function saveAllowedEmails(list) { fs.writeFileSync(ALLOWED_EMAILS_FILE, JSON.stringify(list, null, 2)); }
-
-// Initialize file if not exists
-if (!fs.existsSync(ALLOWED_EMAILS_FILE)) saveAllowedEmails(['alpuy.mateo@gmail.com']);
-
-app.get('/api/auth/allowed-emails', requireAdmin, (req, res) => {
-  res.json(loadAllowedEmails());
+// ── Sistema de Invitaciones ───────────────────────────────────────
+// Crear invite (admin)
+app.post('/api/invites', requireAdmin, express.json(), async (req, res) => {
+  const { label, hours = 48 } = req.body || {};
+  const token = crypto.randomBytes(24).toString('hex');
+  const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+  await pool.query(
+    'INSERT INTO invites (token, created_by, label, expires_at) VALUES ($1, $2, $3, $4)',
+    [token, req.user.id, label || null, expiresAt]
+  );
+  await auditLog(req.user.id, 'invite_created', { label: label || null, hours, expires_at: expiresAt }, req.ip);
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  res.json({ token, link: `${baseUrl}/invite/${token}`, expires_at: expiresAt });
 });
 
-app.post('/api/auth/allowed-emails', requireAdmin, (req, res) => {
-  const { email, action } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email requerido' });
-  let list = loadAllowedEmails();
-  if (action === 'add' && !list.includes(email)) list.push(email);
-  if (action === 'remove') list = list.filter(e => e !== email);
-  saveAllowedEmails(list);
-  res.json({ ok: true, emails: list });
+// Listar invites (admin)
+app.get('/api/invites', requireAdmin, async (req, res) => {
+  const r = await pool.query(`
+    SELECT i.token, i.label, i.expires_at, i.created_at,
+           u.name AS used_by_name, u.email AS used_by_email
+    FROM invites i
+    LEFT JOIN users u ON i.used_by = u.id
+    ORDER BY i.created_at DESC
+  `);
+  res.json(r.rows);
 });
 
-// GET /api/users  (admin)
-app.get('/api/users', requireAdmin, (req, res) => {
-  res.json(loadUsers().map(({ id, username, name, role, createdAt }) => ({ id, username, name, role, createdAt })));
-});
-
-// POST /api/users  (admin)
-app.post('/api/users', requireAdmin, (req, res) => {
-  const { username, name, password, role } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'username y password son requeridos' });
-  const users = loadUsers();
-  if (users.find(u => u.username === username)) return res.status(409).json({ error: 'El usuario ya existe' });
-  const salt = crypto.randomBytes(16).toString('hex');
-  const user = { id: crypto.randomUUID(), username, name: name || username, role: role || 'user', salt, hash: hashPassword(password, salt), createdAt: new Date().toISOString() };
-  users.push(user);
-  saveUsers(users);
-  res.json({ id: user.id, username: user.username, name: user.name, role: user.role });
-});
-
-// PUT /api/users/:id  (admin — cambia nombre, rol o password)
-app.put('/api/users/:id', requireAdmin, (req, res) => {
-  const users = loadUsers();
-  const idx   = users.findIndex(u => u.id === req.params.id);
-  if (idx < 0) return res.status(404).json({ error: 'Usuario no encontrado' });
-  const { name, role, password } = req.body || {};
-  if (name)     users[idx].name = name;
-  if (role)     users[idx].role = role;
-  if (password) {
-    const salt = crypto.randomBytes(16).toString('hex');
-    users[idx].salt = salt;
-    users[idx].hash = hashPassword(password, salt);
-  }
-  saveUsers(users);
-  res.json({ id: users[idx].id, username: users[idx].username, name: users[idx].name, role: users[idx].role });
-});
-
-// DELETE /api/users/:id  (admin)
-app.delete('/api/users/:id', requireAdmin, (req, res) => {
-  const users = loadUsers();
-  if (users.find(u => u.id === req.params.id)?.role === 'admin' &&
-      users.filter(u => u.role === 'admin').length === 1)
-    return res.status(400).json({ error: 'No podés eliminar el único admin' });
-  saveUsers(users.filter(u => u.id !== req.params.id));
+// Revocar invite (admin)
+app.delete('/api/invites/:token', requireAdmin, async (req, res) => {
+  await pool.query('DELETE FROM invites WHERE token = $1', [req.params.token]);
+  await auditLog(req.user.id, 'invite_revoked', { token: req.params.token }, req.ip);
   res.json({ ok: true });
+});
+
+// Validar invite (público — para la página de registro)
+app.get('/api/invites/:token/check', async (req, res) => {
+  const r = await pool.query(
+    'SELECT token, label, expires_at, used_by FROM invites WHERE token = $1',
+    [req.params.token]
+  );
+  if (!r.rows.length) return res.status(404).json({ valid: false, reason: 'not_found' });
+  const inv = r.rows[0];
+  if (inv.used_by) return res.json({ valid: false, reason: 'used' });
+  if (new Date(inv.expires_at) < new Date()) return res.json({ valid: false, reason: 'expired' });
+  res.json({ valid: true, label: inv.label, expires_at: inv.expires_at });
+});
+
+// Validación de complejidad de contraseña
+function validatePassword(password) {
+  if (!password || password.length < 8) return 'La contraseña debe tener al menos 8 caracteres';
+  if (!/[A-Z]/.test(password)) return 'La contraseña debe incluir al menos una mayúscula';
+  if (!/[0-9]/.test(password)) return 'La contraseña debe incluir al menos un número';
+  return null;
+}
+
+// Registro con email/contraseña + invite (público)
+app.post('/api/auth/register', express.json(), async (req, res) => {
+  const { invite_token, name, email, password } = req.body || {};
+  if (!invite_token || !name || !email || !password)
+    return res.status(400).json({ error: 'Faltan campos requeridos' });
+  const pwError = validatePassword(password);
+  if (pwError) return res.status(400).json({ error: pwError });
+
+  // Validar invite
+  const invRes = await pool.query(
+    'SELECT * FROM invites WHERE token = $1 AND used_by IS NULL AND expires_at > NOW()',
+    [invite_token]
+  );
+  if (!invRes.rows.length) return res.status(400).json({ error: 'Invitación inválida o expirada' });
+
+  // Verificar que el email no exista
+  const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+  if (existing.rows.length) return res.status(409).json({ error: 'El email ya está registrado' });
+
+  // Crear usuario
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+  const countRes = await pool.query('SELECT COUNT(*) FROM users');
+  const role = parseInt(countRes.rows[0].count) === 0 ? 'admin' : 'user';
+
+  const userRes = await pool.query(
+    'INSERT INTO users (email, name, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING *',
+    [email, name, `${salt}:${hash}`, role]
+  );
+  const user = userRes.rows[0];
+
+  // Marcar invite como usado
+  await pool.query('UPDATE invites SET used_by = $1 WHERE token = $2', [user.id, invite_token]);
+
+  await auditLog(user.id, 'register', { email, role }, req.ip);
+
+  // Crear sesión
+  const token = await createSession(user.id);
+  res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+});
+
+// ── Usuarios (admin) ──────────────────────────────────────────────
+app.get('/api/users', requireAdmin, async (req, res) => {
+  const r = await pool.query('SELECT id, email, name, picture, role, created_at FROM users ORDER BY created_at');
+  res.json(r.rows);
+});
+
+// PUT /api/users/:id — solo cambia el rol
+app.put('/api/users/:id', requireAdmin, express.json(), async (req, res) => {
+  const { role } = req.body || {};
+  if (!role) return res.status(400).json({ error: 'role requerido' });
+  const r = await pool.query('UPDATE users SET role = $1 WHERE id = $2 RETURNING id, email, name, role', [role, req.params.id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'Usuario no encontrado' });
+  await auditLog(req.user.id, 'user_role_changed', { target_id: req.params.id, target_email: r.rows[0].email, new_role: role }, req.ip);
+  res.json(r.rows[0]);
+});
+
+// DELETE /api/users/:id
+app.delete('/api/users/:id', requireAdmin, async (req, res) => {
+  const admins = await pool.query("SELECT id FROM users WHERE role = 'admin'");
+  const target = await pool.query('SELECT role FROM users WHERE id = $1', [req.params.id]);
+  if (!target.rows.length) return res.status(404).json({ error: 'Usuario no encontrado' });
+  if (target.rows[0].role === 'admin' && admins.rows.length === 1)
+    return res.status(400).json({ error: 'No podés eliminar el único admin' });
+  await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
+  res.json({ ok: true });
+});
+
+// ── Log de actividad (admin) ──────────────────────────────────────
+app.get('/api/audit-log', requireAdmin, async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+  const r = await pool.query(`
+    SELECT a.id, a.action, a.details, a.ip, a.created_at,
+           u.email AS user_email, u.name AS user_name
+    FROM audit_log a
+    LEFT JOIN users u ON a.user_id = u.id
+    ORDER BY a.created_at DESC
+    LIMIT $1
+  `, [limit]);
+  res.json(r.rows);
 });
 
 // ── ML: comisiones por categoría (cache en disco) ────────────────
@@ -3510,7 +4233,7 @@ ${JSON.stringify(validItems, null, 2)}
 Respondé SOLO con un array JSON válido, sin texto adicional. No uses comillas dobles dentro de los strings — usá comillas simples o reemplazalas con espacios. No uses saltos de línea dentro de los valores de string.`;
 
     const msg = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -3748,7 +4471,7 @@ ${kb.reglas_generales.slice(0, 8).map(r => '- ' + r).join('\n')}` : '';
     const lastBuyerMsg = [...messages].reverse().find(m => m.from_buyer);
 
     const r = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-4-6',
       max_tokens: 400,
       messages: [{
         role: 'user',
@@ -3906,7 +4629,7 @@ app.get('/api/config/reglas/interpretar', requireToken, async (req, res) => {
   if (!reglas.length) return res.json({ interpretacion: '' });
   try {
     const r = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-4-6',
       max_tokens: 400,
       messages: [{
         role: 'user',
@@ -4059,7 +4782,7 @@ ${kb.reglas_generales.slice(0, 10).map(r => '- ' + r).join('\n')}` : '';
           similares.map(e => `P: ${e.pregunta}\nR: ${e.respuesta}`).join('\n---\n');
       }
       const r = await anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-sonnet-4-6',
         max_tokens: 250,
         messages: [{
           role: 'user',
@@ -4313,7 +5036,7 @@ ${similares.map(e => `P: ${e.pregunta}\nR: ${e.respuesta}`).join('\n---\n')}
     const itemText = itemCtx ? buildItemContextText(itemCtx) : `Producto: ${titulo || 'no especificado'}`;
 
     const r = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-4-6',
       max_tokens: 300,
       messages: [{
         role: 'user',
@@ -4767,7 +5490,7 @@ Respondé SOLO con JSON:
 }`;
 
     const msg = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -4856,7 +5579,7 @@ IMPORTANTE:
 - keywords_ml DEBE ser un array de 3 formas DISTINTAS de buscar el producto en MercadoLibre URUGUAY. Usá palabras SIMPLES y CORTAS como buscaría un uruguayo (ej: "organizador cajones", "luz led sensor", "cepillo limpieza"). NO uses traducciones literales del inglés. Pensá en cómo se llama el producto en una ferretería o bazar de Uruguay.`;
 
     const msg = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -5045,7 +5768,7 @@ IMPORTANTE:
 - keywords_ml DEBE ser un array de 3 formas DISTINTAS de buscar el producto en MercadoLibre URUGUAY. Usá palabras SIMPLES y CORTAS como buscaría un uruguayo en un bazar o ferretería (ej: "organizador cajones", "luz led sensor movimiento", "cepillo limpieza"). NO uses traducciones literales del inglés ni nombres técnicos.`;
 
       const msg = await anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-sonnet-4-6',
         max_tokens: 4096,
         messages: [{ role: 'user', content: prompt }],
       });
@@ -5988,37 +6711,6 @@ app.get('/api/perdidos', requireToken, (req, res) => {
     }
   } catch {}
 
-  // Build Odoo sales by SKU+month from catalogo cache for months after Zureo (>= 2025-09)
-  const odooSalesBySku = {}; // sku → { 'YYYY-MM': qty }
-  let catData = _catalogoCache;
-  if (!catData?.categories) {
-    try { catData = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'catalogo_cache.json'), 'utf8')); } catch {}
-  }
-  if (catData?.categories) {
-    for (const cat of catData.categories) {
-      for (const item of cat.items) {
-        if (item.sku && item.sales_by_month) {
-          odooSalesBySku[item.sku] = item.sales_by_month;
-        }
-      }
-    }
-  }
-
-  // Descomponer ventas de packs a componentes unitarios
-  const packBom = loadPackBom();
-  // Build reverse map: component SKU → [{packSku, qty}]
-  const componentToPacks = {};
-  for (const [packSku, pack] of Object.entries(packBom)) {
-    for (const comp of (pack.components || [])) {
-      if (comp.sku) {
-        if (!componentToPacks[comp.sku]) componentToPacks[comp.sku] = [];
-        componentToPacks[comp.sku].push({ packSku, qty: comp.qty || 1 });
-      }
-    }
-  }
-
-  const ZUREO_CUTOFF = '2025-08'; // último mes con datos de Zureo
-
   const monthResults = [];
   for (let i = 0; i < 12; i++) {
     const d = new Date(curYear, curMonth - 1 - i, 1);
@@ -6026,78 +6718,30 @@ app.get('/api/perdidos', requireToken, (req, res) => {
     const y = d.getFullYear();
     const key = `${y}-${pad(m)}`;
     const keyPrev = `${y - 1}-${pad(m)}`;
-    const useOdooForCurrent = key > ZUREO_CUTOFF;
 
     let lost = [];
-    let decreased = [];
     for (const [code, item] of Object.entries(itemData)) {
       const prev = item.months[keyPrev];
-      if (!prev || prev.qty < minQty) continue;
-
-      // Ventas del mes actual: Zureo si disponible, sino Odoo
-      let currQty = 0;
-      if (!useOdooForCurrent) {
-        const curr = item.months[key];
-        currQty = curr?.qty || 0;
-      } else {
-        // Buscar en Odoo por SKU (mapeo zureo→odoo)
+      const curr = item.months[key];
+      if (prev && prev.qty >= minQty && (!curr || curr.qty === 0)) {
         const mapping = zureoOdooMap[code];
         const odooSku = mapping?.odooSku || code;
-        // Sumar variantes del mismo base SKU
-        const baseCode = odooSku.replace(/-[A-Z]{2,}$/, '');
-        let totalOdooQty = 0;
-        // Ventas directas del unitario
-        for (const [sku, months] of Object.entries(odooSalesBySku)) {
-          if (sku === odooSku || sku === code || sku.startsWith(baseCode + '-') || sku === baseCode) {
-            totalOdooQty += months[key] || 0;
-          }
-        }
-        // Ventas via packs (descomponer)
-        const packs = componentToPacks[odooSku] || componentToPacks[code] || [];
-        for (const p of packs) {
-          const packMonths = odooSalesBySku[p.packSku];
-          if (packMonths?.[key]) {
-            totalOdooQty += packMonths[key] * p.qty;
-          }
-        }
-        currQty = totalOdooQty;
-      }
+        // Try exact, then base code for summed variants
+        const odooExact = odooStockMap[odooSku] || odooStockMap[code];
+        const odooBase = odooBaseStock[code] || odooBaseStock[odooSku];
+        const odooStock = odooBase?.stock ?? odooExact?.stock ?? null;
+        const odooName = mapping?.odooName || odooBase?.name || odooExact?.name || null;
+        const mlItem = cachedStock.find(s => s.sku === odooSku || s.sku === code);
 
-      const mapping2 = zureoOdooMap[code];
-      const odooSku = mapping2?.odooSku || code;
-      const odooExact = odooStockMap[odooSku] || odooStockMap[code];
-      const odooBase = odooBaseStock[code] || odooBaseStock[odooSku];
-      const odooStock = odooBase?.stock ?? odooExact?.stock ?? null;
-      const odooName = mapping2?.odooName || odooBase?.name || odooExact?.name || null;
-
-      // Producto vendió menos que el año pasado (para filtro "menos")
-      if (currQty > 0 && currQty < prev.qty) {
-        const pctDrop = Math.round((1 - currQty / prev.qty) * 100);
-        const currTotal = Math.round(prev.total * (currQty / prev.qty)); // estimado proporcional
-        const lostTotal = Math.round(prev.total) - currTotal;
-        decreased.push({
+        lost.push({
           code, name: item.name,
-          prevQty: prev.qty, currQty, prevTotal: Math.round(prev.total),
-          currTotal, lostTotal,
-          pctDrop,
-          odooSku, odooName, odooStock,
-          mlStock: cachedStock.find(s => s.sku === odooSku || s.sku === code)?.stock ?? null,
-          mlId: (cachedStock.find(s => s.sku === odooSku || s.sku === code))?.id || null,
+          prevQty: prev.qty, prevTotal: Math.round(prev.total),
+          odooSku, odooName,
+          odooStock,
+          mlStock: mlItem?.stock ?? null,
+          mlId: mlItem?.id || null,
         });
-        continue;
       }
-
-      if (currQty > 0) continue; // vendió igual o más → no perdido
-      const mlItem = cachedStock.find(s => s.sku === odooSku || s.sku === code);
-
-      lost.push({
-        code, name: item.name,
-        prevQty: prev.qty, prevTotal: Math.round(prev.total),
-        odooSku, odooName,
-        odooStock,
-        mlStock: mlItem?.stock ?? null,
-        mlId: mlItem?.id || null,
-      });
     }
 
     // Filter by stock
@@ -6105,7 +6749,6 @@ app.get('/api/perdidos', requireToken, (req, res) => {
     if (filter === 'con_stock') lost = lost.filter(i => (i.odooStock > 0) || (i.mlStock > 0));
 
     lost.sort((a, b) => b.prevTotal - a.prevTotal);
-    decreased.sort((a, b) => b.pctDrop - a.pctDrop);
     const totalLost = lost.reduce((s, i) => s + i.prevTotal, 0);
 
     monthResults.push({
@@ -6113,210 +6756,10 @@ app.get('/api/perdidos', requireToken, (req, res) => {
       vs: monthNames[m] + ' ' + (y - 1),
       count: lost.length, totalLost,
       items: lost,
-      decreased,
     });
   }
 
   res.json({ months: monthResults });
-});
-
-// ── Estacionalidad: detectar productos zafrales ──────────────────
-const SEASONAL_CATEGORIES = [
-  { keywords: ['guia de luces','guirnalda','luciernaga','bombita vintage','bombita edison'], season: 'verano', months: [9,10,11,12,1,2], label: 'Iluminación exterior' },
-  { keywords: ['carpa','reposera','silla plegable','camping','sombrilla','hamaca','conservadora','mesa plegable'], season: 'verano', months: [10,11,12,1,2,3], label: 'Camping/Exterior' },
-  { keywords: ['pileta','inflable','piscina'], season: 'verano', months: [11,12,1,2], label: 'Piletas' },
-  { keywords: ['ventilador','aire acondicionado','soporte aire'], season: 'verano', months: [11,12,1,2,3], label: 'Climatización verano' },
-  { keywords: ['biciclet','monopatin','scooter','rollers'], season: 'verano', months: [9,10,11,12,1,2], label: 'Ciclismo/Movilidad' },
-  { keywords: ['estufa','calefactor','calefaccion','calentador'], season: 'invierno', months: [4,5,6,7,8], label: 'Calefacción' },
-  { keywords: ['manta','frazada','acolchado','sobre de dormir','polar'], season: 'invierno', months: [4,5,6,7,8], label: 'Abrigo' },
-  { keywords: ['navidad','papa noel','arbol navidad','pesebre','navide'], season: 'verano', months: [11,12], label: 'Navidad' },
-  { keywords: ['gazebo','toldo','malla sombra','sombra'], season: 'verano', months: [10,11,12,1,2], label: 'Sombra exterior' },
-  { keywords: ['caminadora','bici fija','fitness','gym','pesa','mancuerna'], season: 'invierno', months: [3,4,5,6,7,8], label: 'Fitness' },
-  { keywords: ['foco solar','farol solar','luz solar','panel solar'], season: 'verano', months: [9,10,11,12,1,2], label: 'Solar' },
-  { keywords: ['tender','tendedero'], season: 'invierno', months: [3,4,5,6,7,8,9], label: 'Lavandería' },
-];
-
-function detectSeasonalCategory(name, categ) {
-  const n = (name || '').toLowerCase();
-  const c = (categ || '').toLowerCase();
-  for (const sc of SEASONAL_CATEGORIES) {
-    if (sc.keywords.some(k => n.includes(k) || c.includes(k))) return sc;
-  }
-  return null;
-}
-
-app.get('/api/estacionalidad', requireToken, (req, res) => {
-  if (!zureoData) return res.json({ items: [] });
-
-  const now = new Date();
-  const curMonth = now.getMonth() + 1; // 1-12
-  const leadDays = parseInt(req.query.lead_days) || 120;
-  const monthNames = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-
-  // Build Odoo sales + stock
-  let catData = _catalogoCache;
-  if (!catData?.categories) {
-    try { catData = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'catalogo_cache.json'), 'utf8')); } catch {}
-  }
-  const odooSalesBySku = {};
-  const odooStockBySku = {};
-  if (catData?.categories) {
-    for (const cat of catData.categories) {
-      for (const item of cat.items) {
-        if (item.sku) {
-          if (item.sales_by_month) odooSalesBySku[item.sku] = item.sales_by_month;
-          odooStockBySku[item.sku] = { stock: item.stock, name: item.name, categ: cat.name, thumbnail: item.ml_thumbnail };
-        }
-      }
-    }
-  }
-
-  // Pack BOM decomposition
-  const packBom = loadPackBom();
-  const componentToPacks = {};
-  for (const [packSku, pack] of Object.entries(packBom)) {
-    for (const comp of (pack.components || [])) {
-      if (comp.sku) {
-        if (!componentToPacks[comp.sku]) componentToPacks[comp.sku] = [];
-        componentToPacks[comp.sku].push({ packSku, qty: comp.qty || 1 });
-      }
-    }
-  }
-
-  // Months to analyze: next 4 months (what to buy for)
-  const targetMonths = [];
-  for (let i = 0; i < 4; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + Math.ceil(leadDays/30) + i, 1);
-    targetMonths.push({ month: d.getMonth() + 1, label: monthNames[d.getMonth()+1] + ' ' + d.getFullYear() });
-  }
-
-  const ZUREO_CUTOFF = '2025-08';
-  const items = [];
-
-  for (const [code, item] of Object.entries(zureoData.items)) {
-    if (packBom[code]) continue; // skip packs
-
-    const mapping = zureoOdooMap[code];
-    const odooSku = mapping?.odooSku || code;
-
-    // Build monthly sales array (all months we have)
-    const allMonths = Object.keys(item.months).sort();
-    if (allMonths.length < 6) continue; // need enough data
-
-    // Get sales by calendar month (1-12) across all years
-    const byCalMonth = {}; // month (1-12) → [qty, qty, ...]
-    for (const [key, data] of Object.entries(item.months)) {
-      const m = parseInt(key.split('-')[1]);
-      if (!byCalMonth[m]) byCalMonth[m] = [];
-      byCalMonth[m].push(data.qty);
-    }
-
-    // Add Odoo data for months after Zureo
-    const baseCode = odooSku.replace(/-[A-Z]{2,}$/, '');
-    for (const [sku, months] of Object.entries(odooSalesBySku)) {
-      if (sku === odooSku || sku === code || sku.startsWith(baseCode + '-') || sku === baseCode) {
-        for (const [key, qty] of Object.entries(months)) {
-          if (key > ZUREO_CUTOFF && qty > 0) {
-            const m = parseInt(key.split('-')[1]);
-            if (!byCalMonth[m]) byCalMonth[m] = [];
-            byCalMonth[m].push(qty);
-          }
-        }
-      }
-    }
-    // Add pack sales decomposed
-    const packs = componentToPacks[odooSku] || componentToPacks[code] || [];
-    for (const p of packs) {
-      const packMonths = odooSalesBySku[p.packSku];
-      if (!packMonths) continue;
-      for (const [key, qty] of Object.entries(packMonths)) {
-        if (key > ZUREO_CUTOFF && qty > 0) {
-          const m = parseInt(key.split('-')[1]);
-          if (!byCalMonth[m]) byCalMonth[m] = [];
-          byCalMonth[m].push(qty * p.qty);
-        }
-      }
-    }
-
-    // Calculate avg per calendar month
-    const avgByMonth = {};
-    let totalAvg = 0;
-    for (let m = 1; m <= 12; m++) {
-      const vals = byCalMonth[m] || [];
-      avgByMonth[m] = vals.length > 0 ? Math.round(vals.reduce((s,v)=>s+v,0) / vals.length) : 0;
-      totalAvg += avgByMonth[m];
-    }
-    if (totalAvg === 0) continue;
-
-    // Detect seasonality: coefficient of variation across months
-    const monthAvgs = Object.values(avgByMonth);
-    const mean = totalAvg / 12;
-    const variance = monthAvgs.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / 12;
-    const cv = mean > 0 ? Math.sqrt(variance) / mean : 0;
-
-    // Seasonal = CV > 0.5 (high variation between months)
-    const isSeasonal = cv > 0.5;
-
-    // Peak months (above 1.5x average)
-    const peakMonths = [];
-    for (let m = 1; m <= 12; m++) {
-      if (avgByMonth[m] > mean * 1.5) peakMonths.push(m);
-    }
-
-    // Target months: what we need to buy for
-    let targetQty = 0;
-    let targetLabel = [];
-    for (const tm of targetMonths) {
-      const avg = avgByMonth[tm.month] || 0;
-      targetQty += avg;
-      if (avg > 0) targetLabel.push(tm.label + ': ' + avg);
-    }
-
-    // Stock info
-    const odooInfo = odooStockBySku[odooSku] || odooStockBySku[code] || {};
-    const stock = odooInfo.stock || 0;
-    const suggested = Math.max(0, Math.ceil(targetQty * 1.3) - stock);
-
-    // Detect seasonal category by product name/category (sentido común)
-    const seasonalCat = detectSeasonalCategory(item.name, odooInfo.categ);
-    const finalSeasonal = isSeasonal || !!seasonalCat;
-    const finalSeasonType = seasonalCat ? seasonalCat.season
-      : peakMonths.some(m => [11,12,1,2].includes(m)) ? 'verano'
-      : peakMonths.some(m => [5,6,7,8].includes(m)) ? 'invierno' : 'otro';
-    const seasonLabel = seasonalCat?.label || null;
-    const finalPeakMonths = seasonalCat ? seasonalCat.months : peakMonths;
-
-    if (targetQty === 0 && !finalSeasonal) continue;
-
-    items.push({
-      code, sku: odooSku, name: item.name,
-      categ: odooInfo.categ || '',
-      thumbnail: odooInfo.thumbnail || null,
-      stock,
-      avgByMonth, // 1-12 averages
-      totalAvg: Math.round(totalAvg),
-      cv: Math.round(cv * 100) / 100,
-      isSeasonal: finalSeasonal,
-      peakMonths: finalPeakMonths,
-      peakLabel: seasonLabel || finalPeakMonths.map(m => monthNames[m]).join(', '),
-      targetQty: Math.round(targetQty),
-      targetLabel,
-      suggested,
-      seasonType: finalSeasonType,
-      seasonCategory: seasonLabel,
-    });
-  }
-
-  // Sort by target opportunity (suggested qty × we need it)
-  items.sort((a, b) => b.suggested - a.suggested);
-
-  res.json({
-    items,
-    targetMonths,
-    totalSeasonal: items.filter(i => i.isSeasonal).length,
-    totalWithSuggestion: items.filter(i => i.suggested > 0).length,
-    leadDays,
-  });
 });
 
 // ── CBM consumidos por mes (local/POS) ──────────────────────────
@@ -6722,7 +7165,7 @@ app.post('/api/pi/leer', requireToken, upload.single('file'), async (req, res) =
 
         console.log(`[pi/ia] Processing sheet: ${sheetName}`);
         const msg = await anthropic.messages.create({
-          model: 'claude-haiku-4-5-20251001',
+          model: 'claude-sonnet-4-6',
           max_tokens: 8192,
           messages: [{ role: 'user', content: `Extraé los productos de esta hoja de una Proforma Invoice.
 
@@ -7868,7 +8311,9 @@ app.get('/api/ihome-mapping', requireToken, (req, res) => {
 });
 
 app.get('/api/product-image/:filename', (req, res) => {
-  const filePath = path.join(PRODUCT_IMAGES_DIR, req.params.filename);
+  const filename = path.basename(req.params.filename); // elimina ../ y rutas
+  const filePath = path.join(PRODUCT_IMAGES_DIR, filename);
+  if (!filePath.startsWith(PRODUCT_IMAGES_DIR + path.sep)) return res.status(403).end();
   if (fs.existsSync(filePath)) return res.sendFile(filePath);
   res.status(404).end();
 });
@@ -8049,7 +8494,98 @@ app.get('/api/trends/regions', requireToken, async (req, res) => {
   }
 });
 
+// ── Páginas de invite ─────────────────────────────────────────────
+const invitePage = (token) => `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Registro — MA Importaciones</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}.card{background:white;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,0.1);padding:40px;width:100%;max-width:420px}.logo{text-align:center;margin-bottom:28px}.logo h1{font-size:20px;font-weight:800;color:#111827}.logo p{font-size:13px;color:#6b7280;margin-top:4px}.form-group{margin-bottom:16px}label{display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px}input{width:100%;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;outline:none;transition:border-color 0.2s}input:focus{border-color:#6366f1}.btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;transition:opacity 0.2s}.btn-primary{background:#111827;color:white}.btn-primary:hover{opacity:0.85}.error{background:#fee2e2;color:#dc2626;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none}.pw-reqs{margin-top:8px;display:none;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb}.req{font-size:12px;color:#9ca3af;margin:3px 0;display:flex;align-items:center;gap:6px}.req.ok{color:#16a34a}.req.fail{color:#dc2626}.req::before{content:'○';font-size:10px}.req.ok::before{content:'✓'}.req.fail::before{content:'✗'}</style>
+</head><body>
+<div class="card">
+  <div class="logo">
+    <h1>MA Importaciones</h1>
+    <p>Fuiste invitado a unirte al panel</p>
+  </div>
+  <div id="error" class="error"></div>
+  <div>
+    <form onsubmit="register(event)">
+      <div class="form-group"><label>Nombre</label><input id="r-name" type="text" placeholder="Tu nombre" required></div>
+      <div class="form-group"><label>Email</label><input id="r-email" type="email" placeholder="tu@email.com" required></div>
+      <div class="form-group"><label>Contraseña</label><input id="r-pass" type="password" placeholder="Mínimo 8 caracteres" required oninput="checkPw(this.value)">
+        <div id="pw-reqs" class="pw-reqs">
+          <div id="req-len" class="req">Mínimo 8 caracteres</div>
+          <div id="req-upper" class="req">Al menos una mayúscula (A-Z)</div>
+          <div id="req-num" class="req">Al menos un número (0-9)</div>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary" id="r-btn">Crear cuenta</button>
+    </form>
+  </div>
+</div>
+<script>
+const INVITE = '${token}';
+function checkPw(v) {
+  const reqs = document.getElementById('pw-reqs');
+  reqs.style.display = v.length ? '' : 'none';
+  const setReq = (id, ok) => {
+    const el = document.getElementById(id);
+    el.className = 'req ' + (ok ? 'ok' : (v.length ? 'fail' : ''));
+  };
+  setReq('req-len', v.length >= 8);
+  setReq('req-upper', /[A-Z]/.test(v));
+  setReq('req-num', /[0-9]/.test(v));
+}
+async function register(e) {
+  e.preventDefault();
+  const btn = document.getElementById('r-btn');
+  const errEl = document.getElementById('error');
+  const pass = document.getElementById('r-pass').value;
+  errEl.style.display = 'none';
+  if (pass.length < 8 || !/[A-Z]/.test(pass) || !/[0-9]/.test(pass)) {
+    checkPw(pass);
+    errEl.textContent = 'La contraseña no cumple los requisitos'; errEl.style.display = '';
+    return;
+  }
+  btn.textContent = 'Creando cuenta...'; btn.disabled = true;
+  try {
+    const r = await fetch('/api/auth/register', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ invite_token: INVITE, name: document.getElementById('r-name').value, email: document.getElementById('r-email').value, password: pass })
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    localStorage.setItem('session_token', d.token);
+    window.location.href = '/';
+  } catch(err) {
+    errEl.textContent = err.message; errEl.style.display = '';
+    btn.textContent = 'Crear cuenta'; btn.disabled = false;
+  }
+}
+// Validar invite al cargar
+fetch('/api/invites/${token}/check').then(r=>r.json()).then(d=>{
+  if (!d.valid) window.location.href = d.reason === 'used' ? '/invite-used' : '/invite-expired';
+});
+</script>
+</body></html>`;
+
+app.get('/invite/:token', (req, res) => {
+  res.send(invitePage(req.params.token));
+});
+
+app.get('/invite-required', (req, res) => {
+  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Acceso restringido</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f9fafb;}div{text-align:center;background:white;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);}</style></head><body><div><h2 style="color:#dc2626">Acceso restringido</h2><p style="color:#6b7280;margin:12px 0">Necesitás una invitación para registrarte.</p><p style="color:#6b7280;font-size:13px">Pedile el link de invitación a un administrador.</p></div></body></html>`);
+});
+
+app.get('/invite-expired', (req, res) => {
+  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Invitación expirada</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f9fafb;}div{text-align:center;background:white;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);}</style></head><body><div><h2 style="color:#d97706">Invitación expirada o ya usada</h2><p style="color:#6b7280;margin:12px 0">Este link de invitación ya no es válido.</p><p style="color:#6b7280;font-size:13px">Pedile un nuevo link a un administrador.</p></div></body></html>`);
+});
+
+app.get('/invite-used', (req, res) => {
+  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Invitación usada</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f9fafb;}div{text-align:center;background:white;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);}</style></head><body><div><h2 style="color:#d97706">Invitación ya utilizada</h2><p style="color:#6b7280;margin:12px 0">Este link ya fue usado para crear una cuenta.</p><p style="color:#6b7280;font-size:13px">Pedile un nuevo link a un administrador.</p></div></body></html>`);
+});
+
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
   console.log(`Iniciá el flujo OAuth en http://localhost:${PORT}/login`);
+  // Cargar catálogo desde disco al arrancar (para que style_group y material_group estén disponibles)
+  buildCatalogoCache(false).catch(e => console.error('[catalogo] error carga inicial:', e.message));
 });
