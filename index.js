@@ -5677,6 +5677,63 @@ app.get('/api/trends/regions', requireToken, async (req, res) => {
   }
 });
 
+// ── Mumi Ranking ───────────────────────────────────────────────────
+const RANKING_FILE = path.join(__dirname, 'data', 'mumi_ranking.json');
+function loadMumiRanking() {
+  try { return JSON.parse(fs.readFileSync(RANKING_FILE, 'utf8')); } catch { return []; }
+}
+
+app.get('/api/mumi/ranking', (req, res) => {
+  const ranking = loadMumiRanking();
+  ranking.sort((a,b) => b.score - a.score);
+  res.json(ranking.map(r => ({ name: r.name, code: r.code, score: r.score })).slice(0, 20));
+});
+
+// Register new player (name → assigns code)
+app.post('/api/mumi/register', (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: 'nombre requerido' });
+  const clean = name.trim().slice(0, 15);
+  if (!clean) return res.status(400).json({ error: 'nombre vacio' });
+
+  const ranking = loadMumiRanking();
+  const dup = ranking.find(r => r.name.toLowerCase() === clean.toLowerCase());
+  if (dup) return res.status(400).json({ error: 'nombre_existe', code: dup.code });
+
+  // Generate unique code (2 digits)
+  let code;
+  const usedCodes = ranking.map(r => r.code);
+  do { code = Math.floor(10 + Math.random() * 90); } while (usedCodes.includes(code));
+
+  ranking.push({ name: clean, code, score: 0 });
+  fs.writeFileSync(RANKING_FILE, JSON.stringify(ranking, null, 2));
+  res.json({ name: clean, code });
+});
+
+// Login by code
+app.post('/api/mumi/login', (req, res) => {
+  const { code } = req.body;
+  const ranking = loadMumiRanking();
+  const player = ranking.find(r => r.code === Number(code));
+  if (!player) return res.status(404).json({ error: 'codigo no encontrado' });
+  res.json({ name: player.name, code: player.code, score: player.score });
+});
+
+// Save score
+app.post('/api/mumi/score', (req, res) => {
+  const { code, score } = req.body;
+  if (!code || typeof score !== 'number') return res.status(400).json({ error: 'code y score requeridos' });
+
+  const ranking = loadMumiRanking();
+  const player = ranking.find(r => r.code === Number(code));
+  if (!player) return res.status(404).json({ error: 'jugador no encontrado' });
+
+  if (score > player.score) player.score = score;
+  fs.writeFileSync(RANKING_FILE, JSON.stringify(ranking, null, 2));
+  ranking.sort((a,b) => b.score - a.score);
+  res.json(ranking.map(r => ({ name: r.name, code: r.code, score: r.score })).slice(0, 20));
+});
+
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
   console.log(`Iniciá el flujo OAuth en http://localhost:${PORT}/login`);

@@ -6,7 +6,24 @@
 <title>Caminadora de Mumi</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body { min-height:100vh; color:white; font-family:'Helvetica Neue',sans-serif; overflow-x:hidden; background:linear-gradient(180deg, #0a0a0a 0%, #1a0a1a 50%, #0a0a0a 100%); }
+body { min-height:100vh; color:white; font-family:'Helvetica Neue',sans-serif; overflow-x:hidden; background:#0a0a0a; position:relative; }
+
+/* Walking emojis background */
+.bg-walkers { position:fixed; top:0; left:0; right:0; bottom:0; overflow:hidden; z-index:0; opacity:0.12; pointer-events:none; }
+.walker { position:absolute; font-size:2rem; animation-timing-function:linear; animation-iteration-count:infinite; }
+.w1 { animation:walkR 12s linear infinite; top:8%; font-size:1.8rem; }
+.w2 { animation:walkL 9s linear infinite; top:20%; font-size:2.2rem; animation-delay:-3s; }
+.w3 { animation:walkR 14s linear infinite; top:35%; font-size:1.5rem; animation-delay:-7s; }
+.w4 { animation:walkL 11s linear infinite; top:50%; font-size:2rem; animation-delay:-2s; }
+.w5 { animation:walkR 10s linear infinite; top:65%; font-size:1.7rem; animation-delay:-5s; }
+.w6 { animation:walkL 13s linear infinite; top:78%; font-size:2.3rem; animation-delay:-8s; }
+.w7 { animation:walkR 15s linear infinite; top:90%; font-size:1.6rem; animation-delay:-1s; }
+.w8 { animation:walkL 8s linear infinite; top:15%; font-size:1.4rem; animation-delay:-4s; }
+.w9 { animation:walkR 11s linear infinite; top:45%; font-size:2.5rem; animation-delay:-6s; }
+.w10 { animation:walkL 16s linear infinite; top:72%; font-size:1.3rem; animation-delay:-10s; }
+
+@keyframes walkR { 0% { left:-5%; } 100% { left:105%; } }
+@keyframes walkL { 0% { left:105%; } 100% { left:-5%; } }
 
 .page { display:flex; flex-direction:column; align-items:center; padding:30px 20px 40px; min-height:100vh; }
 
@@ -76,7 +93,9 @@ body { min-height:100vh; color:white; font-family:'Helvetica Neue',sans-serif; o
 .stat-row .val.red { color:#ff4757; }
 .sep { border-top:1px solid rgba(255,255,255,0.05); margin:3px 0; }
 
-.quote { margin-top:24px; font-size:0.8rem; color:#333; text-align:center; max-width:300px; font-style:italic; }
+.quote { margin-top:24px; font-size:0.85rem; color:#aaa; text-align:center; max-width:320px; font-style:italic; min-height:50px; display:flex; align-items:center; justify-content:center; transition:opacity 0.3s; }
+.joke-btn { margin-top:12px; padding:10px 24px; border:none; border-radius:12px; font-size:0.85rem; font-weight:700; cursor:pointer; background:linear-gradient(135deg,#ff4757,#ff6b81); color:white; box-shadow:0 4px 15px rgba(255,71,87,0.3); transition:transform 0.2s; }
+.joke-btn:active { transform:scale(0.95); }
 .seconds-ticker { font-size:0.65rem; color:#222; margin-top:12px; font-family:monospace; letter-spacing:1px; }
 
 @keyframes bounce {
@@ -95,7 +114,20 @@ body { min-height:100vh; color:white; font-family:'Helvetica Neue',sans-serif; o
 </head>
 <body>
 
-<div class="page">
+<div class="bg-walkers">
+  <div class="walker w1">🚶‍♀️</div>
+  <div class="walker w2">🏃‍♂️</div>
+  <div class="walker w3">🚶</div>
+  <div class="walker w4">🏃‍♀️</div>
+  <div class="walker w5">🚶‍♂️</div>
+  <div class="walker w6">🐕‍🦺🚶‍♀️</div>
+  <div class="walker w7">🏋️‍♀️</div>
+  <div class="walker w8">🧘‍♀️</div>
+  <div class="walker w9">🚴‍♂️</div>
+  <div class="walker w10">🏃</div>
+</div>
+
+<div class="page" style="position:relative;z-index:1;">
   <div class="title">La Caminadora de <span>MUMI</span></div>
   <div class="subtitle">Contador Oficial de Uso</div>
 
@@ -152,12 +184,82 @@ body { min-height:100vh; color:white; font-family:'Helvetica Neue',sans-serif; o
     <div class="stat-row"><span class="lbl">Polvo acumulado</span><span class="val" id="dust-mm">0</span></div>
   </div>
 
-  <div class="quote">"La caminadora mas cara del mundo es la que no se usa"</div>
+  <div class="quote" id="joke">"La caminadora mas cara del mundo es la que no se usa"</div>
+  <button class="joke-btn" onclick="nextJoke()">Otro chiste</button>
   <div class="seconds-ticker" id="seconds">0 segundos sin usar</div>
+
+  <!-- GAME -->
+  <div style="margin-top:30px;width:100%;max-width:340px;">
+    <div style="text-align:center;margin-bottom:10px;font-size:0.75rem;color:#666;text-transform:uppercase;letter-spacing:2px;">Ayuda a Mumi a correr</div>
+    <div id="game-container" style="position:relative;width:100%;height:200px;background:linear-gradient(180deg,#1a1a2e 0%,#16213e 60%,#1a1510 85%,#0d0d0d 100%);border-radius:16px;overflow:hidden;border:1px solid #222;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;">
+      <!-- Floor -->
+      <div style="position:absolute;bottom:0;left:0;right:0;height:40px;background:#1a1510;"></div>
+      <div id="game-belt" style="position:absolute;bottom:0;left:0;width:200%;height:40px;background:repeating-linear-gradient(90deg,#1f1a12 0px,#1f1a12 28px,#24200f 28px,#24200f 56px);"></div>
+
+      <!-- Runner (Mumi) -->
+      <div id="runner" style="position:absolute;bottom:40px;left:50px;font-size:2.2rem;transition:none;z-index:5;">🏃‍♀️</div>
+
+      <!-- Obstacles container -->
+      <div id="obstacles" style="position:absolute;bottom:40px;left:0;right:0;height:50px;z-index:4;"></div>
+
+      <!-- Score -->
+      <div id="game-score" style="position:absolute;top:10px;right:14px;font-size:0.8rem;font-weight:900;color:#a8e6cf;font-family:monospace;z-index:6;">0 m</div>
+      <div id="game-best" style="position:absolute;top:28px;right:14px;font-size:0.6rem;color:#555;font-family:monospace;z-index:6;">Best: 0 m</div>
+
+      <!-- Start / Game Over overlay -->
+      <div id="game-overlay" style="position:absolute;inset:0;background:rgba(0,0,0,0.7);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:10;">
+        <div id="game-msg" style="font-size:1.1rem;font-weight:900;margin-bottom:6px;">Toca para correr!</div>
+        <div id="game-hint" style="font-size:0.7rem;color:#888;">Toca la pantalla o espacio para saltar</div>
+      </div>
+    </div>
+
+    <!-- Register / Login -->
+    <div id="register-section" style="margin-top:16px;width:100%;text-align:center;">
+      <div id="auth-box" style="margin-bottom:14px;">
+        <div id="auth-status" style="font-size:0.8rem;color:#888;margin-bottom:8px;"></div>
+        <div id="auth-form" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center;">
+          <input type="text" id="auth-input" placeholder="Nombre nuevo o tu numero" maxlength="15"
+            style="padding:8px 14px;background:#1a1a2e;border:1px solid #334;color:white;border-radius:8px;font-size:0.9rem;width:200px;text-align:center;outline:none;"
+            onkeydown="if(event.key==='Enter')handleAuth()">
+          <button onclick="handleAuth()" style="padding:8px 16px;background:linear-gradient(135deg,#a8e6cf,#88d8a8);border:none;border-radius:8px;font-size:0.85rem;font-weight:700;color:#0a0a0a;cursor:pointer;">Entrar</button>
+        </div>
+        <div id="auth-msg" style="font-size:0.75rem;color:#a8e6cf;margin-top:6px;min-height:20px;"></div>
+      </div>
+      <div style="font-size:0.7rem;color:#555;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;">Ranking</div>
+      <div id="ranking-table" style="text-align:left;"></div>
+    </div>
+  </div>
 </div>
 
 <script>
 const PURCHASE_DATE = new Date('2026-07-10T00:00:00');
+
+const jokes = [
+  '"La caminadora mas cara del mundo es la que no se usa"',
+  'La caminadora de Mumi tiene mas polvo que la ruta 5',
+  'La caminadora ya pidio ciudadania... lleva mas tiempo en la casa que el gato',
+  'Mumi compro una caminadora para ver como junta telarañas en HD',
+  'La ropa encima de la caminadora ya armo su propio outfit',
+  'La caminadora pensaba que la iban a usar... ilusa',
+  'La caminadora de Mumi: el perchero mas caro de Uruguay',
+  'Si la caminadora cobrara alquiler, ya se habria pagado sola',
+  'Mumi usa mas la caminadora del shopping que la de su casa',
+  'La caminadora ya tiene mas dias sin uso que garantia',
+  'La caminadora esta pensando en poner una denuncia por abandono',
+  'Las zapatillas de Mumi estan mas nuevas que las del maniqui de la tienda',
+  'La caminadora penso que era un gimnasio... pero resulto ser un deposito',
+  'Mumi le puso nombre a la caminadora: "La Adorno"',
+  'El manual de la caminadora tiene mas uso que la caminadora',
+  'La caminadora ya aplico a MercadoLibre como "articulo sin uso, como nuevo"',
+];
+let jokeIdx = 0;
+
+function nextJoke() {
+  jokeIdx = (jokeIdx + 1) % jokes.length;
+  const el = document.getElementById('joke');
+  el.style.opacity = 0;
+  setTimeout(() => { el.textContent = jokes[jokeIdx]; el.style.opacity = 1; }, 200);
+}
 function pad(n) { return n.toString().padStart(2,'0'); }
 function update() {
   const now = new Date();
@@ -178,6 +280,258 @@ function update() {
 }
 update();
 setInterval(update, 1000);
+
+// ── GAME ──────────────────────────────────────────────────────────
+const gameContainer = document.getElementById('game-container');
+const runner = document.getElementById('runner');
+const obstaclesDiv = document.getElementById('obstacles');
+const gameOverlay = document.getElementById('game-overlay');
+const gameMsg = document.getElementById('game-msg');
+const gameScoreEl = document.getElementById('game-score');
+const gameBestEl = document.getElementById('game-best');
+const gameBelt = document.getElementById('game-belt');
+
+const OBSTACLE_ITEMS = ['👗','👠','🧥','🕸️','🏋️','👜','🧹','📦','🧸','👟','🎒','🧤'];
+const GAME_MSGS = [
+  'Mumi aguanto {s} metros... nuevo record de sedentarismo',
+  'Solo {s} metros? La caminadora esperaba mas',
+  '{s} metros y se canso. La ropa la freno',
+  'Record: {s} metros. Mas de lo que camino en la vida real',
+  '{s} metros antes de tropezar con su propia ropa',
+  'Mumi corrio {s} metros. La caminadora esta en shock',
+];
+
+let gameRunning = false;
+let gameScore = 0;
+let gameBest = 0;
+let jumpVelocity = 0;
+let runnerY = 0;
+let isJumping = false;
+let obstacles = [];
+let gameSpeed = 3;
+let spawnTimer = 0;
+let beltOffset = 0;
+let gameRaf;
+
+function startGame() {
+  gameRunning = true;
+  gameScore = 0;
+  gameSpeed = 3;
+  runnerY = 0;
+  jumpVelocity = 0;
+  isJumping = false;
+  obstacles = [];
+  spawnTimer = 0;
+  obstaclesDiv.innerHTML = '';
+  gameOverlay.style.display = 'none';
+  runner.style.bottom = '40px';
+  gameLoop();
+}
+
+function jump() {
+  if (!gameRunning) { startGame(); return; }
+  if (!isJumping) {
+    isJumping = true;
+    jumpVelocity = 12;
+  }
+}
+
+function spawnObstacle() {
+  const emoji = OBSTACLE_ITEMS[Math.floor(Math.random() * OBSTACLE_ITEMS.length)];
+  const el = document.createElement('div');
+  el.style.cssText = 'position:absolute;font-size:1.8rem;bottom:0;right:-30px;';
+  el.textContent = emoji;
+  obstaclesDiv.appendChild(el);
+  obstacles.push({ el, x: gameContainer.offsetWidth + 10 });
+}
+
+function gameLoop() {
+  if (!gameRunning) return;
+
+  // Score
+  gameScore += Math.round(gameSpeed * 0.5);
+  gameScoreEl.textContent = gameScore + ' m';
+
+  // Speed up
+  gameSpeed = 3 + Math.floor(gameScore / 300) * 0.5;
+
+  // Belt animation
+  beltOffset -= gameSpeed;
+  gameBelt.style.transform = 'translateX(' + (beltOffset % 56) + 'px)';
+
+  // Jump physics
+  if (isJumping) {
+    runnerY += jumpVelocity;
+    jumpVelocity -= 0.8;
+    if (runnerY <= 0) { runnerY = 0; isJumping = false; jumpVelocity = 0; }
+    runner.style.bottom = (40 + runnerY) + 'px';
+  }
+
+  // Spawn obstacles
+  spawnTimer++;
+  const spawnRate = Math.max(30, 60 - Math.floor(gameScore / 200) * 5);
+  if (spawnTimer >= spawnRate) {
+    spawnObstacle();
+    spawnTimer = 0;
+  }
+
+  // Move obstacles & check collision
+  const runnerLeft = 50;
+  const runnerRight = 85;
+  const runnerBottom = 40 + runnerY;
+  const runnerTop = runnerBottom + 35;
+
+  for (let i = obstacles.length - 1; i >= 0; i--) {
+    const obs = obstacles[i];
+    obs.x -= gameSpeed;
+    obs.el.style.left = obs.x + 'px';
+
+    // Collision
+    const obsLeft = obs.x;
+    const obsRight = obs.x + 28;
+    const obsBottom = 40;
+    const obsTop = 40 + 30;
+
+    if (runnerRight > obsLeft && runnerLeft < obsRight && runnerBottom < obsTop && runnerTop > obsBottom) {
+      gameOver();
+      return;
+    }
+
+    // Remove off-screen
+    if (obs.x < -40) {
+      obs.el.remove();
+      obstacles.splice(i, 1);
+    }
+  }
+
+  gameRaf = requestAnimationFrame(gameLoop);
+}
+
+function gameOver() {
+  gameRunning = false;
+  cancelAnimationFrame(gameRaf);
+  if (gameScore > gameBest) gameBest = gameScore;
+  gameBestEl.textContent = 'Best: ' + gameBest + ' m';
+  const msg = GAME_MSGS[Math.floor(Math.random() * GAME_MSGS.length)].replace('{s}', gameScore);
+  gameMsg.textContent = msg;
+  gameOverlay.style.display = 'flex';
+  runner.textContent = '🤦‍♀️';
+  setTimeout(() => { runner.textContent = '🏃‍♀️'; }, 1500);
+  if (currentPlayer) {
+    submitScore(gameScore);
+  } else {
+    document.getElementById('auth-msg').textContent = 'Registrate para guardar tu score!';
+    document.getElementById('auth-msg').style.color = '#fbbf24';
+  }
+}
+
+// ── RANKING (server-side) ──────────────────────────────────────────
+let currentPlayer = null; // { name, code }
+
+function renderRankingData(ranking) {
+  const el = document.getElementById('ranking-table');
+  if (!ranking || !ranking.length) { el.innerHTML = '<div style="font-size:0.8rem;color:#333;text-align:center;">Juga para aparecer en el ranking!</div>'; return; }
+  el.innerHTML = ranking.slice(0,10).map((r,i) => {
+    const medal = i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : '<span style="width:20px;display:inline-block;text-align:center;color:#555;">'+(i+1)+'</span>';
+    const color = i===0 ? '#ffd700' : i===1 ? '#c0c0c0' : i===2 ? '#cd7f32' : '#888';
+    const isMe = currentPlayer && r.code === currentPlayer.code;
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 12px;background:rgba(255,255,255,'+(i<3?'0.05':'0.02')+');border-radius:8px;margin-bottom:4px;font-size:0.85rem;'+(isMe?'border:1px solid rgba(168,230,207,0.3);':'')+'">' +
+      '<span>' + medal + ' <span style="color:'+color+';font-weight:700;margin-left:6px;">'+r.name+'</span></span>' +
+      '<span style="font-family:monospace;font-weight:900;color:#a8e6cf;">'+r.score+' m</span></div>';
+  }).join('');
+}
+
+async function fetchRanking() {
+  try {
+    const r = await fetch('/api/mumi/ranking');
+    renderRankingData(await r.json());
+  } catch { renderRankingData([]); }
+}
+
+function updateAuthStatus() {
+  const statusEl = document.getElementById('auth-status');
+  const formEl = document.getElementById('auth-form');
+  if (currentPlayer) {
+    statusEl.innerHTML = 'Jugando como <strong style="color:#a8e6cf;">' + currentPlayer.name + '</strong> <span style="color:#555;">(#' + currentPlayer.code + ')</span>';
+    formEl.style.display = 'none';
+  } else {
+    statusEl.textContent = 'Pone tu nombre para jugar, o tu numero si ya jugaste';
+    formEl.style.display = 'flex';
+  }
+}
+
+async function handleAuth() {
+  const input = document.getElementById('auth-input');
+  const val = input.value.trim();
+  const msgEl = document.getElementById('auth-msg');
+  if (!val) return;
+
+  // If it's a number → login by code
+  if (/^\d+$/.test(val)) {
+    try {
+      const r = await fetch('/api/mumi/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: Number(val) }),
+      });
+      const data = await r.json();
+      if (data.error) { msgEl.textContent = 'Numero no encontrado'; msgEl.style.color = '#ff4757'; return; }
+      currentPlayer = { name: data.name, code: data.code };
+      localStorage.setItem('mumi_player', JSON.stringify(currentPlayer));
+      msgEl.textContent = 'Bienvenido/a de vuelta, ' + data.name + '!';
+      msgEl.style.color = '#a8e6cf';
+      updateAuthStatus();
+    } catch { msgEl.textContent = 'Error de conexion'; msgEl.style.color = '#ff4757'; }
+    return;
+  }
+
+  // Otherwise → register new name
+  try {
+    const r = await fetch('/api/mumi/register', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: val }),
+    });
+    const data = await r.json();
+    if (data.error === 'nombre_existe') {
+      msgEl.textContent = 'Ese nombre ya existe! Tu numero es #' + data.code + '. Usa tu numero para entrar.';
+      msgEl.style.color = '#fbbf24';
+      return;
+    }
+    if (data.error) { msgEl.textContent = data.error; msgEl.style.color = '#ff4757'; return; }
+    currentPlayer = { name: data.name, code: data.code };
+    localStorage.setItem('mumi_player', JSON.stringify(currentPlayer));
+    msgEl.innerHTML = 'Registrado! Tu numero es <strong style="color:#ffd700;font-size:1.1rem;">#' + data.code + '</strong> — acordate para volver a entrar!';
+    msgEl.style.color = '#a8e6cf';
+    updateAuthStatus();
+    fetchRanking();
+  } catch { msgEl.textContent = 'Error de conexion'; msgEl.style.color = '#ff4757'; }
+}
+
+async function submitScore(score) {
+  if (!currentPlayer) return;
+  try {
+    const r = await fetch('/api/mumi/score', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: currentPlayer.code, score }),
+    });
+    const ranking = await r.json();
+    if (Array.isArray(ranking)) renderRankingData(ranking);
+  } catch {}
+}
+
+// Restore session
+try {
+  const saved = JSON.parse(localStorage.getItem('mumi_player'));
+  if (saved && saved.code) currentPlayer = saved;
+} catch {}
+updateAuthStatus();
+fetchRanking();
+
+// Controls
+gameContainer.addEventListener('click', (e) => { e.preventDefault(); jump(); });
+gameContainer.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); }, { passive: false });
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' || e.key === 'ArrowUp') { e.preventDefault(); jump(); }
+});
 </script>
 </body>
 </html>
