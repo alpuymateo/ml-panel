@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="/manifest.json">
+<title>MA — Rentabilidad Órdenes</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; }
+.header { background: #1e293b; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
+.header h1 { font-size: 17px; font-weight: 800; color: white; }
+.header a { color: #94a3b8; font-size: 12px; text-decoration: none; }
+.filters { padding: 14px 24px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.fi { padding: 7px 12px; background: #1e293b; border: 1px solid #334155; color: white; border-radius: 8px; font-size: 13px; outline: none; }
+.fi:focus { border-color: #7c3aed; }
+.btn { padding: 7px 14px; border: none; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; background: #7c3aed; color: white; }
+.btn-outline { background: transparent; border: 1px solid #334155; color: #94a3b8; }
+.count { font-size: 12px; color: #64748b; margin-left: auto; }
+.summary { display: flex; gap: 20px; padding: 10px 24px; background: #1e293b; border-bottom: 1px solid #334155; flex-wrap: wrap; }
+.si { font-size: 12px; }
+.sl { color: #64748b; }
+.sv { color: white; font-weight: 700; font-size: 14px; }
+.sg { color: #22c55e; }
+.sr { color: #ef4444; }
+.tw { margin: 0 24px 24px; background: #1e293b; border-radius: 12px; border: 1px solid #334155; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 900px; }
+th { padding: 10px 12px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; background: #0f172a; position: sticky; top: 0; }
+th.r { text-align: right; }
+td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #0f172a; }
+td.r { text-align: right; font-weight: 600; }
+tr:hover { background: #334155; }
+tr.loss { background: #450a0a22; }
+tr.nocost td:nth-child(5) { color: #fbbf24; }
+.prod { display: flex; gap: 8px; align-items: center; }
+.prod img { width: 36px; height: 36px; object-fit: contain; border-radius: 6px; background: #0f172a; }
+.pname { font-size: 12px; font-weight: 600; max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.psku { font-size: 10px; color: #64748b; font-family: monospace; }
+.green { color: #22c55e; }
+.red { color: #ef4444; }
+.yellow { color: #fbbf24; }
+.badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700; }
+.b-flex { background: #7c3aed22; color: #a78bfa; }
+.b-me1 { background: #3b82f622; color: #60a5fa; }
+.b-gratis { background: #22c55e22; color: #22c55e; }
+.b-pago { background: #f9731622; color: #f97316; }
+.b-kit { background: #fbbf2422; color: #fbbf24; }
+.loading { text-align: center; padding: 40px; color: #64748b; }
+.pages { display: flex; justify-content: center; gap: 6px; padding: 16px; }
+.pg { padding: 6px 12px; background: #1e293b; border: 1px solid #334155; color: #94a3b8; border-radius: 6px; font-size: 12px; cursor: pointer; }
+.pg.active { background: #7c3aed; color: white; border-color: #7c3aed; }
+/* Detail panel */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; display: none; }
+.panel { position: fixed; top: 0; right: 0; bottom: 0; width: 460px; background: #1e293b; z-index: 101; display: none; overflow-y: auto; border-left: 1px solid #334155; }
+.ph { padding: 16px 20px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+.ph h2 { font-size: 15px; font-weight: 800; }
+.px { background: none; border: none; color: #94a3b8; font-size: 20px; cursor: pointer; }
+.ps { padding: 14px 20px; border-bottom: 1px solid #0f172a; }
+.ps h3 { font-size: 11px; font-weight: 700; color: #7c3aed; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.dr { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; }
+.dl { color: #94a3b8; }
+.dv { font-weight: 600; }
+.dd { border-top: 2px solid #334155; margin: 3px 0; }
+.db { font-size: 17px; font-weight: 900; }
+.bar { height: 8px; border-radius: 4px; background: #0f172a; margin-top: 10px; overflow: hidden; display: flex; }
+.bar div { height: 100%; }
+@media (max-width: 768px) {
+  .header { padding: 10px 12px; }
+  .header h1 { font-size: 14px; }
+  .header > div { flex-wrap: wrap; gap: 8px !important; }
+  .header > div a { font-size: 11px !important; }
+  .filters { padding: 8px 12px; gap: 5px; }
+  .fi { font-size: 11px; padding: 5px 6px; }
+  .fi[type="date"] { width: 115px !important; }
+  .fi[type="text"] { width: 100% !important; }
+  .btn { font-size: 10px; padding: 5px 8px; }
+  .summary { padding: 6px 12px; gap: 6px; flex-wrap: wrap; }
+  .si { font-size: 10px; min-width: 45%; }
+  .sv { font-size: 11px; }
+  .tw { margin: 0 4px 12px; border-radius: 6px; }
+  table { min-width: auto; }
+  th, td { padding: 5px 4px; font-size: 10px; white-space: nowrap; }
+  td.r, th.r { padding: 5px 4px; }
+  .pname { max-width: 120px; font-size: 10px; }
+  .psku { font-size: 9px; }
+  .badge { font-size: 8px; padding: 1px 4px; }
+  .panel { width: 100%; left: 0; }
+  .count { margin-left: 0; width: 100%; text-align: right; font-size: 10px; }
+  /* Hide less important columns on mobile */
+  th:nth-child(2), td:nth-child(2) { display: none; } /* thumbnail */
+  th:nth-child(8), td:nth-child(8) { display: none; } /* publi */
+  th:nth-child(11), td:nth-child(11) { display: none; } /* tipo */
+  .header > div { display: none !important; } /* hide top nav on mobile */
+  .header h1 { font-size: 14px; }
+  body { padding-bottom: 56px; } /* space for bottom tabs */
+  .bottom-tabs { display: flex; }
+}
+/* Bottom tabs - only on mobile */
+.bottom-tabs {
+  display: none;
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: #1e293b; border-top: 1px solid #334155;
+  z-index: 200; height: 56px;
+}
+.bottom-tabs a {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-decoration: none; color: #64748b; font-size: 10px; font-weight: 600; gap: 2px;
+  -webkit-tap-highlight-color: transparent;
+}
+.bottom-tabs a.active { color: #7c3aed; }
+.bottom-tabs a .icon { font-size: 18px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Rentabilidad por Orden</h1>
+  <div style="display:flex;gap:12px;align-items:center;">
+    <a href="/ordenes.html" style="color:white;font-size:13px;font-weight:700;text-decoration:none;border-bottom:2px solid #7c3aed;padding-bottom:4px;">Ordenes</a>
+    <a href="/calculadora.html" style="color:#94a3b8;font-size:13px;text-decoration:none;padding-bottom:4px;">Calculadora</a>
+    <a href="/sku.html" style="color:#94a3b8;font-size:13px;text-decoration:none;padding-bottom:4px;">SKU</a>
+    <a href="/costos.html" style="color:#94a3b8;font-size:13px;text-decoration:none;padding-bottom:4px;">Costos</a>
+    <a href="/resumen.html" style="color:#94a3b8;font-size:13px;text-decoration:none;padding-bottom:4px;">Resumen</a>
+    <a href="/publicacion.html" style="color:#94a3b8;font-size:13px;text-decoration:none;padding-bottom:4px;">Publicación</a>
+    <a href="/stock.html" style="color:#94a3b8;font-size:13px;text-decoration:none;padding-bottom:4px;">Stock</a>
+    <span style="color:#334155;margin:0 4px;">|</span>
+    <a href="/" style="color:#94a3b8;font-size:12px;text-decoration:none;">← Panel</a>
+  </div>
+</div>
+
+<div class="filters">
+  <input class="fi" type="text" id="f-search" placeholder="SKU, producto, orden..." style="width:220px;" oninput="rerender()">
+  <input class="fi" type="date" id="f-from" value="">
+  <input class="fi" type="date" id="f-to" value="">
+  <button class="btn" onclick="loadOrders()">Buscar</button>
+  <button class="btn btn-outline" onclick="loadOrders()" id="btn-refresh">↻</button>
+  <button class="btn btn-outline" onclick="exportCSV()">CSV</button>
+  <button class="btn" style="background:#ef4444;color:white;" onclick="openProblema()">Problema</button>
+  <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#94a3b8;cursor:pointer;margin-left:8px;">
+    <input type="checkbox" id="f-nocost" onchange="rerender()"> Incluir sin costo
+  </label>
+  <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#fbbf24;cursor:pointer;margin-left:4px;">
+    <input type="checkbox" id="f-onlynocost" onchange="rerender()"> Solo sin costo
+  </label>
+  <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#fbbf24;cursor:pointer;margin-left:4px;">
+    <input type="checkbox" id="f-suspicious" onchange="rerender()"> Sospechosas
+  </label>
+  <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#94a3b8;margin-left:8px;">
+    Publi %<input class="fi" type="number" id="f-adcost" value="5" min="0" max="100" step="0.5" style="width:55px;margin-left:4px;" onchange="rerender()">
+  </label>
+  <div class="count" id="count"></div>
+</div>
+
+<div class="summary" id="summary"></div>
+
+<div style="display:flex;gap:0;border-bottom:1px solid #334155;margin:0 24px;">
+  <button id="tab-orders" onclick="switchTab('orders')" style="padding:8px 16px;font-size:12px;font-weight:700;background:none;border:none;color:white;border-bottom:2px solid #7c3aed;cursor:pointer;">Por orden</button>
+  <button id="tab-grouped" onclick="switchTab('grouped')" style="padding:8px 16px;font-size:12px;font-weight:700;background:none;border:none;color:#64748b;border-bottom:2px solid transparent;cursor:pointer;">Por publicación</button>
+</div>
+
+<div id="view-orders">
+<div class="tw">
+  <table>
+    <thead>
+      <tr>
+        <th class="sortable" onclick="sortBy('date')" style="cursor:pointer;">Fecha ⇅</th>
+        <th></th>
+        <th>Producto</th>
+        <th class="r">Venta</th>
+        <th class="r">Costo</th>
+        <th class="r">Comisión</th>
+        <th class="r">Envío</th>
+        <th class="r">Publi</th>
+        <th class="r sortable" onclick="sortBy('margenNeto')" style="cursor:pointer;">Margen $ ⇅</th>
+        <th class="r sortable" onclick="sortBy('margenPct')" style="cursor:pointer;">% ⇅</th>
+        <th>Tipo</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"><tr><td colspan="11" class="loading">Cargando órdenes...</td></tr></tbody>
+  </table>
+</div>
+
+
+
+
+</div><!-- /view-orders -->
+
+<div id="view-grouped" style="display:none;">
+  <div class="tw">
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Producto</th>
+          <th class="r">Uds</th>
+          <th class="r">Venta</th>
+          <th class="r">Costo</th>
+          <th class="r">Comisión</th>
+          <th class="r">Envío</th>
+          <th class="r">Publi</th>
+          <th class="r">Margen</th>
+          <th class="r sortable" onclick="sortGrouped('pct')" style="cursor:pointer;">% ⇅</th>
+        </tr>
+      </thead>
+      <tbody id="grouped-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="closeDetail()"></div>
+<div class="panel" id="panel">
+  <div class="ph"><h2>Detalle</h2><button class="px" onclick="closeDetail()">×</button></div>
+  <div id="detail-content"></div>
+</div>
+
+<script>
+let allData = [];
+let currentData = [];
+
+function authHeaders() {
+  return { 'x-session-token': localStorage.getItem('ml_panel_token') || '' };
+}
+
+function fmt(n) { return '$' + Math.round(n).toLocaleString('es-UY'); }
+
+function formatDate(d) {
+  const dt = new Date(d);
+  return dt.toLocaleDateString('es-UY', { day:'2-digit', month:'2-digit' }) + '<br>' +
+    dt.toLocaleTimeString('es-UY', { hour:'2-digit', minute:'2-digit' });
+}
+
+async function loadOrders() {
+  const params = new URLSearchParams();
+  const from = document.getElementById('f-from').value;
+  const to = document.getElementById('f-to').value;
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+
+  document.getElementById('tbody').innerHTML = '<tr><td colspan="11" class="loading">Cargando...</td></tr>';
+
+  try {
+    const res = await fetch('/api/rentabilidad/ordenes?' + params, { headers: authHeaders() });
+    const data = await res.json();
+    if (data.error) { document.getElementById('tbody').innerHTML = '<tr><td colspan="11" class="loading">Error: ' + data.error + '</td></tr>'; return; }
+
+    allData = data.orders;
+    rerender();
+  } catch (e) {
+    document.getElementById('tbody').innerHTML = '<tr><td colspan="11" class="loading">Error: ' + e.message + '</td></tr>';
+  }
+}
+
+let currentSort = { field: null, asc: true };
+
+function sortBy(field) {
+  if (currentSort.field === field) currentSort.asc = !currentSort.asc;
+  else { currentSort.field = field; currentSort.asc = true; }
+  rerender();
+}
+
+function rerender() {
+  const showNoCost = document.getElementById('f-nocost').checked;
+  const onlyNoCost = document.getElementById('f-onlynocost').checked;
+  const showSuspicious = document.getElementById('f-suspicious').checked;
+  let q = document.getElementById('f-search').value.toLowerCase().trim();
+  const adCostPct = parseFloat(document.getElementById('f-adcost').value) || 0;
+
+  // Recalculate with IVA on envío and ad cost
+  let filtered = allData.map(o => {
+    const envioMLConIva = o.envioML;
+    const publi = Math.round(o.venta * adCostPct / 100);
+    const envioNeto = envioMLConIva - o.cadete;
+    const margenNeto = o.venta - o.costo - o.comision + envioNeto - publi;
+    const margenPct = o.venta > 0 ? Math.round(margenNeto / o.venta * 100) : 0;
+    return { ...o, envioML: envioMLConIva, publi, margenNeto, margenPct, envioNeto };
+  });
+
+  if (onlyNoCost) filtered = filtered.filter(o => o.costo === 0);
+  else if (!showNoCost) filtered = filtered.filter(o => o.costo > 0);
+  if (q === 'negativo') {
+    filtered = filtered.filter(o => o.margenNeto >= 0);
+  } else if (q) {
+    filtered = filtered.filter(o =>
+      o.sku.toLowerCase().includes(q) || o.title.toLowerCase().includes(q) ||
+      String(o.id).includes(q) || String(o.packId || '').includes(q)
+    );
+  }
+  if (showSuspicious) filtered = filtered.filter(o => o.margenPct < 5 || o.margenPct > 60 || o.margenNeto < 0);
+  if (currentSort.field) {
+    const dir = currentSort.asc ? 1 : -1;
+    if (currentSort.field === 'date') {
+      filtered.sort((a, b) => (new Date(a.date) - new Date(b.date)) * dir);
+    } else {
+      filtered.sort((a, b) => (a[currentSort.field] - b[currentSort.field]) * dir);
+    }
+  }
+  currentData = filtered;
+  const noCostCount = allData.filter(o => o.costo === 0).length;
+
+  const s = {
+    venta: currentData.reduce((a, r) => a + r.venta, 0),
+    costo: currentData.reduce((a, r) => a + r.costo, 0),
+    comision: currentData.reduce((a, r) => a + r.comision, 0),
+    envio: currentData.reduce((a, r) => a + r.envioNeto, 0),
+    publi: currentData.reduce((a, r) => a + r.publi, 0),
+    margen: currentData.reduce((a, r) => a + r.margenNeto, 0),
+  };
+  s.margenPct = s.venta > 0 ? Math.round(s.margen / s.venta * 100) : 0;
+
+  renderSummary(s);
+  renderTable(currentData);
+  const label = showNoCost ? allData.length + ' órdenes' : currentData.length + ' con costo' + (noCostCount ? ' (' + noCostCount + ' sin costo)' : '');
+  document.getElementById('count').textContent = label;
+}
+
+function renderSummary(s) {
+  document.getElementById('summary').innerHTML = `
+    <div class="si"><div class="sl">Venta</div><div class="sv">${fmt(s.venta)}</div></div>
+    <div class="si"><div class="sl">Costo</div><div class="sv">${fmt(s.costo)}</div></div>
+    <div class="si"><div class="sl">Comisión</div><div class="sv">${fmt(s.comision)}</div></div>
+    <div class="si"><div class="sl">Envío neto</div><div class="sv ${s.envio>=0?'sg':'sr'}">${fmt(s.envio)}</div></div>
+    ${s.publi ? '<div class="si"><div class="sl">Publicidad</div><div class="sv sr">'+fmt(s.publi)+'</div></div>' : ''}
+    <div class="si"><div class="sl">Margen</div><div class="sv ${s.margen>=0?'sg':'sr'}">${fmt(s.margen)} (${s.margenPct}%)</div></div>
+  `;
+}
+
+function renderRow(o, idx, isSub) {
+  const cls = o.margenNeto < 0 ? 'loss' : (o.costo === 0 ? 'nocost' : '');
+  const envioNeto = o.envioML - o.cadete;
+  const shipBadge = o.shipType === 'self_service' ? '<span class="badge b-flex">Flex</span>' :
+    o.shipType === 'default' ? '<span class="badge b-me1">ME1</span>' :
+    o.shipType === 'drop_off' ? '<span class="badge b-me1">ME</span>' : '';
+  const gratisBadge = o.clientePagaEnvio ? '<span class="badge b-pago">Pago</span>' :
+    '<span class="badge b-gratis">Gratis</span>';
+  const kitBadge = o.isKit ? ' <span class="badge b-kit">Kit</span>' : '';
+  const subStyle = isSub ? 'background:#1a1a2e;font-size:12px;opacity:0.85;' : '';
+  const click = isSub ? '' : `onclick="showDetail(${idx})"`;
+  return `<tr class="${cls}" ${click} style="cursor:pointer;${subStyle}">
+    <td style="font-size:11px;color:#94a3b8;white-space:nowrap;">${isSub ? '' : formatDate(o.date)}</td>
+    <td>${o.thumbnail ? '<img src="'+o.thumbnail+'" style="width:36px;height:36px;object-fit:contain;border-radius:6px;background:#0f172a;">' : ''}</td>
+    <td><div class="pname">${isSub ? '↳ ' : ''}${o.title}</div><div class="psku">${o.sku}${o.qty>1?' x'+o.qty:''}${kitBadge}${!isSub ? ' <a href="https://www.mercadolibre.com.uy/ventas/'+(o.packId||o.id)+'/detalle" target="_blank" onclick="event.stopPropagation()" style="color:#60a5fa;text-decoration:none;">🛒'+String(o.packId||o.id).slice(-4)+'</a>' : ''}</div></td>
+    <td class="r">${fmt(o.venta)}</td>
+    <td class="r ${o.costo===0?'yellow':''}">${o.costo > 0 ? fmt(o.costo) : '$0 ⚠️'}</td>
+    <td class="r red">-${fmt(o.comision)}</td>
+    <td class="r ${envioNeto>=0?'green':'red'}">${envioNeto >= 0 ? '+' : ''}${fmt(envioNeto)}</td>
+    <td class="r ${o.publi?'red':''}">${o.publi ? '-'+fmt(o.publi) : ''}</td>
+    <td class="r ${o.margenNeto>=0?'green':'red'}">${fmt(o.margenNeto)}</td>
+    <td class="r ${o.margenPct>=30?'green':o.margenPct>=15?'yellow':'red'}">${o.margenPct}%</td>
+    <td>${shipBadge} ${gratisBadge}</td>
+  </tr>`;
+}
+
+function renderTable(orders) {
+  // Group by packId
+  const rows = [];
+  const seen = new Set();
+  orders.forEach((o, idx) => {
+    if (o.packId && seen.has(o.packId)) return;
+    if (o.packId) {
+      seen.add(o.packId);
+      const packItems = orders.filter(x => x.packId === o.packId);
+      if (packItems.length > 1) {
+        // Combined row
+        const combined = {
+          ...o,
+          title: packItems.length + ' productos',
+          sku: packItems.map(p => p.sku).join(', '),
+          thumbnail: packItems[0].thumbnail,
+          venta: packItems.reduce((s, p) => s + p.venta, 0),
+          costo: packItems.reduce((s, p) => s + p.costo, 0),
+          comision: packItems.reduce((s, p) => s + p.comision, 0),
+          envioML: packItems.reduce((s, p) => s + p.envioML, 0),
+          cadete: packItems.reduce((s, p) => s + p.cadete, 0),
+          publi: packItems.reduce((s, p) => s + (p.publi || 0), 0),
+          isKit: false,
+        };
+        combined.margenNeto = combined.venta - combined.costo - combined.comision + combined.envioML - combined.cadete - combined.publi;
+        combined.margenPct = combined.venta > 0 ? Math.round(combined.margenNeto / combined.venta * 100) : 0;
+        const packIdx = 'pack_' + o.packId;
+        rows.push({ type: 'pack', combined, items: packItems, idx, packIdx });
+        return;
+      }
+    }
+    rows.push({ type: 'single', item: o, idx });
+  });
+
+  let html = '';
+  rows.forEach(r => {
+    if (r.type === 'single') {
+      html += renderRow(r.item, r.idx, false);
+    } else {
+      html += renderRow(r.combined, r.idx, false).replace(
+        'style="cursor:pointer;"',
+        `style="cursor:pointer;" onclick="togglePack('${r.packIdx}')" `
+      ).replace(`onclick="showDetail(${r.idx})"`, '');
+      r.items.forEach(item => {
+        const subIdx = orders.indexOf(item);
+        html += `<tr class="pack-sub pack-${r.packIdx}" style="display:none;background:#1a1a2e;cursor:pointer;" onclick="showDetail(${subIdx})">
+          <td></td>
+          <td>${item.thumbnail ? '<img src="'+item.thumbnail+'" style="width:28px;height:28px;object-fit:contain;border-radius:4px;background:#0f172a;">' : ''}</td>
+          <td><div class="pname" style="font-size:12px;">↳ ${item.title}</div><div class="psku">${item.sku}${item.qty>1?' x'+item.qty:''}${item.isKit?' <span class="badge b-kit">Kit</span>':''}</div></td>
+          <td class="r">${fmt(item.venta)}</td>
+          <td class="r ${item.costo===0?'yellow':''}">${item.costo > 0 ? fmt(item.costo) : '$0 ⚠️'}</td>
+          <td class="r red">-${fmt(item.comision)}</td>
+          <td class="r" style="color:#64748b;">—</td>
+          <td class="r ${item.publi?'red':''}">${item.publi ? '-'+fmt(item.publi) : ''}</td>
+          <td class="r ${(item.venta-item.costo-item.comision-(item.publi||0))>=0?'green':'red'}">${fmt(item.venta-item.costo-item.comision-(item.publi||0))}</td>
+          <td class="r ${(item.venta>0?Math.round((item.venta-item.costo-item.comision-(item.publi||0))/item.venta*100):0)>=15?'green':'red'}">${item.venta>0?Math.round((item.venta-item.costo-item.comision-(item.publi||0))/item.venta*100):0}%</td>
+          <td></td>
+        </tr>`;
+      });
+    }
+  });
+  document.getElementById('tbody').innerHTML = html;
+}
+
+function togglePack(packIdx) {
+  document.querySelectorAll('.pack-' + packIdx).forEach(el => {
+    el.style.display = el.style.display === 'none' ? '' : 'none';
+  });
+}
+
+
+function showDetail(idx) {
+  const o = currentData[idx];
+  if (!o) return;
+  const envioNeto = o.envioML - o.cadete;
+  const margenProd = o.venta - o.costo;
+  const total = o.venta || 1;
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="ps">
+      <h3>Producto</h3>
+      <div style="display:flex;gap:10px;align-items:center;">
+        ${o.thumbnail ? '<img src="'+o.thumbnail+'" style="width:50px;height:50px;object-fit:contain;border-radius:8px;background:#0f172a;">' : ''}
+        <div>
+          <div style="font-size:13px;font-weight:700;">${o.title}</div>
+          <div style="font-size:11px;color:#64748b;font-family:monospace;">${o.sku} ${o.isKit?'<span class="badge b-kit">Kit</span>':''}</div>
+          <div style="font-size:11px;color:#64748b;">Orden #${o.id} — <a href="https://www.mercadolibre.com.uy/ventas/${o.packId||o.id}/detalle" target="_blank" style="color:#60a5fa;text-decoration:none;">🛒 Ver venta en ML</a> <button onclick="verificarOrden('${o.id}')" style="background:#334155;border:1px solid #475569;color:#94a3b8;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;margin-left:6px;">Verificar</button></div>
+        </div>
+      </div>
+      ${o.packId ? (() => {
+        const packItems = allData.filter(x => x.packId === o.packId && x.id !== o.id);
+        if (!packItems.length) return '';
+        return '<div style="margin-top:10px;padding:8px;background:#0f172a;border-radius:6px;"><div style="font-size:10px;color:#fbbf24;font-weight:700;margin-bottom:4px;">🛒 COMPRA EN CONJUNTO</div>' +
+          packItems.map(p => '<div style="font-size:12px;color:#94a3b8;">'+p.sku+' — '+p.title.substring(0,40)+'... '+fmt(p.venta)+'</div>').join('') +
+          '</div>';
+      })() : ''}
+    </div>
+    <div class="ps">
+      <h3>Venta</h3>
+      <div class="dr"><span class="dl">Precio</span><span class="dv">${fmt(o.venta)}</span></div>
+      <div class="dr"><span class="dl">Fecha</span><span class="dv">${new Date(o.date).toLocaleString('es-UY')}</span></div>
+    </div>
+    <div class="ps">
+      <h3>Costo producto</h3>
+      <div class="dr"><span class="dl">${o.isKit?'Costo kit (BOM)':'Costo unit.'} ${o.costoManual?'<span style="color:#fbbf24;font-size:9px;">MANUAL</span>':''}</span><span class="dv ${o.costo===0?'yellow':''}">${o.costo>0?fmt(Math.round(o.costo/(o.qty||1))):'$0 ⚠️ sin costo'} <button onclick="editarCosto('${o.sku}',${Math.round(o.costo/(o.qty||1))})" style="background:#334155;border:1px solid #475569;color:#94a3b8;border-radius:4px;padding:1px 6px;font-size:10px;cursor:pointer;margin-left:4px;">✏️</button></span></div>
+      ${o.qty>1?'<div class="dr"><span class="dl">Cantidad</span><span class="dv">x'+o.qty+' = '+fmt(o.costo)+'</span></div>':''}
+      <div style="margin-top:6px;display:flex;gap:12px;">
+        ${o.odooId ? '<a href="https://maimportaciones.odoo.com/odoo/inventory/products/'+o.odooId+'" target="_blank" style="color:#7c3aed;font-size:12px;text-decoration:none;">🔗 Odoo</a>' : ''}
+        ${o.mlItemId ? '<a href="https://articulo.mercadolibre.com.uy/'+o.mlItemId.replace("MLU","MLU-")+'" target="_blank" style="color:#60a5fa;font-size:12px;text-decoration:none;">🛒 MercadoLibre</a>' : ''}
+      </div>
+      <div class="dd"></div>
+      <div class="dr"><span class="dl" style="font-weight:700;">Margen producto</span><span class="dv ${margenProd>=0?'green':'red'}">${fmt(margenProd)} (${o.venta>0?Math.round(margenProd/o.venta*100):0}%)</span></div>
+    </div>
+    <div class="ps">
+      <h3>Plataforma ML</h3>
+      <div class="dr"><span class="dl">Comisión</span><span class="dv red">-${fmt(o.comision)}</span></div>
+    </div>
+    <div class="ps">
+      <h3>Envío</h3>
+      <div class="dr"><span class="dl">Tipo</span><span class="dv">${o.shipType==='self_service'?'<span class="badge b-flex">Flex</span>':(o.shipType==='default'?'<span class="badge b-me1">ME1</span>':'<span class="badge b-me1">ME</span>')} ${o.clientePagaEnvio?'<span class="badge b-pago">Cliente paga</span>':'<span class="badge b-gratis">Gratis</span>'}</span></div>
+      ${o.envioML?`<div class="dr"><span class="dl">ML te pasa</span><span class="dv green">+${fmt(o.envioML)}</span></div>`:''}
+      ${o.cadete?`<div class="dr"><span class="dl">Cadete</span><span class="dv red">-${fmt(o.cadete)}</span></div>`:''}
+      <div class="dd"></div>
+      <div class="dr"><span class="dl" style="font-weight:700;">Neto envío</span><span class="dv ${envioNeto>=0?'green':'red'}">${envioNeto>=0?'+':''}${fmt(envioNeto)}</span></div>
+    </div>
+    <div class="ps" style="background:#0f172a;">
+      <h3>Resultado</h3>
+      <div class="dr"><span class="dl">Venta</span><span class="dv">${fmt(o.venta)}</span></div>
+      <div class="dr"><span class="dl">Margen producto</span><span class="dv">${fmt(margenProd)}</span></div>
+      <div class="dr"><span class="dl">Plataforma</span><span class="dv red">-${fmt(o.comision)}</span></div>
+      <div class="dr"><span class="dl">Envío neto</span><span class="dv ${envioNeto>=0?'green':'red'}">${envioNeto>=0?'+':''}${fmt(envioNeto)}</span></div>
+      <div class="dd"></div>
+      <div class="dr"><span class="dl db">UTILIDAD</span><span class="dv db ${o.margenNeto>=0?'green':'red'}">${fmt(o.margenNeto)} (${o.margenPct}%)</span></div>
+      <div class="bar">
+        <div style="width:${Math.round(o.costo/total*100)}%;background:#ef4444;"></div>
+        <div style="width:${Math.round(o.comision/total*100)}%;background:#f97316;"></div>
+        <div style="width:${Math.max(0,Math.round(o.margenNeto/total*100))}%;background:#22c55e;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#64748b;margin-top:4px;">
+        <span>Costo ${o.venta>0?Math.round(o.costo/o.venta*100):0}%</span>
+        <span>ML ${o.venta>0?Math.round(o.comision/o.venta*100):0}%</span>
+        <span>Utilidad ${o.margenPct}%</span>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('overlay').style.display = 'block';
+  document.getElementById('panel').style.display = 'block';
+}
+
+function closeDetail() {
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('panel').style.display = 'none';
+}
+
+function exportCSV() {
+  if (!currentData.length) return;
+  let csv = 'Fecha,SKU,Producto,Venta,Costo,Comision,Envio,Margen,Margen%,Tipo\n';
+  currentData.forEach(o => {
+    csv += `"${o.date}","${o.sku}","${o.title}",${o.venta},${o.costo},${o.comision},${o.envioML-o.cadete},${o.margenNeto},${o.margenPct}%,"${o.shipType}"\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ordenes_rentabilidad.csv';
+  a.click();
+}
+
+// Set dates from URL params or default to today
+const urlParams = new URLSearchParams(window.location.search);
+const now = new Date();
+const today = now.toISOString().split('T')[0];
+document.getElementById('f-from').value = urlParams.get('from') || today;
+document.getElementById('f-to').value = urlParams.get('to') || today;
+
+let activeTab = 'orders';
+let groupedRows = [];
+let groupedSort = 'venta';
+let groupedSortAsc = false;
+function sortGrouped(field) {
+  if (groupedSort === field) groupedSortAsc = !groupedSortAsc;
+  else { groupedSort = field; groupedSortAsc = true; }
+  renderGrouped();
+}
+function filterBySku(idx) {
+  const r = groupedRows[idx];
+  if (!r) return;
+  document.getElementById('f-search').value = r.sku || r.title.substring(0,20);
+  rerender();
+  switchTab('orders');
+}
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('view-orders').style.display = tab === 'orders' ? '' : 'none';
+  document.getElementById('view-grouped').style.display = tab === 'grouped' ? '' : 'none';
+  document.getElementById('tab-orders').style.color = tab === 'orders' ? 'white' : '#64748b';
+  document.getElementById('tab-orders').style.borderBottomColor = tab === 'orders' ? '#7c3aed' : 'transparent';
+  document.getElementById('tab-grouped').style.color = tab === 'grouped' ? 'white' : '#64748b';
+  document.getElementById('tab-grouped').style.borderBottomColor = tab === 'grouped' ? '#7c3aed' : 'transparent';
+  if (tab === 'grouped') renderGrouped();
+}
+
+function renderGrouped() {
+  const publiPct = parseFloat(document.getElementById('f-adcost').value) || 0;
+  // Group currentData by SKU
+  const groups = {};
+  currentData.forEach(o => {
+    const key = o.sku || 'SIN-SKU';
+    if (!groups[key]) groups[key] = { sku: o.sku, title: o.title, thumbnail: o.thumbnail, orders: [] };
+    groups[key].orders.push(o);
+  });
+
+  const rows = Object.values(groups).map(g => {
+    const uds = g.orders.reduce((s, o) => s + (o.qty || 1), 0);
+    const venta = g.orders.reduce((s, o) => s + o.venta, 0);
+    const costo = g.orders.reduce((s, o) => s + o.costo, 0);
+    const comision = g.orders.reduce((s, o) => s + o.comision, 0);
+    const envio = g.orders.reduce((s, o) => s + (o.envioNeto || o.envioML - o.cadete), 0);
+    const publi = g.orders.reduce((s, o) => s + (o.publi || 0), 0);
+    const margen = venta - costo - comision + envio - publi;
+    const pct = venta > 0 ? Math.round(margen / venta * 100) : 0;
+    return { ...g, uds, venta, costo, comision, envio, publi, margen, pct };
+  });
+
+  if (groupedSort === 'pct') rows.sort((a, b) => groupedSortAsc ? a.pct - b.pct : b.pct - a.pct);
+  else rows.sort((a, b) => b.venta - a.venta);
+
+  groupedRows = rows;
+  document.getElementById('grouped-body').innerHTML = rows.map((r, idx) => `
+    <tr style="cursor:pointer;" onclick="filterBySku(${idx})">
+      <td>${r.thumbnail ? '<img src="'+r.thumbnail+'" style="width:32px;height:32px;object-fit:contain;border-radius:4px;background:#0f172a;">' : ''}</td>
+      <td><div style="font-size:12px;font-weight:600;">${r.title}</div><div style="font-size:10px;color:#64748b;font-family:monospace;">${(r.sku||'').substring(0,30)} — ${r.orders.length} ventas</div></td>
+      <td class="r">${r.uds}</td>
+      <td class="r">${fmt(r.venta)}</td>
+      <td class="r">${fmt(r.costo)}</td>
+      <td class="r red">-${fmt(r.comision)}</td>
+      <td class="r ${r.envio>=0?'green':'red'}">${r.envio>=0?'+':''}${fmt(r.envio)}</td>
+      <td class="r red">-${fmt(r.publi)}</td>
+      <td class="r ${r.margen>=0?'green':'red'}">${fmt(r.margen)}</td>
+      <td class="r ${r.pct>=15?'green':r.pct>=5?'yellow':'red'}">${r.pct}%</td>
+    </tr>
+  `).join('');
+}
+
+async function editarCosto(sku, costoActual) {
+  const nuevo = prompt('Costo con IVA para ' + sku + '\\n(actual: $' + costoActual + ', dejá vacío para borrar override):', costoActual || '');
+  if (nuevo === null) return;
+  if (nuevo === '') {
+    await fetch('/api/costos/' + encodeURIComponent(sku), { method: 'DELETE' });
+    alert('Override borrado para ' + sku);
+  } else {
+    await fetch('/api/costos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sku, cost: parseFloat(nuevo) }) });
+    alert('Costo actualizado: ' + sku + ' → $' + nuevo);
+  }
+  loadOrders();
+  closeDetail();
+}
+
+async function verificarOrden(orderId) {
+  try {
+    const res = await fetch('/api/rentabilidad/verificar/' + orderId, { headers: authHeaders() });
+    const d = await res.json();
+    let html = '<div class="ps"><h3>Verificación vs ML</h3>';
+    if (d.ok) {
+      html += '<div style="color:#22c55e;font-weight:700;font-size:14px;">✓ Datos correctos</div>';
+    } else {
+      html += '<div style="color:#ef4444;font-weight:700;font-size:14px;">✗ Diferencias encontradas</div>';
+      d.diferencias.forEach(diff => {
+        html += '<div class="dr"><span class="dl">' + diff.campo + '</span><span class="dv">Panel: ' + (diff.panel ?? 'null') + ' → ML: ' + (diff.ml ?? 'null') + '</span></div>';
+      });
+    }
+    html += '<div style="margin-top:10px;font-size:10px;color:#64748b;">';
+    html += '<div>ML venta: $' + (d.ml?.order?.total_amount || '?') + ' | fee: $' + (d.ml?.order?.marketplace_fee || '?') + '</div>';
+    if (d.ml?.ship) html += '<div>Envío: ' + d.ml.ship.logistic_type + ' | sender_cost: $' + (d.ml.costs?.sender_cost || 0) + ' | receiver_cost: $' + (d.ml.costs?.receiver_cost || 0) + '</div>';
+    html += '</div></div>';
+    document.getElementById('detail-content').insertAdjacentHTML('beforeend', html);
+  } catch (e) {
+    alert('Error verificando: ' + e.message);
+  }
+}
+
+// ── Problemas ──
+function openProblema(orderId) {
+  document.getElementById('problemaModal').style.display = 'flex';
+  document.getElementById('prob-order').value = orderId || '';
+  document.getElementById('prob-desc').value = '';
+  if (orderId) document.getElementById('prob-desc').focus();
+  else document.getElementById('prob-order').focus();
+  loadProblemas();
+}
+function closeProblema() { document.getElementById('problemaModal').style.display = 'none'; }
+
+async function submitProblema() {
+  const order_id = document.getElementById('prob-order').value.trim();
+  const descripcion = document.getElementById('prob-desc').value.trim();
+  if (!order_id || !descripcion) return alert('Completar nro de venta y descripcion');
+  const r = await fetch('/api/problemas', { method: 'POST', headers: {'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify({ order_id, descripcion }) });
+  if (r.ok) {
+    document.getElementById('prob-order').value = '';
+    document.getElementById('prob-desc').value = '';
+    loadProblemas();
+  } else { const e = await r.json(); alert(e.error); }
+}
+
+async function loadProblemas() {
+  try {
+    const r = await fetch('/api/problemas?estado=pendiente', { headers: authHeaders() });
+    const rows = await r.json();
+    const el = document.getElementById('problemasList');
+    if (rows.length === 0) { el.innerHTML = '<div style="color:#64748b;font-size:12px;padding:8px;">Sin problemas pendientes</div>'; return; }
+    el.innerHTML = rows.map(p => {
+      const d = new Date(p.created_at + 'Z');
+      const fecha = d.getDate() + '/' + (d.getMonth()+1) + ' ' + d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+      return `<div style="padding:8px 0;border-bottom:1px solid #0f172a;display:flex;justify-content:space-between;align-items:start;gap:8px;">
+        <div style="flex:1;">
+          <div style="font-size:12px;"><span style="font-family:monospace;color:#f59e0b;font-weight:700;">#${p.order_id}</span> <span style="color:#64748b;font-size:10px;">${fecha}</span></div>
+          <div style="font-size:12px;color:#e2e8f0;margin-top:2px;">${p.descripcion}</div>
+        </div>
+        <button onclick="resolverProblema(${p.id})" style="background:#10b981;border:none;color:white;padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer;white-space:nowrap;">Resuelto</button>
+      </div>`;
+    }).join('');
+  } catch (e) { console.error(e); }
+}
+
+async function resolverProblema(id) {
+  await fetch('/api/problemas/' + id + '/resolver', { method: 'POST', headers: authHeaders() });
+  loadProblemas();
+}
+
+// Auto-load
+loadOrders();
+</script>
+
+<!-- Modal Problema -->
+<div id="problemaModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;justify-content:center;align-items:center;" onclick="if(event.target===this)closeProblema()">
+  <div style="background:#1e293b;border-radius:12px;border:1px solid #334155;padding:24px;width:500px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h2 style="font-size:16px;color:white;margin:0;">Reportar problema</h2>
+      <button onclick="closeProblema()" style="background:none;border:none;color:#94a3b8;font-size:20px;cursor:pointer;">&times;</button>
+    </div>
+    <label style="font-size:11px;color:#94a3b8;font-weight:600;display:block;margin-bottom:4px;">Nro de venta / orden</label>
+    <input type="text" id="prob-order" placeholder="Ej: 2000017861525410" style="width:100%;padding:8px 10px;background:#0f172a;border:1px solid #334155;color:white;border-radius:6px;font-size:13px;font-family:monospace;">
+    <label style="font-size:11px;color:#94a3b8;font-weight:600;display:block;margin-bottom:4px;margin-top:12px;">Descripcion del problema</label>
+    <textarea id="prob-desc" placeholder="Describir el problema..." rows="3" style="width:100%;padding:8px 10px;background:#0f172a;border:1px solid #334155;color:white;border-radius:6px;font-size:13px;resize:vertical;"></textarea>
+    <button onclick="submitProblema()" style="margin-top:12px;width:100%;padding:10px;background:#ef4444;border:none;color:white;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Guardar problema</button>
+    <div style="margin-top:20px;border-top:1px solid #334155;padding-top:12px;">
+      <div style="font-size:11px;color:#94a3b8;font-weight:700;text-transform:uppercase;margin-bottom:8px;">Pendientes</div>
+      <div id="problemasList" style="max-height:250px;overflow-y:auto;">Cargando...</div>
+    </div>
+  </div>
+</div>
+<div class="bottom-tabs">
+  <a href="/ordenes.html" class="active"><span class="icon">📊</span>Ordenes</a>
+  <a href="/calculadora.html"><span class="icon">🧮</span>Calc</a>
+  <a href="/costos.html"><span class="icon">💰</span>Costos</a>
+  <a href="/resumen.html"><span class="icon">📈</span>Resumen</a>
+  <a href="/"><span class="icon">🏠</span>Panel</a>
+</div>
+</body>
+</html>
