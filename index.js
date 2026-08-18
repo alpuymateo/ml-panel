@@ -163,21 +163,48 @@ app.use(generalLimiter);
 app.use(express.json({ limit: '25mb' }));
 const PORT = process.env.PORT || 3000;
 
-// ── Sesiones (PostgreSQL) ──
+// ── Sesiones (PostgreSQL con fallback in-memory) ──
+const _memSessions = new Map();
+let _dbAvailable = null; // null = unknown, true/false after first check
+
+async function checkDb() {
+  try { await pool.query('SELECT 1'); _dbAvailable = true; } catch(e) { _dbAvailable = false; }
+  return _dbAvailable;
+}
+// Check on startup
+checkDb().then(ok => console.log('[db] disponible:', ok));
+
 async function createSession(userId) {
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 horas
-  await pool.query('INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3)', [token, userId, expiresAt]);
+  if (_dbAvailable) {
+    try {
+      await pool.query('INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3)', [token, userId, expiresAt]);
+      return token;
+    } catch(e) { _dbAvailable = false; }
+  }
+  // Fallback in-memory
+  _memSessions.set(token, { user_id: userId, id: userId, expiresAt: Date.now() + 2*60*60*1000 });
   return token;
 }
 
 async function getSession(token) {
   if (!token) return null;
-  const r = await pool.query(
-    'SELECT s.user_id, u.id, u.email, u.name, u.picture, u.role FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.token = $1 AND s.expires_at > NOW()',
-    [token]
-  );
-  return r.rows[0] || null;
+  // Intentar PostgreSQL solo si DB disponible
+  if (_dbAvailable) {
+    try {
+      const r = await pool.query(
+        'SELECT s.user_id, u.id, u.email, u.name, u.picture, u.role FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.token = $1 AND s.expires_at > NOW()',
+        [token]
+      );
+      if (r.rows[0]) return r.rows[0];
+    } catch(e) { _dbAvailable = false; }
+  }
+  // Fallback in-memory
+  const mem = _memSessions.get(token);
+  if (mem && mem.expiresAt > Date.now()) return mem;
+  if (mem) _memSessions.delete(token);
+  return null;
 }
 
 const { CLIENT_ID, CLIENT_SECRET, REDIRECT_URI, ANTHROPIC_API_KEY } = process.env;
@@ -2358,6 +2385,41 @@ app.get('/api/odoo/sync-status', requireAdmin, (req, res) => {
   res.json({ status: _syncStatus, progress: _syncProgress, log: _syncLog, lastUpdate, productCount });
 });
 
+// ── Clientes mayoristas (para portal mayorista) ──
+let _clientesMayoristaCache = null;
+let _clientesMayoristaCacheAt = 0;
+app.get('/api/odoo/clientes-mayorista', requireToken, async (req, res) => {
+  try {
+    const now = Date.now();
+    if (_clientesMayoristaCache && now - _clientesMayoristaCacheAt < 30 * 60 * 1000 && !req.query.refresh) {
+      return res.json(_clientesMayoristaCache);
+    }
+    const uid = await odooAuth();
+    // Traer clientes con customer_rank > 0 y vendedor mayorista (Gustavo=17, Omar=18) o sin vendedor
+    const partners = await odooCall('/xmlrpc/2/object', 'execute_kw', [
+      ODOO_DB, uid, ODOO_API_KEY, 'res.partner', 'search_read',
+      [[['customer_rank', '>', 0], ['is_company', '=', true]]],
+      { fields: ['id', 'name', 'phone', 'mobile', 'email', 'ref', 'user_id', 'city', 'street'], limit: 2000, order: 'name asc' },
+    ]);
+    _clientesMayoristaCache = partners.map(p => ({
+      id: p.id,
+      name: p.name,
+      phone: p.phone || p.mobile || '',
+      email: p.email || '',
+      ref: p.ref || '',
+      city: p.city || '',
+      street: p.street || '',
+      salesperson_id: p.user_id ? p.user_id[0] : null,
+      salesperson_name: p.user_id ? p.user_id[1] : null,
+    }));
+    _clientesMayoristaCacheAt = now;
+    console.log(`[odoo] clientes mayorista: ${_clientesMayoristaCache.length}`);
+    res.json(_clientesMayoristaCache);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/odoo/buscar-partner', requireUser, async (req, res) => {
   try {
     const q = req.query.q || '';
@@ -3493,6 +3555,20 @@ app.post('/api/odoo/cotizacion-confirmar-full', requireUser, express.json(), asy
 const TWILIO_SID   = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 
+// ── Webhook: pedido mayorista desde portal web ──
+const _pedidosMayorista = [];
+app.post('/api/webhook/pedido-mayorista', (req, res) => {
+  const order = req.body;
+  if (!order || !order.items) return res.status(400).json({ error: 'Pedido inválido' });
+  order.receivedAt = new Date().toISOString();
+  _pedidosMayorista.unshift(order);
+  console.log(`[mayorista-web] Nuevo pedido de ${order.user?.company || order.user?.name}: ${order.items.length} items, $${order.total}`);
+  res.json({ ok: true });
+});
+app.get('/api/pedidos-mayorista-web', requireToken, (req, res) => {
+  res.json(_pedidosMayorista);
+});
+
 app.post('/webhook/whatsapp', express.urlencoded({ extended: false }), async (req, res) => {
   const twiml = new twilio.twiml.MessagingResponse();
 
@@ -3640,10 +3716,12 @@ async function requireUser(req, res, next) {
     const session = await getSession(token);
     if (!session) return res.status(401).json({ error: 'Sesión inválida o expirada' });
     req.user = session;
-    // Rotación de token en cada request autenticado
-    const newToken = await createSession(session.user_id || session.id);
-    await pool.query('DELETE FROM sessions WHERE token = $1', [token]);
-    res.setHeader('X-New-Token', newToken);
+    // Rotación de token en cada request autenticado (solo con DB)
+    if (_dbAvailable) {
+      const newToken = await createSession(session.user_id || session.id);
+      await pool.query('DELETE FROM sessions WHERE token = $1', [token]).catch(() => {});
+      res.setHeader('X-New-Token', newToken);
+    }
     next();
   } catch (e) {
     res.status(500).json({ error: 'Error de autenticación' });
@@ -3661,25 +3739,40 @@ app.post('/api/auth/login', express.json(), async (req, res) => {
   try {
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'Faltan credenciales' });
-    const r = await pool.query('SELECT * FROM users WHERE email = $1 AND password_hash IS NOT NULL', [email]);
-    if (!r.rows.length) {
-      await auditLog(null, 'login_failed', { email, reason: 'not_found' }, req.ip);
+
+    // Intentar login con PostgreSQL
+    let user = null;
+
+    // users.json primero (siempre disponible)
+    {
+      try {
+        const usersFile = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'users.json'), 'utf8'));
+        const u = usersFile.find(u => u.username === email || u.name?.toLowerCase() === email.toLowerCase());
+        if (u) {
+          const check = crypto.pbkdf2Sync(password, u.salt, 10000, 64, 'sha256').toString('hex');
+          if (check === u.hash) user = { id: u.id, name: u.name, email: u.username, role: u.role };
+        }
+      } catch(e) {}
+    }
+
+    if (!user) {
+      await auditLog(null, 'login_failed', { email, reason: 'not_found' }, req.ip).catch(() => {});
       return res.status(401).json({ error: 'Email o contraseña incorrectos' });
     }
-    const user = r.rows[0];
-    const [salt, hash] = user.password_hash.split(':');
-    const check = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-    if (check !== hash) {
-      await auditLog(user.id, 'login_failed', { email, reason: 'wrong_password' }, req.ip);
-      return res.status(401).json({ error: 'Email o contraseña incorrectos' });
-    }
+
+    // Crear sesión (DB o in-memory)
     const token = await createSession(user.id);
-    await auditLog(user.id, 'login', { email }, req.ip);
+    // Asegurar datos de usuario en sesión in-memory
+    if (!_dbAvailable) {
+      const mem = _memSessions.get(token);
+      if (mem) Object.assign(mem, { email: user.email, name: user.name, role: user.role });
+    }
+    await auditLog(user.id, 'login', { email }, req.ip).catch(() => {});
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
   } catch(e) {
     const msg = e.message || e.code || (e.errors && e.errors[0]?.message) || String(e);
-    console.error('[login] Error DB:', msg);
-    res.status(500).json({ error: 'Error DB: ' + msg });
+    console.error('[login] Error:', msg);
+    res.status(500).json({ error: 'Error: ' + msg });
   }
 });
 
@@ -5057,6 +5150,304 @@ Responde SOLO con el texto de la respuesta, sin explicaciones adicionales. Si no
   }
 });
 
+// ── Rentabilidad orden a orden ──────────────────────────────────
+
+// GET /api/ml/ordenes-rentabilidad — órdenes con desglose de rentabilidad
+app.get('/api/ml/ordenes-rentabilidad', requireToken, async (req, res) => {
+  try {
+    const dateFrom = req.query.from || '';
+    const dateTo = req.query.to || '';
+    const search = (req.query.q || '').toLowerCase();
+
+    // 1. Get ALL orders from ML (paginate through all pages)
+    let orders = [];
+    let offset = 0;
+    const pageSize = 50;
+    while (true) {
+      const params = { seller: tokenData.user_id, offset, limit: pageSize, sort: 'date_desc' };
+      if (dateFrom) params['order.date_created.from'] = dateFrom + 'T00:00:00.000-03:00';
+      if (dateTo) params['order.date_created.to'] = dateTo + 'T23:59:59.000-03:00';
+      if (search) params.q = search;
+
+      const ordersRes = await axios.get(`${ML_API_URL}/orders/search`, {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+        params,
+      });
+
+      const page = ordersRes.data.results || [];
+      orders = orders.concat(page);
+      const total = ordersRes.data.paging?.total || 0;
+      if (orders.length >= total || page.length === 0) break;
+      offset += pageSize;
+    }
+    const total = orders.length;
+
+    // 2. Get costs from Odoo cache
+    const costoBySku = {};
+    const bomBySku = {};
+    const odooIdBySku = {};
+    try {
+      const xmlrpc = require('xmlrpc');
+      const uid = await new Promise((resolve, reject) => {
+        const c = xmlrpc.createSecureClient({ host: ODOO_HOST, path: '/xmlrpc/2/common' });
+        c.methodCall('authenticate', [ODOO_DB, ODOO_USER, ODOO_API_KEY, {}], (e, v) => e ? reject(e) : resolve(v));
+      });
+
+      // Get SKUs from orders
+      const skus = [...new Set(orders.flatMap(o =>
+        (o.order_items || []).map(i => i.item?.seller_custom_field || i.item?.seller_sku || '').filter(Boolean)
+      ))];
+
+      if (skus.length) {
+        const prods = await odooSearchRead(uid, 'product.product',
+          [['default_code', 'in', skus]],
+          ['default_code', 'standard_price', 'bom_ids', 'product_tmpl_id']
+        );
+        for (const p of prods) {
+          costoBySku[p.default_code] = p.standard_price || 0;
+          odooIdBySku[p.default_code] = p.product_tmpl_id?.[0] || p.id;
+          if (p.bom_ids?.length) bomBySku[p.default_code] = p.bom_ids;
+        }
+
+        // Resolve BOMs
+        const bomIds = Object.values(bomBySku).flat();
+        if (bomIds.length) {
+          const boms = await odooSearchRead(uid, 'mrp.bom', [['id', 'in', bomIds]], ['id', 'bom_line_ids']);
+          for (const bom of boms) {
+            if (!bom.bom_line_ids?.length) continue;
+            const lines = await odooSearchRead(uid, 'mrp.bom.line',
+              [['id', 'in', bom.bom_line_ids]], ['product_id', 'product_qty']);
+            let bomCost = 0;
+            for (const line of lines) {
+              const comp = await odooSearchRead(uid, 'product.product',
+                [['id', '=', line.product_id[0]]], ['standard_price']);
+              if (comp.length) bomCost += (comp[0].standard_price || 0) * line.product_qty;
+            }
+            // Find which SKU has this BOM
+            for (const [sku, bids] of Object.entries(bomBySku)) {
+              if (bids.includes(bom.id) && bomCost > 0) costoBySku[sku] = bomCost;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[ordenes-rent] Odoo error:', e.message);
+    }
+
+    // 3. Fetch order details + shipping in parallel (batches of 10)
+    const packShipCache = {}; // pack_id → { shipType, cadete, envioML, fetched }
+
+    // Pre-fetch all order details and shipments in parallel
+    const orderDetails = {};
+    const shipmentData = {};
+    const shipmentCosts = {};
+
+    const batchSize = 5;
+    for (let i = 0; i < orders.length; i += batchSize) {
+      const batch = orders.slice(i, i + batchSize);
+      await Promise.all(batch.map(async (order) => {
+        // Fetch order detail (for marketplace_fee)
+        try {
+          const r = await axios.get(`${ML_API_URL}/orders/${order.id}`, {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` },
+          });
+          orderDetails[order.id] = r.data;
+        } catch {}
+        // Fetch shipment + costs
+        const shipId = order.shipping?.id;
+        if (shipId && !shipmentData[shipId]) {
+          try {
+            const [shipRes, costsRes] = await Promise.all([
+              axios.get(`${ML_API_URL}/shipments/${shipId}`, {
+                headers: { Authorization: `Bearer ${tokenData.access_token}` },
+              }),
+              axios.get(`${ML_API_URL}/shipments/${shipId}/costs`, {
+                headers: { Authorization: `Bearer ${tokenData.access_token}` },
+              }).catch(() => ({ data: {} })),
+            ]);
+            shipmentData[shipId] = shipRes.data;
+            shipmentCosts[shipId] = costsRes.data;
+          } catch {}
+        }
+      }));
+    }
+
+    const results = [];
+    for (const order of orders) {
+      const items = order.order_items || [];
+      if (!items.length) continue;
+      const totalVenta = order.total_amount || 0;
+      const packId = order.pack_id;
+
+      // Payment info from pre-fetched data
+      let comisionTotal = 0;
+      const od = orderDetails[order.id];
+      if (od?.payments?.length) comisionTotal = od.payments[0].marketplace_fee || 0;
+
+      // Shipping info — fetch once per pack, assign only to first order in pack
+      let shipType = '';
+      let shipMode = '';
+      let cadeteForThisOrder = 0;
+      let envioMLForThisOrder = 0;
+      let isFirstInPack = true;
+
+      if (packId && packShipCache[packId]) {
+        // Already fetched shipping for this pack — don't charge again
+        shipType = packShipCache[packId].shipType;
+        isFirstInPack = false;
+      } else {
+        // Use pre-fetched shipping data
+        const shipId = order.shipping?.id;
+        if (shipId && shipmentData[shipId]) {
+          const ship = shipmentData[shipId];
+          shipType = ship.logistic_type || '';
+          shipMode = ship.mode || '';
+
+          const costs = shipmentCosts[shipId] || {};
+          const grossAmount = costs.gross_amount || 0;
+          const senderCost = costs.senders?.[0]?.cost || 0;
+          const senderSave = costs.senders?.[0]?.save || 0;
+          const receiverCost = costs.receiver?.cost || 0;
+          const shipOptCost = ship.shipping_option?.cost || 0;
+
+          if (shipType === 'default' && shipMode === 'me1') {
+            // ME1: grandes (roperos), seller paga DAC ~$900 IVA inc
+            cadeteForThisOrder = 900;
+            if (shipOptCost > 0) {
+              envioMLForThisOrder = Math.round(receiverCost || shipOptCost);
+            } else if (senderSave > 0) {
+              envioMLForThisOrder = Math.round(senderSave);
+            } else if (grossAmount > 0) {
+              envioMLForThisOrder = Math.round(grossAmount);
+            }
+          } else if (shipType === 'self_service') { // Flex
+            const allPackItems = packId
+              ? orders.filter(o => o.pack_id === packId).flatMap(o => o.order_items || [])
+              : items;
+            const hasRopero = allPackItems.some(i => {
+              const t = (i.item?.title || '').toLowerCase();
+              return (t.includes('ropero') || t.includes('placard')) && !t.includes('tela') && !t.includes('tnt');
+            });
+            cadeteForThisOrder = hasRopero ? 450 : 131;
+
+            if (shipOptCost > 0) {
+              envioMLForThisOrder = Math.round(receiverCost || shipOptCost);
+            } else if (senderSave > 0) {
+              envioMLForThisOrder = Math.round(senderSave);
+            } else if (grossAmount > 0) {
+              envioMLForThisOrder = Math.round(grossAmount);
+            }
+          } else {
+            // Mercado Envíos (drop_off): ML cobra sender_cost al vendedor
+            cadeteForThisOrder = Math.round(senderCost);
+            envioMLForThisOrder = 0;
+          }
+        }
+
+        if (packId) {
+          packShipCache[packId] = { shipType, cadete: cadeteForThisOrder, envioML: envioMLForThisOrder };
+        }
+      }
+
+      // Each order has 1 item (ML splits packs into separate orders)
+      const it = items[0];
+      let sku = it.item?.seller_custom_field || it.item?.seller_sku || '';
+      // If SKU is JSON garbage, try to get real SKU from item attributes
+      if (sku.startsWith('{')) {
+        const mlId = it.item?.id;
+        if (mlId) {
+          try {
+            const itemRes = await axios.get(`${ML_API_URL}/items/${mlId}`, {
+              headers: { Authorization: `Bearer ${tokenData.access_token}` },
+            });
+            const skuAttr = itemRes.data.attributes?.find(a => a.id === 'SELLER_SKU');
+            if (skuAttr?.value_name) sku = skuAttr.value_name;
+            else if (itemRes.data.variations?.[0]?.seller_custom_field) sku = itemRes.data.variations[0].seller_custom_field;
+          } catch {}
+        }
+      }
+      const title = it.item?.title || '';
+      const thumbnail = it.item?.thumbnail || '';
+      const mlItemId = it.item?.id || '';
+      const qty = it.quantity || 1;
+
+      const costoSinIva = costoBySku[sku] || 0;
+      const costoConIva = Math.round(costoSinIva * 1.22) * qty;
+      const isKit = bomBySku[sku]?.length > 0;
+
+      // For pack orders: split shipping proportionally across all orders in the pack
+      let cadete = cadeteForThisOrder;
+      let envioML = envioMLForThisOrder;
+      if (packId && isFirstInPack) {
+        const packOrders = orders.filter(o => o.pack_id === packId);
+        const packTotal = packOrders.reduce((s, o) => s + (o.total_amount || 0), 0);
+        const proportion = packTotal > 0 ? totalVenta / packTotal : 1 / packOrders.length;
+        cadete = Math.round(cadeteForThisOrder * proportion);
+        envioML = Math.round(envioMLForThisOrder * proportion);
+        // Store remaining for other orders in the pack
+        packShipCache[packId].remaining = {
+          cadete: cadeteForThisOrder - cadete,
+          envioML: envioMLForThisOrder - envioML,
+          ordersLeft: packOrders.length - 1,
+        };
+      } else if (packId && !isFirstInPack && packShipCache[packId].remaining) {
+        const rem = packShipCache[packId].remaining;
+        if (rem.ordersLeft > 0) {
+          cadete = Math.round(rem.cadete / rem.ordersLeft);
+          envioML = Math.round(rem.envioML / rem.ordersLeft);
+          rem.cadete -= cadete;
+          rem.envioML -= envioML;
+          rem.ordersLeft--;
+        }
+      }
+
+      const venta = totalVenta;
+      const margenNeto = venta - costoConIva - comisionTotal + envioML - cadete;
+      const margenPct = venta > 0 ? Math.round(margenNeto / venta * 100) : 0;
+
+      results.push({
+        id: order.id,
+        packId: packId || null,
+        date: order.date_created,
+        status: order.status,
+        sku,
+        title,
+        thumbnail,
+        mlItemId,
+        qty,
+        venta,
+        costo: costoConIva,
+        odooId: odooIdBySku[sku] || null,
+        isKit,
+        comision: comisionTotal,
+        envioML,
+        cadete,
+        shipType,
+        clientePagaEnvio: envioML > 0 && (shipType === 'self_service' || shipType === 'default'),
+        margenProducto: venta - costoConIva,
+        margenNeto,
+        margenPct,
+      });
+    }
+
+    // Summary
+    const summary = {
+      total,
+      venta: results.reduce((s, r) => s + r.venta, 0),
+      costo: results.reduce((s, r) => s + r.costo, 0),
+      comision: results.reduce((s, r) => s + r.comision, 0),
+      envio: results.reduce((s, r) => s + (r.envioML - r.cadete), 0),
+      margen: results.reduce((s, r) => s + r.margenNeto, 0),
+    };
+    summary.margenPct = summary.venta > 0 ? Math.round(summary.margen / summary.venta * 100) : 0;
+
+    res.json({ orders: results, summary, paging: { total } });
+  } catch (e) {
+    console.error('[ordenes-rent] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── ML: sin descuento y ofertas ──────────────────────────────────
 
 // GET /api/ml/rentabilidad — simulación de rentabilidad por producto
@@ -5175,6 +5566,481 @@ app.get('/api/ml/rentabilidad', requireToken, async (req, res) => {
     .sort((a, b) => b.score - a.score);
 
   res.json({ items: ofertasItems, total: ofertasItems.length, lastUpdated: stockLastUpdate });
+});
+
+// GET /api/ml/calculadora — dado un item ML, calcula rentabilidad y precio sugerido
+app.get('/api/ml/calculadora', requireToken, async (req, res) => {
+  try {
+    let itemId = (req.query.item_id || '').replace('MLU-', 'MLU').trim();
+    if (!itemId) return res.status(400).json({ error: 'Falta item_id' });
+
+    // If not an MLU ID, search by SKU
+    let item;
+    if (/^MLU\d+$/i.test(itemId)) {
+      const itemRes = await axios.get(`${ML_API_URL}/items/${itemId}`, {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      item = itemRes.data;
+    } else {
+      // Search by SKU in seller's items
+      const searchRes = await axios.get(`${ML_API_URL}/users/${tokenData.user_id}/items/search`, {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+        params: { seller_sku: itemId, limit: 1 },
+      });
+      const ids = searchRes.data.results || [];
+      if (!ids.length) return res.status(404).json({ error: 'No se encontró publicación con SKU ' + itemId });
+      itemId = ids[0];
+      const itemRes = await axios.get(`${ML_API_URL}/items/${itemId}`, {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      item = itemRes.data;
+    }
+    const price = item.price;
+    const title = item.title;
+    const thumbnail = item.thumbnail;
+    let sku = item.seller_custom_field || '';
+    // If no SKU at item level, check variations
+    if (!sku && item.variations?.length) {
+      sku = item.variations[0].seller_custom_field || '';
+    }
+    // If still no SKU, try seller_sku from attributes
+    if (!sku) {
+      const skuAttr = item.attributes?.find(a => a.id === 'SELLER_SKU');
+      if (skuAttr) sku = skuAttr.value_name || '';
+    }
+    const categoryId = item.category_id;
+    const logisticType = item.shipping?.logistic_type || 'drop_off';
+
+    // 2. Get fee for this category
+    if (Object.keys(feesCache).length === 0) await refreshFees(false);
+    let feePct = feesCache[categoryId]?.fee_pct;
+    if (!feePct) {
+      const fee = await fetchCategoryFee(categoryId, price, { Authorization: `Bearer ${tokenData.access_token}` });
+      if (fee) { feePct = fee.fee_pct; feesCache[categoryId] = fee; }
+      else feePct = 13;
+    }
+
+    // 3. Get cost from Odoo cache
+    let costoSinIva = 0;
+    let odooId = null;
+    if (sku && fs.existsSync(ODOO_CACHE_FILE)) {
+      try {
+        const odooRaw = JSON.parse(fs.readFileSync(ODOO_CACHE_FILE, 'utf8'));
+        const allProds = Array.isArray(odooRaw) ? odooRaw : Object.values(odooRaw).flat();
+        const match = allProds.find(p => p.default_code === sku);
+        if (match) {
+          costoSinIva = match.standard_price || 0;
+          odooId = match.product_tmpl_id?.[0] || match.id;
+        }
+      } catch {}
+    }
+
+    const costoConIva = Math.round(costoSinIva * 1.22);
+    const comision = Math.round(price * feePct / 100);
+
+    // 4. Get worst-case shipping from order history
+    let envioME = 0;
+    let envioFlexBonif = 0;
+    try {
+      const histOrders = await axios.get(`${ML_API_URL}/orders/search`, {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+        params: { seller: tokenData.user_id, seller_sku: sku || '_none_', limit: 20, sort: 'date_desc' },
+      });
+      const orders = histOrders.data.results || [];
+      for (const o of orders.slice(0, 8)) {
+        const sid = o.shipping?.id;
+        if (!sid) continue;
+        try {
+          const [shipRes, costsRes] = await Promise.all([
+            axios.get(`${ML_API_URL}/shipments/${sid}`, { headers: { Authorization: `Bearer ${tokenData.access_token}` } }),
+            axios.get(`${ML_API_URL}/shipments/${sid}/costs`, { headers: { Authorization: `Bearer ${tokenData.access_token}` } }).catch(() => ({ data: {} })),
+          ]);
+          const senderCost = costsRes.data.senders?.[0]?.cost || 0;
+          const senderSave = costsRes.data.senders?.[0]?.save || 0;
+          if (shipRes.data.logistic_type === 'drop_off') {
+            envioME = Math.max(envioME, senderCost); // worst case = max cost
+          } else if (shipRes.data.logistic_type === 'self_service') {
+            // For Flex, worst case = lowest save (least ML gives back)
+            if (!envioFlexBonif || senderSave < envioFlexBonif) envioFlexBonif = senderSave;
+          }
+        } catch {}
+      }
+    } catch {}
+
+    // 5. Calculate prices for different margins
+    const IVA = 1.22;
+    function precioParaMargen(targetPct, envio) {
+      if (!costoConIva) return null;
+      const t = targetPct / 100;
+      // margen = (precio - costo - comision - envio - publi) / precio = t
+      // precio - precio*feePct/100 - precio*publiPct/100 - costo - envio = t * precio
+      // precio * (1 - feePct/100 - publiPct/100 - t) = costo + envio
+      // For simplicity, publi handled client-side
+      const divisor = 1 - feePct / 100 - t;
+      if (divisor <= 0) return null;
+      return Math.round((costoConIva + envio) / divisor);
+    }
+
+    res.json({
+      itemId: item.id,
+      title,
+      thumbnail,
+      sku,
+      price,
+      costoSinIva,
+      costoConIva,
+      odooId,
+      feePct,
+      comision,
+      logisticType,
+      categoryId,
+      envioME,
+      envioFlexBonif,
+      precios: {
+        m40: precioParaMargen(40, 0),
+        m30: precioParaMargen(30, 0),
+        m25: precioParaMargen(25, 0),
+        m20: precioParaMargen(20, 0),
+        m15: precioParaMargen(15, 0),
+        m10: precioParaMargen(10, 0),
+        m0: precioParaMargen(0, 0),
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/backfill/status — proxy to ml-atencion
+app.get('/api/backfill/status', async (req, res) => {
+  try {
+    const r = await axios.get('http://localhost:3001/api/backfill/status');
+    res.json(r.data);
+  } catch (e) {
+    res.json({ total: 0, filled: 0, remaining: 0, pct: 0, done: false, error: e.message });
+  }
+});
+
+// Proxy costos endpoints to ml-atencion
+app.get('/api/costos', async (req, res) => {
+  try { const r = await axios.get('http://localhost:3001/api/costos'); res.json(r.data); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/costos', express.json(), async (req, res) => {
+  try {
+    const r = await axios.post('http://localhost:3001/api/costos', req.body, { headers: { 'Content-Type': 'application/json' } });
+    res.json(r.data);
+  } catch (e) { res.status(500).json({ error: e.response?.data?.error || e.message }); }
+});
+// GET fallback for ngrok free (blocks POST from browser)
+app.get('/api/costos/guardar', async (req, res) => {
+  try {
+    const { sku, cost, dac_cost, valid_from, note } = req.query;
+    const r = await axios.post('http://localhost:3001/api/costos', { sku, cost: parseFloat(cost), dac_cost: dac_cost ? parseFloat(dac_cost) : null, valid_from: valid_from || null, note: note || null }, { headers: { 'Content-Type': 'application/json' } });
+    res.json(r.data);
+  } catch (e) { res.status(500).json({ error: e.response?.data?.error || e.message }); }
+});
+app.delete('/api/costos/:sku', async (req, res) => {
+  try { const r = await axios.delete('http://localhost:3001/api/costos/' + req.params.sku); res.json(r.data); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/costos/buscar/:sku', async (req, res) => {
+  try { const r = await axios.get('http://localhost:3001/api/costos/buscar/' + encodeURIComponent(req.params.sku)); res.json(r.data); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Proxy dashboard + gastos to ml-atencion
+app.get('/api/dashboard', async (req, res) => {
+  try { const r = await axios.get('http://localhost:3001/api/dashboard', { params: req.query }); res.json(r.data); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/gastos/guardar', async (req, res) => {
+  try { const r = await axios.get('http://localhost:3001/api/gastos/guardar', { params: req.query }); res.json(r.data); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/gastos/borrar', async (req, res) => {
+  try { const r = await axios.get('http://localhost:3001/api/gastos/borrar', { params: req.query }); res.json(r.data); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/gastos/:mes', async (req, res) => {
+  try { const r = await axios.get('http://localhost:3001/api/gastos/' + req.params.mes); res.json(r.data); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Proxy rentabilidad endpoints to ml-atencion
+app.get('/api/rentabilidad/verificar/:orderId', requireToken, async (req, res) => {
+  try {
+    const r = await axios.get(`http://localhost:3001/api/rentabilidad/verificar/${req.params.orderId}`, {
+      headers: { 'x-session-token': req.headers['x-session-token'] || '' },
+    });
+    res.json(r.data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/rentabilidad/verificar-dia', requireToken, async (req, res) => {
+  try {
+    const r = await axios.get('http://localhost:3001/api/rentabilidad/verificar-dia', {
+      params: req.query,
+      headers: { 'x-session-token': req.headers['x-session-token'] || '' },
+    });
+    res.json(r.data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/rentabilidad/ordenes', requireToken, async (req, res) => {
+  try {
+    const r = await axios.get('http://localhost:3001/api/rentabilidad/ordenes', {
+      params: req.query,
+      headers: { 'x-session-token': req.headers['x-session-token'] || '' },
+    });
+    res.json(r.data);
+  } catch (e) {
+    res.status(500).json({ error: 'ml-atencion: ' + e.message });
+  }
+});
+
+// GET /api/ml/resumen-datos — serve pre-processed rentabilidad data
+app.get('/api/ml/resumen-datos', requireToken, (req, res) => {
+  try {
+    const file = path.join(__dirname, 'data', 'rentabilidad_diaria.json');
+    if (!fs.existsSync(file)) return res.json({ orders: [] });
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    res.json({ orders: data });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/ml/sku-performance — análisis de rendimiento por SKU
+app.get('/api/ml/sku-performance', requireToken, async (req, res) => {
+  try {
+    const sku = (req.query.sku || '').trim();
+    if (!sku) return res.status(400).json({ error: 'Falta SKU' });
+
+    // 1. Get cost from Odoo cache
+    let costoSinIva = 0, odooId = null, productName = '';
+    if (fs.existsSync(ODOO_CACHE_FILE)) {
+      try {
+        const odooRaw = JSON.parse(fs.readFileSync(ODOO_CACHE_FILE, 'utf8'));
+        const allProds = Array.isArray(odooRaw) ? odooRaw : Object.values(odooRaw).flat();
+        const match = allProds.find(p => p.default_code === sku);
+        if (match) {
+          costoSinIva = match.standard_price || 0;
+          odooId = match.product_tmpl_id?.[0] || match.id;
+          productName = match.name || '';
+        }
+      } catch {}
+    }
+    const costoConIva = Math.round(costoSinIva * 1.22);
+
+    // 2. Find ML item IDs for this SKU
+    const days = parseInt(req.query.days) || 30;
+    const dateFrom = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
+
+    // Find all item IDs that have this SKU
+    let itemIds = [];
+    try {
+      const searchRes = await axios.get(`${ML_API_URL}/users/${tokenData.user_id}/items/search`, {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+        params: { seller_sku: sku, limit: 10 },
+      });
+      itemIds = searchRes.data.results || [];
+    } catch {}
+
+    // Get orders for each item ID
+    let mlOrders = [];
+    for (const mlItemId of itemIds) {
+      let offset = 0;
+      while (true) {
+        const r = await axios.get(`${ML_API_URL}/orders/search`, {
+          headers: { Authorization: `Bearer ${tokenData.access_token}` },
+          params: {
+            seller: tokenData.user_id, q: mlItemId, limit: 50, offset, sort: 'date_desc',
+            'order.date_created.from': dateFrom + 'T00:00:00.000-03:00',
+          },
+        });
+        const results = (r.data.results || []).filter(o => {
+          const it = o.order_items?.[0];
+          return it && it.item?.id === mlItemId;
+        });
+        mlOrders = mlOrders.concat(results);
+        if (mlOrders.length >= (r.data.paging?.total || 0) || !(r.data.results?.length)) break;
+        offset += 50;
+        if (offset >= 200) break;
+      }
+    }
+
+    // 3. Fetch shipping details in parallel batches
+    const orderResults = [];
+    for (let i = 0; i < mlOrders.length; i += 5) {
+      const batch = mlOrders.slice(i, i + 5);
+      await Promise.all(batch.map(async (order) => {
+        const item = order.order_items?.[0];
+        if (!item) return;
+        const qty = item.quantity || 1;
+        const venta = (item.unit_price || 0) * qty; // use item price, not order total
+
+        // Payment
+        let comision = 0;
+        try {
+          const od = await axios.get(`${ML_API_URL}/orders/${order.id}`, {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` },
+          });
+          comision = od.data.payments?.[0]?.marketplace_fee || 0;
+        } catch {}
+
+        // Shipping
+        let shipType = '', shipMode = '', envioML = 0, cadete = 0;
+        const sid = order.shipping?.id;
+        if (sid) {
+          try {
+            const [shipRes, costsRes] = await Promise.all([
+              axios.get(`${ML_API_URL}/shipments/${sid}`, { headers: { Authorization: `Bearer ${tokenData.access_token}` } }),
+              axios.get(`${ML_API_URL}/shipments/${sid}/costs`, { headers: { Authorization: `Bearer ${tokenData.access_token}` } }).catch(() => ({ data: {} })),
+            ]);
+            const ship = shipRes.data;
+            shipType = ship.logistic_type || '';
+            shipMode = ship.mode || '';
+            const costs = costsRes.data;
+            const senderCost = costs.senders?.[0]?.cost || 0;
+            const senderSave = costs.senders?.[0]?.save || 0;
+            const receiverCost = costs.receiver?.cost || 0;
+            const grossAmount = costs.gross_amount || 0;
+            const shipOptCost = ship.shipping_option?.cost || 0;
+
+            if (shipType === 'default') {
+              // ME1: large items, seller pays DAC ~$900 IVA inc
+              cadete = 900;
+              envioML = shipOptCost > 0 ? Math.round(receiverCost || shipOptCost) : Math.round(senderSave || grossAmount);
+            } else if (shipType === 'self_service') {
+              // Flex
+              cadete = 131;
+              envioML = shipOptCost > 0 ? Math.round(receiverCost || shipOptCost) : Math.round(senderSave || grossAmount);
+            } else {
+              // ME (drop_off): ML cobra sender_cost al vendedor
+              cadete = Math.round(senderCost);
+              envioML = 0;
+            }
+          } catch {}
+        }
+
+        const costoTotal = costoConIva * qty;
+        const envioNeto = envioML - cadete;
+        const margenNeto = venta - costoTotal - comision + envioNeto;
+        const margenPct = venta > 0 ? Math.round(margenNeto / venta * 100) : 0;
+
+        const tipo = shipType === 'self_service' ? 'Flex' :
+          shipType === 'default' ? 'ME1' :
+          shipType === 'drop_off' ? 'ME' : 'Otro';
+
+        orderResults.push({
+          id: order.id,
+          packId: order.pack_id,
+          date: order.date_created,
+          qty,
+          venta,
+          costo: costoTotal,
+          comision,
+          envioML,
+          cadete,
+          envioNeto,
+          margenNeto,
+          margenPct,
+          tipo,
+        });
+      }));
+    }
+
+    // 4. Summarize by shipping type
+    const byTipo = {};
+    for (const o of orderResults) {
+      if (!byTipo[o.tipo]) byTipo[o.tipo] = { count: 0, qty: 0, venta: 0, costo: 0, comision: 0, envioML: 0, cadete: 0, margen: 0 };
+      const t = byTipo[o.tipo];
+      t.count++;
+      t.qty += o.qty;
+      t.venta += o.venta;
+      t.costo += o.costo;
+      t.comision += o.comision;
+      t.envioML += o.envioML;
+      t.cadete += o.cadete;
+      t.margen += o.margenNeto;
+    }
+    for (const t of Object.values(byTipo)) {
+      t.margenPct = t.venta > 0 ? Math.round(t.margen / t.venta * 100) : 0;
+      t.envioPromedio = t.count > 0 ? Math.round((t.cadete - t.envioML) / t.count) : 0;
+    }
+
+    // 5. Odoo sales by channel
+    let canales = { ml: { qty: 0, total: 0 }, mayorista: { qty: 0, total: 0 }, local: { qty: 0, total: 0 } };
+    try {
+      const uid = await new Promise((resolve, reject) => {
+        const c = xmlrpc.createSecureClient({ host: ODOO_HOST, path: '/xmlrpc/2/common' });
+        c.methodCall('authenticate', [ODOO_DB, ODOO_USER, ODOO_API_KEY, {}], (e, v) => e ? reject(e) : resolve(v));
+      });
+
+      // Find product_id for this SKU
+      const m = xmlrpc.createSecureClient({ host: ODOO_HOST, path: '/xmlrpc/2/object' });
+      const odooRG = (model, domain, fields, groupby) => new Promise((res, rej) => {
+        m.methodCall('execute_kw', [ODOO_DB, uid, ODOO_API_KEY, model, 'read_group',
+          [domain], { fields, groupby }
+        ], (e, v) => e ? rej(e) : res(v));
+      });
+
+      const prods = await new Promise((res, rej) => {
+        m.methodCall('execute_kw', [ODOO_DB, uid, ODOO_API_KEY, 'product.product', 'search_read',
+          [[['default_code', '=', sku]]], { fields: ['id'], limit: 1 }
+        ], (e, v) => e ? rej(e) : res(v));
+      });
+
+      if (prods.length) {
+        const prodId = prods[0].id;
+        const dateFrom = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+
+        // ML sales (salesman_id = 2)
+        try {
+          const r = await odooRG('sale.order.line',
+            [['create_date', '>=', dateFrom], ['state', 'in', ['sale', 'done']], ['salesman_id', '=', 2], ['product_id', '=', prodId]],
+            ['product_uom_qty', 'price_subtotal'], []);
+          if (r.length && r[0].__count > 0) { canales.ml.qty = r[0].product_uom_qty || 0; canales.ml.total = Math.round(r[0].price_subtotal || 0); }
+        } catch {}
+
+        // Mayorista (salesman_id in [17, 18])
+        try {
+          const r = await odooRG('sale.order.line',
+            [['create_date', '>=', dateFrom], ['state', 'in', ['sale', 'done']], ['salesman_id', 'in', [17, 18]], ['product_id', '=', prodId]],
+            ['product_uom_qty', 'price_subtotal'], []);
+          if (r.length && r[0].__count > 0) { canales.mayorista.qty = r[0].product_uom_qty || 0; canales.mayorista.total = Math.round(r[0].price_subtotal || 0); }
+        } catch {}
+
+        // POS (local)
+        try {
+          const r = await odooRG('pos.order.line',
+            [['create_date', '>=', dateFrom], ['product_id', '=', prodId]],
+            ['qty', 'price_subtotal_incl'], []);
+          if (r.length && r[0].__count > 0) { canales.local.qty = Math.round(r[0].qty || 0); canales.local.total = Math.round(r[0].price_subtotal_incl || 0); }
+        } catch {}
+      }
+    } catch (e) { console.error('[sku-perf] odoo error:', e.message); }
+
+    const totalML = orderResults.reduce((s, o) => s + o.qty, 0);
+    const totalVentaML = orderResults.reduce((s, o) => s + o.venta, 0);
+    const totalMargenML = orderResults.reduce((s, o) => s + o.margenNeto, 0);
+
+    res.json({
+      sku,
+      productName,
+      costoSinIva,
+      costoConIva,
+      odooId,
+      ml: {
+        totalOrders: orderResults.length,
+        totalQty: totalML,
+        totalVenta: totalVentaML,
+        totalMargen: totalMargenML,
+        margenPct: totalVentaML > 0 ? Math.round(totalMargenML / totalVentaML * 100) : 0,
+        byTipo,
+        orders: orderResults,
+      },
+      canales,
+    });
+  } catch (e) {
+    console.error('[sku-perf] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // GET /api/ml/sin-descuento — productos con stock y sin descuento en ML
@@ -7996,6 +8862,75 @@ function getProductosPedidos() {
   }
   return { pedidos, pedidoInfo };
 }
+
+// ── Mayorista sin stock ──
+app.get('/api/mayorista-sin-stock', requireToken, async (req, res) => {
+  try {
+    // Usar catálogo cache si existe, sino construirlo
+    let data = _catalogoCache;
+    if (!data) {
+      if (fs.existsSync(CATALOGO_CACHE_FILE)) {
+        try { data = JSON.parse(fs.readFileSync(CATALOGO_CACHE_FILE, 'utf8')); } catch(e) {}
+      }
+    }
+    if (!data) return res.status(503).json({ error: 'Catálogo cargando, intentá en unos minutos...' });
+
+    const { pedidos: pedidosBySku } = getProductosPedidos();
+    const salesMonths = data.salesMonths || [];
+
+    // Flatten products
+    const allProducts = (data.categories || []).flatMap(c => c.items);
+
+    // Separar productos mayoristas activos: con stock vs sin stock
+    const results = [];
+    let totalActivos = 0, conStock = 0, sinStock = 0;
+    let revConStock = 0, revSinStock = 0;
+    let udsSinStock = 0;
+    for (const p of allProducts) {
+      const ch = p.sales_by_channel || {};
+      const mayMonths = ch.mayorista || {};
+      const totalMay = Object.values(mayMonths).reduce((s, v) => s + v, 0);
+      if (totalMay <= 0) continue;
+
+      totalActivos++;
+      const stock = p.stock || 0;
+      const incoming = p.incoming || 0;
+      const pedido = pedidosBySku[p.sku?.trim()] || 0;
+      const revenue = Math.round(totalMay * (p.price || 0));
+
+      if (stock > 0 || incoming > 0 || pedido > 0) {
+        conStock++;
+        revConStock += revenue;
+        continue;
+      }
+
+      sinStock++;
+      revSinStock += revenue;
+      udsSinStock += totalMay;
+
+      const sortedKeys = Object.keys(mayMonths).filter(k => mayMonths[k] > 0).sort();
+      const lastSaleMonth = sortedKeys.length > 0 ? sortedKeys[sortedKeys.length - 1] : null;
+
+      results.push({
+        id: p.id, name: p.name, sku: p.sku, categ: p.categ,
+        cost: p.cost, price: p.price, stock, incoming, pedido,
+        total_mayorista: totalMay, mayorista_by_month: mayMonths,
+        last_sale_month: lastSaleMonth, revenue,
+        ml_thumbnail: p.ml_thumbnail, odoo_image: p.odoo_image, ml_status: p.ml_status,
+      });
+    }
+
+    results.sort((a, b) => b.revenue - a.revenue);
+    const disponibilidad = totalActivos > 0 ? Math.round(conStock / totalActivos * 100) : 0;
+    res.json({
+      items: results, salesMonths, total: results.length,
+      summary: { totalActivos, conStock, sinStock, disponibilidad, revConStock, revSinStock, udsSinStock },
+    });
+  } catch(e) {
+    console.error('[mayorista-sin-stock] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // ── Objetivos mensuales ──
 
